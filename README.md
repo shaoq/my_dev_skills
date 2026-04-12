@@ -47,15 +47,6 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
 | **merge-worktree-return** | `/merge-worktree-return` | worktree 合并回主干 | `[proposal-name]` |
 | **check-changes-completed** | `/check-changes-completed` | 四维完成度检查 | 无 |
 
-### 基础命令（`.claude/commands/opsx/`）
-
-| 命令 | 调用方式 | 用途 | 参数 |
-|------|---------|------|------|
-| **opsx:explore** | `/opsx:explore` | 思考/探索模式 | 可选话题 |
-| **opsx:propose** | `/opsx:propose` | 创建单个 change 及其 artifacts | `<name>` 或描述 |
-| **opsx:apply** | `/opsx:apply` | 实施 change 的任务 | `[change-name]` |
-| **opsx:archive** | `/opsx:archive` | 归档已完成的 change | `[change-name]` |
-
 ---
 
 ## 使用顺序与流程
@@ -67,59 +58,42 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
    │
    ▼
 ┌─────────────────────────────┐
-│  /opsx:explore <topic>      │  ← 可选：先探索思考
-│  理解问题、分析方案          │
+│  /parall-new-proposal       │  ← 拆解为多个带依赖的提案
+│  (≥3 个子方案时使用)        │
 └──────────────┬──────────────┘
                │
                ▼
-        ┌──────┴──────┐
-        │  需求规模?   │
-        └──────┬──────┘
-        ≤2 个子方案  │  ≥3 个子方案
-               │      │
-               ▼      ▼
-     /opsx:propose   /parall-new-proposal
-     (逐个创建)      (批量拆分+依赖图)
-               │      │
-               ▼      ▼
-     ┌─────────┴──────┴─────────┐
-     │    proposals 已创建       │
-     │    dependencies.yaml 已注入│
-     └───────────┬──────────────┘
-                 │
-           ┌─────┴─────┐
-           │ changes 数量│
-           └─────┬─────┘
-           =1    │    ≥2
-           │     │     │
-           ▼     │     ▼
-  /new-worktree-apply│  /parall-new-worktree-apply
-  (单个 worktree 实施)│  (并行 worktree 实施)
-           │     │     │
-           ▼     │     ▼
-  /merge-worktree-return│  自动合并回主干
-           │     │     │
-           ▼     ▼     ▼
-     /check-changes-completed
-     (四维完成度检查+自动补标记)
-                 │
-                 ▼
-           /opsx:archive
-           (逐个归档)
+     ┌─────────┴──────────┐
+     │  proposals 已创建    │
+     │  dependencies.yaml  │
+     └──────────┬─────────┘
+                │
+          ┌─────┴─────┐
+          │ changes 数量│
+          └─────┬─────┘
+          =1    │    ≥2
+          │     │     │
+          ▼     │     ▼
+ /new-worktree-apply│  /parall-new-worktree-apply
+ (单个 worktree 实施)│  (并行 worktree 实施)
+          │     │     │
+          ▼     │     ▼
+ /merge-worktree-return│  自动合并回主干
+          │     │     │
+          ▼     ▼     ▼
+    /check-changes-completed
+    (四维完成度检查+自动补标记)
 ```
 
 ### 何时用哪个 Skill
 
 | 场景 | 推荐 Skill |
 |------|-----------|
-| 还不清楚要做什么，想先探讨 | `/opsx:explore` |
-| 明确的小需求（1-2 个子功能） | `/opsx:propose` → `/new-worktree-apply` |
 | 综合性大需求（3+ 子功能） | `/parall-new-proposal` → `/parall-new-worktree-apply` |
 | 已有 proposal 需单个实施 | `/new-worktree-apply <name>` |
 | 已有多个 proposal 需并行实施 | `/parall-new-worktree-apply` |
 | worktree 实施完毕要合并 | `/merge-worktree-return [name]` |
 | 想看所有 change 的完成状态 | `/check-changes-completed` |
-| 确认完成后归档 | `/opsx:archive <name>` |
 
 ---
 
@@ -139,14 +113,13 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
 - 超过 8 个时会警告粒度可能过细
 - 循环依赖会直接报错，需调整拆分方案
 - **必须用户确认**后才会创建提案
-- 内部循环调用 `/opsx:propose` 创建 artifacts
 
 ### 2. parall-new-worktree-apply
 
 **做什么**: 自动发现所有待执行 changes，按依赖图分 Wave 并行实施。
 
 **核心机制**:
-- 自动扫描 `openspec/changes/` 下有未完成 `[ ]` 任务的 change
+- 自动发现有未完成 `[ ]` 任务的 change
 - 解析 `dependencies.yaml` 构建依赖图
 - 同一 Wave 内的 changes 通过 Agent 在隔离 worktree 中并行 spawn
 - 串行合并回主干（按字母序）
@@ -168,13 +141,12 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
 **核心机制**:
 - 验证 proposal artifacts 完整性
 - 通过 `EnterWorktree` 工具创建隔离分支
-- 调用 `/opsx:apply` 实施任务
+- 实施任务
 - Post-apply 自动补标记（四规则检测）+ 强制提交 `tasks.md`
 
 **注意事项**:
 - 分支名必须符合 worktree 命名规则（kebab-case，max 64 chars）
 - 若分支已存在则报错停止，**不覆盖**
-- `openspec/` 在 `.gitignore` 中，`tasks.md` 需 `git add -f` 强制添加
 - HEAD 会与主分支对比，不一致时自动 merge
 
 ### 4. merge-worktree-return
@@ -222,28 +194,13 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
 
 ```
 my_dev_skills/
-├── .claude/
-│   ├── commands/opsx/          # 基础命令（explore, propose, apply, archive）
-│   ├── skills/                  # 符号链接指向根目录各 skill
-│   ├── settings.local.json      # 权限白名单（自动生成）
-│   └── worktrees/               # git worktree 临时目录
-├── openspec/
-│   └── changes/                 # 所有 change proposals
-│       ├── <change-name>/       # 活跃的 change
-│       │   ├── proposal.md
-│       │   ├── design.md
-│       │   ├── tasks.md
-│       │   ├── specs/
-│       │   └── dependencies.yaml  #（有依赖时）
-│       └── archive/             # 已归档的 changes
 ├── parall-new-proposal/SKILL.md
 ├── parall-new-worktree-apply/SKILL.md
 ├── new-worktree-apply/SKILL.md
 ├── merge-worktree-return/SKILL.md
 ├── check-changes-completed/SKILL.md
 ├── setup-skills-env.py          # 环境配置脚本
-├── setup-iterm2-claude-notify.py # iTerm2 通知配置
-└── .gitignore                   # 忽略 .claude/ 和 openspec/
+└── setup-iterm2-claude-notify.py # iTerm2 通知配置
 ```
 
 ## 权限模型
@@ -257,12 +214,3 @@ my_dev_skills/
 - `mcp__web-reader__webReader` — Web 读取
 
 > 注意：`git push`, `git checkout`, `git rebase` 等虽有权限白名单，但各 Skill guardrails 明确禁止使用 --force 标志。
-
-## .gitignore 说明
-
-```
-.claude/
-openspec/
-```
-
-这意味着 `openspec/` 下的 `tasks.md` 等文件不会被常规 `git add -A` 追踪。各 skill 通过 `git add -f openspec/changes/<name>/tasks.md` 强制添加关键文件。
