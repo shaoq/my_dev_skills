@@ -2,7 +2,18 @@
 
 基于 OpenSpec 工作流的 Claude Code Skills 集合，提供从需求分析到并行实施、归档的完整开发流水线。
 
-## 依赖项
+## 安装
+
+```bash
+# 1. 克隆仓库
+git clone git@github.com:shaoq/my_dev_skills.git
+cd my_dev_skills
+
+# 2. 运行环境配置脚本（生成权限白名单 + 安装 skill 符号链接）
+python3 setup-skills-env.py
+```
+
+### 依赖项
 
 | 依赖 | 说明 | 检查方式 |
 |------|------|---------|
@@ -12,18 +23,6 @@
 | **Python 3.6+** | 仅 `setup-skills-env.py` 需要 | `python3 --version` |
 | **iTerm2** (可选) | `setup-iterm2-claude-notify.py` 需要 | macOS only |
 
-## 环境初始化
-
-```bash
-# 首次使用，运行配置脚本：
-python3 setup-skills-env.py
-```
-
-该脚本自动完成：
-1. 扫描根目录 `*/SKILL.md`，在 `.claude/skills/` 创建符号链接
-2. 生成 `.claude/settings.local.json`（权限白名单）
-3. 交叉校验 SKILL.md 的 `allowed-tools` 与标准权限列表一致性
-
 ### iTerm2 通知（可选）
 
 ```bash
@@ -32,6 +31,62 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
 ```
 
 > 运行前请关闭 iTerm2，或运行后重启使其生效。
+
+---
+
+## 快速开始
+
+### 场景 A：综合需求（拆分 → 并行实施）
+
+适用于：一个大需求需要拆成多个子功能并行开发。
+
+```
+Step 1: 拆分需求为多个提案
+─────────────────────────────
+  /parall-new-proposal "给项目添加完整的认证系统"
+
+  → 自动拆解为多个子方案，展示依赖图和 Wave 分组
+  → 确认后批量创建 proposals + 注入 dependencies.yaml
+
+Step 2: 并行实施所有提案
+─────────────────────────────
+  /parall-new-worktree-apply
+
+  → 自动发现所有待执行的 changes
+  → 按 Wave 并行 spawn Agent，在隔离 worktree 中实施
+  → 完成后自动 rebase + merge 回主干
+
+Step 3: 检查完成度
+─────────────────────────────
+  /check-changes-completed
+
+  → 四维检查（任务 / artifacts / 代码落地 / 依赖）
+  → 自动补标记已交付但未勾选的任务
+  → 输出"可归档"和"未完成"清单
+```
+
+### 场景 B：单个 Change（手动控制）
+
+适用于：已有明确的小任务，需要隔离 worktree 实施。
+
+```
+Step 1: 在 worktree 中实施
+─────────────────────────────
+  /new-worktree-apply add-user-auth
+
+  → 创建以 proposal 名命名的隔离分支
+  → 验证 artifacts 完整性 → 执行实施 → 自动补标记 → 提交
+
+Step 2: 合并回主干
+─────────────────────────────
+  /merge-worktree-return add-user-auth
+
+  → rebase 到最新主干 → 合并 → 退出并清理 worktree
+
+Step 3: 检查 + 归档
+─────────────────────────────
+  /check-changes-completed
+```
 
 ---
 
@@ -49,9 +104,7 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
 
 ---
 
-## 使用顺序与流程
-
-### 典型流程：从需求到归档
+## 使用流程图（参考）
 
 ```
 需求描述
@@ -84,16 +137,6 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
     /check-changes-completed
     (四维完成度检查+自动补标记)
 ```
-
-### 何时用哪个 Skill
-
-| 场景 | 推荐 Skill |
-|------|-----------|
-| 综合性大需求（3+ 子功能） | `/parall-new-proposal` → `/parall-new-worktree-apply` |
-| 已有 proposal 需单个实施 | `/new-worktree-apply <name>` |
-| 已有多个 proposal 需并行实施 | `/parall-new-worktree-apply` |
-| worktree 实施完毕要合并 | `/merge-worktree-return [name]` |
-| 想看所有 change 的完成状态 | `/check-changes-completed` |
 
 ---
 
