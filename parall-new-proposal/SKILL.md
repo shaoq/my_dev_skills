@@ -2,6 +2,7 @@
 name: parall-new-proposal
 description: 并行提案拆分 skill。根据用户综合需求描述，按功能切片维度拆解为多个带依赖声明的 OpenSpec 提案，通过三问判定控制颗粒度，复用 /opsx:propose 创建 artifacts，后注入 ## Dependencies 段，使得后续 /parall-new-worktree-apply 可最大化并行执行。
 argument-hint: "<需求描述> (如: 给项目添加完整的认证系统)"
+disable-model-invocation: true
 ---
 
 并行提案拆分 — 将综合需求拆解为多个带依赖声明的 OpenSpec 提案。
@@ -236,30 +237,28 @@ Wave 1 (并行: 2)        Wave 2 (依赖 Wave 1)
 
 ## Step 6: 依赖注入
 
-### 6.1 后注入 Dependencies 段
+### 6.1 写入 dependencies.yaml
 
 对每个成功创建的子方案：
 1. 检查该子方案是否有依赖（来自 Step 3 的依赖图）
-2. 若有依赖：使用 **Read** 工具读取 `openspec/changes/<name>/proposal.md`
-3. 使用 **Edit** 工具在文件末尾追加：
+2. 若有依赖：使用 **Write** 工具创建 `openspec/changes/<name>/dependencies.yaml`：
 
-```markdown
-## Dependencies
-
-- <dep-name-1>
-- <dep-name-2>
+```yaml
+dependencies:
+  - <dep-name-1>
+  - <dep-name-2>
 ```
 
 ### 6.2 格式规范
 
-注入格式严格遵循 `parall-new-worktree-apply` Step 2.1 的解析规则：
-- 标题行: `## Dependencies`（两个 `#`，后跟空格和 "Dependencies"）
-- 列表项: `- <change-name>`（短横线 + 空格 + kebab-case 名称，每项一行）
-- 段落位置: 文件末尾
+格式严格遵循 `parall-new-worktree-apply` Step 2.1 的解析规则：
+- 键名: `dependencies:`（无引号）
+- 列表项: 缩进 2 空格后 `- <change-name>`（kebab-case 名称，每项一行）
+- 文件位置: `openspec/changes/<name>/dependencies.yaml`
 
 ### 6.3 无依赖跳过
 
-若子方案无任何依赖（Wave 1 的成员），不修改其 `proposal.md`，跳过注入步骤。
+若子方案无任何依赖（Wave 1 的成员），不创建 `dependencies.yaml`，跳过此步骤。
 
 ---
 
@@ -309,7 +308,7 @@ Wave 1 (并行: 2)        Wave 2 (依赖 Wave 1)
 ### 建议
 - 对失败的提案，可手动运行 `/opsx:propose <name>` 重试
 - 成功创建的提案可先通过 `/parall-new-worktree-apply` 执行
-- 失败提案创建成功后，检查其 proposal.md 中的 ## Dependencies 段是否正确
+- 失败提案创建成功后，检查其 `dependencies.yaml` 文件是否正确
 ```
 
 ---
@@ -320,7 +319,7 @@ Wave 1 (并行: 2)        Wave 2 (依赖 Wave 1)
 - 不修改 `/opsx:propose` skill 本身
 - 拆解方案必须经用户确认后才创建提案
 - 三问判定是硬约束：未通过的候选必须合并，不可保留为独立提案
-- Dependencies 段格式必须与 `parall-new-worktree-apply` Step 2.1 解析规则兼容
+- `dependencies.yaml` 格式必须与 `parall-new-worktree-apply` Step 2.1 解析规则兼容
 - 需求 ≤ 2 个子方案时提示用户考虑直接使用 `/opsx:propose`
 - 超过 8 个子方案时标注警告
 - 失败的子方案不阻塞其他子方案的创建

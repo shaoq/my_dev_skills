@@ -3,7 +3,7 @@ name: merge-worktree-return
 description: Commit worktree changes, rebase onto main, merge back to main branch, and exit the worktree. Use when finishing implementation in a worktree. Optional proposal name argument verifies OpenSpec completion. Requires git.
 argument-hint: [proposal-name]
 disable-model-invocation: true
-allowed-tools: Bash(git *) Bash(openspec *) Read Write Edit Glob Grep Skill AskUserQuestion
+allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(awk *) Bash(sed *) Bash(cat *) Bash(head *) Bash(test *) Read Write Edit Glob Grep Skill AskUserQuestion
 ---
 
 Commit worktree changes, merge back to main branch, and exit the worktree safely.
@@ -183,6 +183,8 @@ Commit worktree changes, merge back to main branch, and exit the worktree safely
 **Current branch:** <MAIN_BRANCH>
 
 All worktree changes have been successfully merged to <MAIN_BRANCH>.
+
+下一步: 运行 `/check-changes-completed` 检查整体完成度，或 `/opsx:archive <proposal-name>` 归档此 change。
 ```
 
 **Error Output Format**

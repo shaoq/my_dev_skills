@@ -3,7 +3,7 @@ name: new-worktree-apply
 description: Create a git worktree branch for an OpenSpec proposal and apply it. Use when starting implementation of an OpenSpec change in an isolated worktree. Requires git and openspec CLI.
 argument-hint: <proposal-name> [--branch <main-branch>]
 disable-model-invocation: true
-allowed-tools: Bash(git *) Bash(openspec *) Read Write Edit Glob Grep Skill AskUserQuestion
+allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(test *) Bash(head *) Bash(sed *) Read Write Edit Glob Grep Skill AskUserQuestion
 ---
 
 Create a git worktree for an OpenSpec proposal and start applying it.

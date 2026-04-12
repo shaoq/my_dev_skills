@@ -2,6 +2,7 @@
 name: parall-new-worktree-apply
 description: 并行执行多个待实施的 OpenSpec changes。自动发现 pending changes，解析依赖图，无依赖的并行在隔离 worktree 中实施，有依赖的按序执行，完成后串行合并回主干并验证。
 argument-hint: "[可选: 无参数则自动发现所有待执行 changes]"
+disable-model-invocation: true
 ---
 
 并行执行多个待实施的 OpenSpec changes。
@@ -121,14 +122,18 @@ ls openspec/changes/<name>/specs/*.md 2>/dev/null
 
 ### 2.1 解析依赖声明
 
-对每个待执行 change，读取其 `proposal.md`，解析 `## Dependencies` 段：
+对每个待执行 change，检查是否存在 `dependencies.yaml` 文件：
+
+```bash
+test -f openspec/changes/<name>/dependencies.yaml
+```
 
 ```
 解析规则:
-1. 找到 "## Dependencies" 标题行
-2. 读取后续的 "- <change-name>" 无序列表项（到下一个 ## 标题为止）
+1. 若 dependencies.yaml 不存在 → 无依赖
+2. 若存在 → 读取文件，解析 YAML 的 dependencies 列表
 3. 每项的 change-name 为依赖名称
-4. 无此段或段内容为空 → 无依赖
+4. dependencies 为空列表 → 无依赖
 ```
 
 ### 2.2 校验依赖引用
@@ -142,7 +147,7 @@ ls openspec/changes/<dep-name>/ 2>/dev/null
 ```
 错误: 依赖引用无效
   Change "<change-name>" 声明依赖 "<dep-name>"，但该 change 不存在。
-  请检查 proposal.md 中的 ## Dependencies 段。
+  请检查 dependencies.yaml 文件。
 ```
 
 ### 2.3 循环依赖检测
@@ -162,7 +167,7 @@ ls openspec/changes/<dep-name>/ 2>/dev/null
 ```
 错误: 检测到循环依赖
   涉及的 changes: <cycle 中所有 change 名称>
-  请修改 proposal.md 中的 ## Dependencies 段消除循环。
+  请修改 dependencies.yaml 消除循环。
 ```
 
 ### 2.4 拓扑排序生成 Wave 列表
@@ -241,20 +246,29 @@ Wave 2 (依赖 Wave 1: <dep-list>)
   1. 调用 Skill 工具执行 opsx:apply，参数为 "<change-name>"
      这会自动读取 proposal、specs、design、tasks 并逐个实施任务
 
-  2. Post-apply 后处理（委托 new-worktree-apply skill）:
-     opsx:apply 完成后，使用 Read 工具读取项目根目录下的 `new-worktree-apply/SKILL.md` 文件，
-     然后按照其中的以下步骤执行后处理（注意：此处引用的是步骤编号和功能描述，若编号有变则以功能描述为准）：
+  2. Post-apply 后处理:
+     opsx:apply 完成后，执行以下后处理步骤:
 
-     - 步骤 7（Pre-apply OpenSpec artifact validation）: Artifact 校验
-       → 验证 openspec status 和关键文件存在性
-     - 步骤 8（Execute OpenSpec apply）: 跳过此步骤（已在步骤 1 执行）
-     - 步骤 9（Post-apply task verification and backfill）: Task Backfill
-       → 读取 tasks.md，收集 "- [ ]" 项，解析文件路径，检查存在性，自动标记 "- [x]"
-     - 步骤 10（Force-add tasks.md and commit）: Force-add + Commit
-       → git add -A && git add -f tasks.md，统计完成度并 commit
+     Step A — Task Backfill:
+       a. 读取 openspec/changes/<change-name>/tasks.md，收集所有 "- [ ]" 行
+       b. 对每行按四规则检测:
+          Rule 1: 反引号路径 → 提取 task 描述中 `path` 的文件路径，test -f <path>
+          Rule 2: 目录创建模式 → 匹配 "创建 `xxx/` 目录"，test -d <dir>
+          Rule 3: Frontmatter 模式 → 匹配 "编写 frontmatter"，test -f <path> && head -1 <path> | grep -q '^---'
+          Rule 4: 实现关键词 → 匹配 "实现 xxx"，grep -rl <keyword> --include="*.md" . 2>/dev/null | head -3
+       c. 检测通过的自动改为 "- [x]"
+       d. 输出补标记报告
 
-     若 `new-worktree-apply/SKILL.md` 文件不存在，报错:
-     "new-worktree-apply/SKILL.md 未找到，无法执行后处理" 并在返回结果中标注失败原因。
+     Step B — Force-add + Commit:
+       git add -A
+       git add -f openspec/changes/<change-name>/tasks.md
+       统计 DONE/TOTAL:
+         DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<change-name>/tasks.md)
+         TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<change-name>/tasks.md)
+       若有变更:
+         若 DONE == TOTAL: git commit -m "feat: implement <change-name> (DONE/TOTAL tasks)"
+         若 DONE < TOTAL: git commit -m "feat: implement <change-name> (DONE/TOTAL tasks, partial)"
+       若无变更: 跳过 commit
 
   3. 若 apply 过程中遇到问题:
      - 仍然执行步骤 2 的后处理（补标记 + 提交）
@@ -439,6 +453,11 @@ Wave 2:
 
 全部 Changes 已成功实施并验证! ✓
 （或: <fail_count> 个 Changes 存在问题，请查看上方详情。）
+
+### 下一步
+
+> 全部成功: 运行 `/check-changes-completed` 验证完整性，然后逐个 `/opsx:archive <name>` 归档。
+> 部分失败: 对失败的 change 运行 `/new-worktree-apply <name>` 单独重试，成功后 `/merge-worktree-return <name>` 合并。
 ```
 
 ### 7.3 失败项详情

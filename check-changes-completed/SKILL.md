@@ -3,7 +3,7 @@ name: check-changes-completed
 description: Scan all active OpenSpec changes, run a four-dimensional completion check (tasks, artifacts, code delivery, dependencies), auto-backfill task markers when code is delivered but tasks are unmarked, and output a summary report. Diagnostic + backfill tool — use opsx:archive to act on results. No arguments needed.
 argument-hint: (no arguments)
 disable-model-invocation: true
-allowed-tools: Bash(openspec *) Bash(git *) Bash(ls *) Bash(test *) Bash(cat *) Bash(grep *) Bash(find *) Bash(wc *) Bash(sed *) Bash(mv *) Read Glob Grep Edit AskUserQuestion
+allowed-tools: Bash(openspec *) Bash(git *) Bash(ls *) Bash(test *) Bash(cat *) Bash(grep *) Bash(find *) Bash(wc *) Bash(sed *) Bash(mv *) Bash(head *) Read Glob Grep Edit AskUserQuestion
 ---
 
 Check all active OpenSpec changes for completion using a four-dimensional model, auto-backfill task markers when contradictions are detected, then output a diagnostic report.
@@ -108,13 +108,14 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 
    ### Dimension 4 — Dependency Integrity
 
-   Read `openspec/changes/<name>/proposal.md`. Extract the `## Dependencies` section.
+   Check if `openspec/changes/<name>/dependencies.yaml` exists:
 
    ```bash
-   sed -n '/^## Dependencies/,/^## /p' openspec/changes/<name>/proposal.md | grep -v '^##' | grep -oE '\b[a-z][a-z0-9-]*\b'
+   test -f openspec/changes/<name>/dependencies.yaml && echo "EXISTS" || echo "MISSING"
    ```
 
-   - If no `## Dependencies` section or section is empty → D4 = `✓ (无依赖)`
+   - If file does not exist → D4 = `✓ (无依赖)`
+   - If exists, read the file and parse the YAML `dependencies` list. If the list is empty → D4 = `✓ (无依赖)`
    - Otherwise, for each dependency name:
      1. Verify the dependency change exists in `openspec/changes/` or `openspec/changes/archive/`
      2. If not found → mark as `无效引用: <dep-name>`
@@ -266,7 +267,13 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 7. **Archive hint**
 
    If there are archivable changes, output:
-   > "Archivable changes: `<name-1>`, `<name-2>`. Use `/opsx:archive <name>` to archive."
+   > "可归档: <name-1>, <name-2>
+   >   → 运行 `/opsx:archive <name>` 逐个归档"
+
+   If there are non-archivable changes, additionally output:
+   > "未完成: <name-3>
+   >   → 运行 `/opsx:apply <name>` 补实施
+   >   → 或 `/new-worktree-apply <name>` 在 worktree 中实施"
 
    If no archivable changes:
    > "No archivable changes found. See blocking reasons above."
