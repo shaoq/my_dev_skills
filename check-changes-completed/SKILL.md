@@ -1,12 +1,12 @@
 ---
 name: check-changes-completed
-description: Scan all active OpenSpec changes, run a four-dimensional completion check (tasks, artifacts, code delivery, dependencies), output a summary table, and optionally guide archival. No arguments needed.
+description: Scan all active OpenSpec changes, run a four-dimensional completion check (tasks, artifacts, code delivery, dependencies), and output a summary report. Pure diagnostic tool — use opsx:archive to act on results. No arguments needed.
 argument-hint: (no arguments)
 disable-model-invocation: true
-allowed-tools: Bash(openspec *) Bash(git *) Bash(ls *) Bash(test *) Bash(cat *) Bash(grep *) Bash(find *) Bash(wc *) Read Glob Grep Skill AskUserQuestion
+allowed-tools: Bash(openspec *) Bash(git *) Bash(ls *) Bash(test *) Bash(cat *) Bash(grep *) Bash(find *) Bash(wc *) Read Glob Grep
 ---
 
-Check all active OpenSpec changes for completion using a four-dimensional model, then guide archival.
+Check all active OpenSpec changes for completion using a four-dimensional model, then output a diagnostic report.
 
 **Input**: No arguments required. Example: `/check-changes-completed`.
 
@@ -153,26 +153,13 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
    - Dependencies: 阻塞 by name-1 (tasks incomplete)
    ```
 
-6. **Archive guidance**
+6. **Archive hint**
 
-   If there are archivable changes, use **AskUserQuestion tool** to ask:
-
-   > "以下 changes 已通过全部检查，可以存档：<list>
-   > 请选择存档策略："
-
-   Options:
-   - **全部存档**: 依次对每个可存档 change 调用:
-     ```
-     Skill("opsx:archive", args="<name>")
-     ```
-     After each archive, report result. If one fails, show error and continue to next.
-   - **逐个确认**: For each archivable change, use AskUserQuestion to confirm:
-     > "是否存档 `<name>`？"
-     If confirmed, call `Skill("opsx:archive", args="<name>")`. If declined, skip.
-   - **仅查看，不存档**: End the flow without any archive operations.
+   If there are archivable changes, output:
+   > "Archivable changes: `<name-1>`, `<name-2>`. Use `/opsx:archive <name>` to archive."
 
    If no archivable changes:
-   > "当前无可存档的 changes。请查看上方阻塞原因。"
+   > "No archivable changes found. See blocking reasons above."
 
 **Output On Success**
 
@@ -186,8 +173,7 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 ### Blocking Reasons
 (detailed list if any)
 
-### Archivable Changes
-(list + archive guidance if any)
+Archivable changes: <list>. Use `/opsx:archive <name>` to archive.
 ```
 
 **Error Output Format**
@@ -204,7 +190,6 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 
 **Guardrails**
 - Never modify any change files — this is a read-only check
-- Never archive without explicit user confirmation
 - Stop on git or openspec CLI failures
 - Circular dependency: mark as anomaly, do not recurse infinitely
 - If `openspec status` fails for a change, mark D2 as error and continue with others
