@@ -112,7 +112,32 @@ Create a git worktree for an OpenSpec proposal and start applying it.
 
    If the merge has conflicts → resolve them (prefer worktree changes), then commit.
 
-7. **Execute OpenSpec apply**
+7. **Pre-apply OpenSpec artifact validation**
+
+   Run the following checks to ensure all artifacts are ready for implementation:
+
+   ```bash
+   openspec status --change "<proposal-name>" --json
+   ```
+
+   Parse the JSON output. Verify:
+   - All artifacts in the `artifacts` array have `status: "done"`
+   - `isComplete` is `true`
+
+   Also verify key files exist:
+   ```bash
+   test -f openspec/changes/<proposal-name>/proposal.md
+   test -f openspec/changes/<proposal-name>/design.md
+   test -f openspec/changes/<proposal-name>/tasks.md
+   ls openspec/changes/<proposal-name>/specs/*.md 2>/dev/null
+   ```
+
+   **If any check fails:**
+   - List the missing or incomplete artifacts
+   - Error: "Artifacts not ready for apply: <list>. Complete them first (e.g., `/opsx:explore <proposal-name>`)."
+   - Stop execution — do not proceed to apply.
+
+8. **Execute OpenSpec apply**
 
    Use the **Skill tool** to invoke `openspec-apply-change` with the proposal name as the argument:
    ```
@@ -126,18 +151,75 @@ Create a git worktree for an OpenSpec proposal and start applying it.
 
    This starts the implementation of the proposal within the worktree.
 
+9. **Post-apply task verification and backfill**
+
+   After `opsx:apply` completes, verify task completion status:
+
+   ```bash
+   TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<proposal-name>/tasks.md)
+   DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<proposal-name>/tasks.md)
+   ```
+
+   If `DONE < TOTAL`, perform automatic backfill:
+
+   a. Read `openspec/changes/<proposal-name>/tasks.md` and collect all lines with `- [ ]`.
+
+   b. For each unmarked task, parse its description to extract file path patterns:
+      - Text inside backticks (e.g., `` `SKILL.md` ``, `` `src/auth.py` ``) → check if file exists
+      - "创建 `xxx/` 目录" → check if directory exists
+      - "编写 frontmatter" → check if referenced file contains `---` frontmatter
+      - "实现 xxx" → check if related code files exist (use keyword matching)
+
+   c. If the referenced file/directory exists, automatically change `- [ ]` to `- [x]` in `tasks.md`.
+
+   d. Output a backfill report:
+      ```
+      ### Task Backfill Report
+      - Auto-marked: X tasks
+      - Still incomplete: Y tasks (listed below)
+      - Total progress: N/M
+      ```
+
+   e. If tasks remain `[ ]` after backfill, list them but do NOT stop — the user can address them later.
+
+10. **Force-add tasks.md and commit**
+
+    Since `openspec/` is in `.gitignore`, `git add -A` skips `tasks.md`. Force-add it:
+
+    ```bash
+    git add -A
+    git add -f openspec/changes/<proposal-name>/tasks.md
+    ```
+
+    Count the final task completion:
+    ```bash
+    DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<proposal-name>/tasks.md)
+    TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<proposal-name>/tasks.md)
+    ```
+
+    Commit with completion-aware message:
+    - If `DONE == TOTAL`: `git commit -m "feat: implement <proposal-name> (DONE/TOTAL tasks)"`
+    - If `DONE < TOTAL`: `git commit -m "feat: implement <proposal-name> (DONE/TOTAL tasks, partial)"`
+
+    If no changes to commit (both `git add -A` and `git add -f` produced nothing), skip commit.
+
 **Output On Success**
 
 ```
-## Worktree Created & Apply Started
+## Worktree Created & Apply Complete
 
 **Proposal:** <proposal-name>
 **Branch:** <proposal-name>
 **Main branch:** <MAIN_BRANCH>
 **HEAD verified:** ✓ (or "merged from <MAIN_BRANCH>")
+**Artifacts:** ✓ all done
+**Tasks:** N/M complete (or "X/M partial")
 
-OpenSpec apply is now running in the worktree.
-Use `/merge-worktree-return <proposal-name>` when done.
+### Task Backfill Report
+Auto-marked: X tasks, Still incomplete: Y tasks
+
+OpenSpec apply has completed in the worktree.
+Use `/merge-worktree-return <proposal-name>` when ready to merge.
 ```
 
 **Error Output Format**
@@ -156,7 +238,8 @@ Use `/merge-worktree-return <proposal-name>` when done.
 **Guardrails**
 - Verify each step succeeds before proceeding to the next
 - Never delete or overwrite existing branches
-- Never use --force flags
+- Only use `--force` flag for `git add -f` on tasks.md (required to bypass .gitignore)
+- Never use `--force` on `git push`, `git merge`, `git rebase`, or `git checkout`
 - Commit messages include proposal name for traceability
 - If EnterWorktree fails, do not attempt manual worktree creation — report to user
 - All git command failures should stop execution immediately

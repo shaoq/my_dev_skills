@@ -84,6 +84,26 @@ grep -c '^\- \[ \]' openspec/changes/<name>/tasks.md 2>/dev/null
 - 返回值 > 0：该 change 含未完成任务，列入待执行列表
 - 返回值 = 0 或文件不存在：跳过该 change
 
+### 1.2.1 Artifact 完整性校验
+
+对每个含未完成任务的 change，校验其 OpenSpec artifacts 是否齐全：
+```bash
+openspec status --change "<name>" --json
+```
+
+解析 JSON，检查所有 artifacts 的 `status` 是否为 `"done"`。
+
+同时验证关键文件存在：
+```bash
+test -f openspec/changes/<name>/proposal.md
+test -f openspec/changes/<name>/design.md
+test -f openspec/changes/<name>/tasks.md
+ls openspec/changes/<name>/specs/*.md 2>/dev/null
+```
+
+- 所有 artifacts done 且文件齐全 → 列入待执行列表
+- 任一不满足 → 将该 change 标记为 "跳过: artifacts 未完成"，不列入待执行列表，在执行计划中标注
+
 ### 1.3 待执行列表为空
 
 若待执行列表为空，输出并退出：
@@ -175,8 +195,8 @@ Wave 1 (并行: <count>)
 Wave 2 (依赖 Wave 1: <dep-list>)
   └─ <change-c>
 
-Wave 3 (依赖 Wave 2: <dep-list>)
-  └─ <change-d>
+### 已跳过
+  ├─ <change-d> — 跳过: artifacts 未完成 (design, specs)
 ```
 
 ---
@@ -216,21 +236,36 @@ Wave 3 (依赖 Wave 2: <dep-list>)
   ```
   你正在一个隔离的 git worktree 中实施 OpenSpec change "<change-name>"。
 
-  请执行以下步骤:
+  请严格按照以下步骤执行:
 
   1. 调用 Skill 工具执行 opsx:apply，参数为 "<change-name>"
      这会自动读取 proposal、specs、design、tasks 并逐个实施任务
 
-  2. 所有任务实施完成后，提交所有变更:
-     git add -A
-     git commit -m "feat: implement <change-name>"
+  2. Post-apply task 验证与补标记:
+     opsx:apply 完成后，读取 openspec/changes/<change-name>/tasks.md:
+     - 收集所有仍为 "- [ ]" 的 task 行
+     - 对每个未标记 task，从描述文本中提取文件路径（反引号内的路径、"创建 xxx" 中的目录/文件名）
+     - 检查对应文件/目录是否存在于磁盘
+     - 文件存在则将该 task 行的 "- [ ]" 改为 "- [x]"
+     - 输出补标记报告: "自动标记: X 个，仍缺失: Y 个"
 
-  3. 若 apply 过程中遇到问题:
-     - 记录失败原因
+  3. 提交所有变更（注意 tasks.md 需要 force-add 因为 openspec/ 在 .gitignore 中）:
+     git add -A
+     git add -f openspec/changes/<change-name>/tasks.md
+     统计完成度:
+       DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<change-name>/tasks.md)
+       TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<change-name>/tasks.md)
+     若 DONE == TOTAL:
+       git commit -m "feat: implement <change-name> (DONE/TOTAL tasks)"
+     否则:
+       git commit -m "feat: implement <change-name> (DONE/TOTAL tasks, partial)"
+
+  4. 若 apply 过程中遇到问题:
+     - 仍然执行步骤 2 的补标记
      - 仍然提交已完成的部分（如有）
      - 在返回中说明失败原因
 
-  完成后返回: 实施状态（成功/失败）、已完成的任务数、任何错误信息。
+  完成后返回: 实施状态（成功/失败）、已完成/总任务数、补标记详情、任何错误信息。
   ```
 
 ### 4.2 等待 Agent 完成
@@ -270,6 +305,20 @@ Step C: 切换到 main 并合并
 
 Step D: 验证合并成功
   git log --oneline -1  # 确认 HEAD 已推进
+
+Step E: 验证 tasks.md 标记状态
+  对该 change 检查 main 上的 tasks.md:
+  DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<name>/tasks.md)
+  TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<name>/tasks.md)
+
+  若 DONE < TOTAL:
+    执行 post-merge 补标记:
+    - 读取 tasks.md，收集 [ ] 项
+    - 解析 task 描述提取文件路径
+    - 检查产出文件存在性
+    - 自动标记 [x]
+    - git add -f openspec/changes/<name>/tasks.md
+    - git commit -m "fix: backfill task markers for <name> (DONE/TOTAL tasks)"
 ```
 
 ### 5.2 合并顺序
@@ -338,17 +387,31 @@ git rebase --continue
 
 ## Step 7: 验证与最终报告
 
-### 7.1 重新扫描 tasks.md
+### 7.1 重新扫描 tasks.md（含文件存在性检测）
 
 全部 Wave 完成后，重新扫描所有之前标记为待执行的 change：
 
 对每个待执行 change：
+
+**Step A: 统计 task 状态**
 ```bash
-grep -c '^\- \[ \]' openspec/changes/<name>/tasks.md
+DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<name>/tasks.md)
+TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<name>/tasks.md)
 ```
 
-- 返回 0：该 change 所有任务已完成 ✓
-- 返回 > 0：仍有未完成任务
+**Step B: 若有未完成任务，执行文件存在性检测**
+
+对每个仍为 `[ ]` 的 task，解析其描述提取文件路径，检查产出文件是否存在。存在的自动标记 `[x]`。
+
+若补标记后 tasks.md 有变更：
+```bash
+git add -f openspec/changes/<name>/tasks.md
+git commit -m "fix: backfill task markers for <name> (DONE/TOTAL tasks)"
+```
+
+**Step C: 最终统计**
+- 所有 task 均为 `[x]` → 该 change 验证通过 ✓
+- 仍有 `[ ]` → 标注剩余任务数
 
 ### 7.2 生成最终报告
 
