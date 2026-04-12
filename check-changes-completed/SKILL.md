@@ -1,12 +1,12 @@
 ---
 name: check-changes-completed
-description: Scan all active OpenSpec changes, run a four-dimensional completion check (tasks, artifacts, code delivery, dependencies), and output a summary report. Pure diagnostic tool — use opsx:archive to act on results. No arguments needed.
+description: Scan all active OpenSpec changes, run a four-dimensional completion check (tasks, artifacts, code delivery, dependencies), auto-backfill task markers when code is delivered but tasks are unmarked, and output a summary report. Diagnostic + backfill tool — use opsx:archive to act on results. No arguments needed.
 argument-hint: (no arguments)
 disable-model-invocation: true
-allowed-tools: Bash(openspec *) Bash(git *) Bash(ls *) Bash(test *) Bash(cat *) Bash(grep *) Bash(find *) Bash(wc *) Read Glob Grep
+allowed-tools: Bash(openspec *) Bash(git *) Bash(ls *) Bash(test *) Bash(cat *) Bash(grep *) Bash(find *) Bash(wc *) Bash(sed *) Bash(mv *) Read Glob Grep Edit AskUserQuestion
 ---
 
-Check all active OpenSpec changes for completion using a four-dimensional model, then output a diagnostic report.
+Check all active OpenSpec changes for completion using a four-dimensional model, auto-backfill task markers when contradictions are detected, then output a diagnostic report.
 
 **Input**: No arguments required. Example: `/check-changes-completed`.
 
@@ -124,9 +124,111 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 
    **Circular dependency detection**: Maintain a `VISITED` set across recursive calls. If a change is already in `VISITED`, stop and mark as `循环依赖`.
 
-4. **Output summary table**
+4. **Smart task backfill (when contradictions detected)**
 
-   After checking all changes, output a markdown table:
+   After collecting all four-dimensional results, detect contradictions:
+
+   A contradiction exists when a change has **D3 = ✓** (code delivered) but **D1 = ✗** (tasks incomplete). This means code is on disk but task markers were not updated.
+
+   Build a list `CONTRADICTORY_CHANGES` of all changes matching this pattern.
+
+   **If `CONTRADICTORY_CHANGES` is empty**: Skip to Step 5 (no backfill needed).
+
+   **If `CONTRADICTORY_CHANGES` is not empty**: For each change in the list, perform two-level backfill:
+
+   ### Level-1: Automatic backfill via 4-rule parser
+
+   For each change in `CONTRADICTORY_CHANGES`, read its `tasks.md` and process each `- [ ]` line:
+
+   **Rule 1 — Backtick-enclosed file paths**:
+   Extract text inside backticks (e.g., `` `SKILL.md` ``, `` `src/auth.py` ``). For each extracted path:
+   ```bash
+   test -f <path> && echo "EXISTS" || echo "MISSING"
+   ```
+   If EXISTS → auto-mark this task: `- [ ]` → `- [x]`.
+
+   **Rule 2 — Directory creation patterns**:
+   If task description matches "创建 `xxx/` 目录" or "Create `xxx/` directory":
+   ```bash
+   test -d <directory-path> && echo "EXISTS" || echo "MISSING"
+   ```
+   If EXISTS → auto-mark this task: `- [ ]` → `- [x]`.
+
+   **Rule 3 — Frontmatter patterns**:
+   If task description matches "编写 frontmatter" or "write frontmatter", extract any backtick-enclosed file reference. Check if that file contains frontmatter:
+   ```bash
+   test -f <path> && head -1 <path> | grep -q '^---' && echo "EXISTS" || echo "MISSING"
+   ```
+   If EXISTS → auto-mark this task: `- [ ]` → `- [x]`.
+
+   **Rule 4 — Implementation keyword patterns**:
+   If task description matches "实现 xxx" or "implement xxx", extract the keyword phrase and search for related code files:
+   ```bash
+   grep -rl "<keyword>" --include="*.md" --include="*.py" --include="*.ts" --include="*.js" --include="*.go" . 2>/dev/null | head -3
+   ```
+   If results found → auto-mark this task: `- [ ]` → `- [x]`.
+
+   Track results for each change:
+   - `L1_MARKED`: count of tasks auto-marked by Level-1
+   - `L1_UNMARKED`: list of tasks that Level-1 could not resolve (no matching file/directory found)
+
+   ### Level-2: Fallback backfill with user confirmation
+
+   For each change in `CONTRADICTORY_CHANGES` that has remaining `L1_UNMARKED` tasks:
+
+   Check if D3 fully passes (files exist AND git commits found). If D3 does not fully pass, skip Level-2 for this change — only the verified-delivery case warrants override marking.
+
+   If D3 fully passes and `L1_UNMARKED` is non-empty, collect all residual `- [ ]` tasks across all such changes. Present them to the user via **AskUserQuestion**:
+
+   > "The following tasks could not be auto-matched to files, but code delivery (D3) is verified. Mark them all as complete?"
+   >
+   > (lists the residual tasks grouped by change)
+   >
+   > Options: "Mark all as complete" / "Skip (keep as incomplete)"
+
+   - If user chooses **"Mark all as complete"**: change all listed `- [ ]` → `- [x]`.
+   - If user chooses **"Skip"**: leave them as `- [ ]`.
+
+   Track: `L2_MARKED` = count of tasks confirmed via Level-2.
+
+   ### Commit backfilled tasks
+
+   After both levels complete, check if any `tasks.md` files were actually modified:
+
+   ```bash
+   CHANGED=0
+   for name in CONTRADICTORY_CHANGES; do
+     if git diff --quiet openspec/changes/$name/tasks.md 2>/dev/null; then
+       : # no change
+     else
+       CHANGED=$((CHANGED + 1))
+     fi
+   done
+   ```
+
+   If `CHANGED > 0`:
+   ```bash
+   for name in CONTRADICTORY_CHANGES; do
+     git add -f openspec/changes/$name/tasks.md
+   done
+   git commit -m "fix: auto-backfill task markers ($CHANGED changes)"
+   ```
+
+   If `CHANGED == 0`: skip git operations.
+
+   ### Recount D1 after backfill
+
+   For each change in `CONTRADICTORY_CHANGES`, recount task completion:
+   ```bash
+   TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<name>/tasks.md)
+   DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<name>/tasks.md)
+   ```
+
+   Update the D1 result for that change. If now `DONE == TOTAL` → D1 = `✓ N/N`. Otherwise → D1 = `✗ X/N` (updated count).
+
+5. **Output summary table**
+
+   After backfill (or if skipped), output a markdown table using the latest D1 values:
 
    ```markdown
    ## Changes Completion Report
@@ -139,9 +241,17 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 
    **Archivable logic**: A change is archivable only when ALL four dimensions pass.
 
-5. **Show blocking reasons**
+   If backfill was performed, output a backfill report immediately after the table:
+   ```markdown
+   ### Task Backfill Report
 
-   For any non-archivable changes, list the blocking reasons:
+   **change-a**: L1 auto-marked: 3, L2 confirmed: 2, Remaining: 0 → D1 updated ✓
+   **change-b**: L1 auto-marked: 1, L2 confirmed: 0, Remaining: 2 → D1 still ✗
+   ```
+
+6. **Show blocking reasons**
+
+   For any non-archivable changes (using post-backfill D1 values), list the blocking reasons:
 
    ```markdown
    ### Blocking Reasons
@@ -153,7 +263,7 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
    - Dependencies: 阻塞 by name-1 (tasks incomplete)
    ```
 
-6. **Archive hint**
+7. **Archive hint**
 
    If there are archivable changes, output:
    > "Archivable changes: `<name-1>`, `<name-2>`. Use `/opsx:archive <name>` to archive."
@@ -169,6 +279,9 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 | Change | Tasks | Artifacts | Code 落地 | 依赖 | 可存档? |
 |--------|-------|-----------|----------|------|---------|
 | ...    | ...   | ...       | ...      | ...  | ...     |
+
+### Task Backfill Report
+(if backfill was performed)
 
 ### Blocking Reasons
 (detailed list if any)
@@ -189,7 +302,10 @@ Archivable changes: <list>. Use `/opsx:archive <name>` to archive.
 ```
 
 **Guardrails**
-- Never modify any change files — this is a read-only check
+- May modify `tasks.md` files ONLY for changes where D3 passes and D1 fails (contradiction detected). All other change artifacts remain strictly read-only.
 - Stop on git or openspec CLI failures
 - Circular dependency: mark as anomaly, do not recurse infinitely
 - If `openspec status` fails for a change, mark D2 as error and continue with others
+- Level-1 backfill is automatic (no user confirmation); Level-2 requires explicit user confirmation
+- After backfill, always use `git add -f` for tasks.md to bypass .gitignore
+- Only commit if tasks.md was actually modified
