@@ -241,28 +241,23 @@ Wave 2 (依赖 Wave 1: <dep-list>)
   1. 调用 Skill 工具执行 opsx:apply，参数为 "<change-name>"
      这会自动读取 proposal、specs、design、tasks 并逐个实施任务
 
-  2. Post-apply task 验证与补标记:
-     opsx:apply 完成后，读取 openspec/changes/<change-name>/tasks.md:
-     - 收集所有仍为 "- [ ]" 的 task 行
-     - 对每个未标记 task，从描述文本中提取文件路径（反引号内的路径、"创建 xxx" 中的目录/文件名）
-     - 检查对应文件/目录是否存在于磁盘
-     - 文件存在则将该 task 行的 "- [ ]" 改为 "- [x]"
-     - 输出补标记报告: "自动标记: X 个，仍缺失: Y 个"
+  2. Post-apply 后处理（委托 new-worktree-apply skill）:
+     opsx:apply 完成后，使用 Read 工具读取项目根目录下的 `new-worktree-apply/SKILL.md` 文件，
+     然后按照其中的以下步骤执行后处理（注意：此处引用的是步骤编号和功能描述，若编号有变则以功能描述为准）：
 
-  3. 提交所有变更（注意 tasks.md 需要 force-add 因为 openspec/ 在 .gitignore 中）:
-     git add -A
-     git add -f openspec/changes/<change-name>/tasks.md
-     统计完成度:
-       DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<change-name>/tasks.md)
-       TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<change-name>/tasks.md)
-     若 DONE == TOTAL:
-       git commit -m "feat: implement <change-name> (DONE/TOTAL tasks)"
-     否则:
-       git commit -m "feat: implement <change-name> (DONE/TOTAL tasks, partial)"
+     - 步骤 7（Pre-apply OpenSpec artifact validation）: Artifact 校验
+       → 验证 openspec status 和关键文件存在性
+     - 步骤 8（Execute OpenSpec apply）: 跳过此步骤（已在步骤 1 执行）
+     - 步骤 9（Post-apply task verification and backfill）: Task Backfill
+       → 读取 tasks.md，收集 "- [ ]" 项，解析文件路径，检查存在性，自动标记 "- [x]"
+     - 步骤 10（Force-add tasks.md and commit）: Force-add + Commit
+       → git add -A && git add -f tasks.md，统计完成度并 commit
 
-  4. 若 apply 过程中遇到问题:
-     - 仍然执行步骤 2 的补标记
-     - 仍然提交已完成的部分（如有）
+     若 `new-worktree-apply/SKILL.md` 文件不存在，报错:
+     "new-worktree-apply/SKILL.md 未找到，无法执行后处理" 并在返回结果中标注失败原因。
+
+  3. 若 apply 过程中遇到问题:
+     - 仍然执行步骤 2 的后处理（补标记 + 提交）
      - 在返回中说明失败原因
 
   完成后返回: 实施状态（成功/失败）、已完成/总任务数、补标记详情、任何错误信息。
