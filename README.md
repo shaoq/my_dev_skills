@@ -9,9 +9,15 @@
 git clone git@github.com:shaoq/my_dev_skills.git
 cd my_dev_skills
 
-# 2. 运行环境配置脚本（生成权限白名单 + 安装 skill 符号链接）
+# 2. 全局安装（符号链接 + 权限合并，一次安装所有项目通用）
 python3 setup-skills-env.py
+
+# 卸载（移除全局符号链接和权限，不影响本仓库）
+python3 setup-skills-env.py --uninstall
 ```
+
+> **重要**：Skills 通过符号链接安装在 `~/.claude/skills/`，指向本仓库的实际文件。
+> **不要删除或移动本仓库目录**，否则所有项目中已安装的 Skills 将失效。
 
 ### 依赖项
 
@@ -35,6 +41,9 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
 ---
 
 ## 快速开始
+
+> Skills 以符号链接形式安装到 `~/.claude/skills/`，一次安装后所有项目通用。
+> 前提：本仓库目录需保留在原地，不可删除或移动。
 
 ### 场景 A：综合需求（拆分 → 并行实施）
 
