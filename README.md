@@ -41,6 +41,13 @@ python3 setup-iterm2-claude-notify.py --check  # 检查状态
 适用于：一个大需求需要拆成多个子功能并行开发。
 
 ```
+Step 0: 探索需求（可选）
+─────────────────────────────
+  /opsx:explore "给项目添加完整的认证系统"
+
+  → 探索问题空间、分析方案、可视化架构
+  → 不产生代码，只产出思路
+
 Step 1: 拆分需求为多个提案
 ─────────────────────────────
   /parall-new-proposal "给项目添加完整的认证系统"
@@ -63,6 +70,12 @@ Step 3: 检查完成度
   → 四维检查（任务 / artifacts / 代码落地 / 依赖）
   → 自动补标记已交付但未勾选的任务
   → 输出"可归档"和"未完成"清单
+
+Step 4: 归档已完成的 change
+─────────────────────────────
+  /opsx:archive <change-name>
+
+  → 逐个归档检查通过的 change
 ```
 
 ### 场景 B：单个 Change（手动控制）
@@ -70,6 +83,12 @@ Step 3: 检查完成度
 适用于：已有明确的小任务，需要隔离 worktree 实施。
 
 ```
+Step 0: 创建 proposal
+─────────────────────────────
+  /opsx:propose add-user-auth
+
+  → 生成 proposal.md / design.md / tasks.md 等 artifacts
+
 Step 1: 在 worktree 中实施
 ─────────────────────────────
   /new-worktree-apply add-user-auth
@@ -83,9 +102,15 @@ Step 2: 合并回主干
 
   → rebase 到最新主干 → 合并 → 退出并清理 worktree
 
-Step 3: 检查 + 归档
+Step 3: 检查完成度
 ─────────────────────────────
   /check-changes-completed
+
+  → 四维检查 + 自动补标记
+
+Step 4: 归档
+─────────────────────────────
+  /opsx:archive add-user-auth
 ```
 
 ---
@@ -111,31 +136,43 @@ Step 3: 检查 + 归档
    │
    ▼
 ┌─────────────────────────────┐
-│  /parall-new-proposal       │  ← 拆解为多个带依赖的提案
-│  (≥3 个子方案时使用)        │
+│  /opsx:explore              │  ← 可选：探索需求、分析方案
 └──────────────┬──────────────┘
                │
-               ▼
-     ┌─────────┴──────────┐
-     │  proposals 已创建    │
-     │  dependencies.yaml  │
-     └──────────┬─────────┘
-                │
-          ┌─────┴─────┐
-          │ changes 数量│
-          └─────┬─────┘
-          =1    │    ≥2
-          │     │     │
-          ▼     │     ▼
- /new-worktree-apply│  /parall-new-worktree-apply
- (单个 worktree 实施)│  (并行 worktree 实施)
-          │     │     │
-          ▼     │     ▼
- /merge-worktree-return│  自动合并回主干
-          │     │     │
-          ▼     ▼     ▼
-    /check-changes-completed
-    (四维完成度检查+自动补标记)
+        ┌──────┴──────┐
+        │  需求规模?   │
+        └──────┬──────┘
+    ≤2 个子方案  │  ≥3 个子方案
+           │    │
+           ▼    ▼
+ /opsx:propose  /parall-new-proposal
+ (逐个创建)     (批量拆分+依赖图)
+           │    │
+           ▼    ▼
+ ┌─────────┴────┴──────────┐
+ │  proposals 已创建         │
+ │  dependencies.yaml 已注入 │
+ └──────────┬───────────────┘
+            │
+      ┌─────┴─────┐
+      │ changes 数量│
+      └─────┬─────┘
+      =1    │    ≥2
+      │     │     │
+      ▼     │     ▼
+/new-worktree-apply  /parall-new-worktree-apply
+(单个 worktree 实施)  (并行 worktree 实施)
+      │     │     │
+      ▼     │     ▼
+/merge-worktree-return  自动合并回主干
+      │     │     │
+      ▼     ▼     ▼
+/check-changes-completed
+(四维完成度检查+自动补标记)
+            │
+            ▼
+      /opsx:archive
+      (逐个归档)
 ```
 
 ---
