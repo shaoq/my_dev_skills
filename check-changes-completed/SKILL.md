@@ -1,12 +1,12 @@
 ---
 name: check-changes-completed
-description: Scan all active OpenSpec changes, run a four-dimensional completion check (tasks, artifacts, code delivery, dependencies), auto-backfill task markers when code is delivered but tasks are unmarked, and output a summary report. Diagnostic + backfill tool — use opsx:archive to act on results. No arguments needed.
+description: Scan all active OpenSpec changes, run a five-dimensional completion check (tasks, artifacts, code delivery, dependencies, project compliance), auto-backfill task markers when code is delivered but tasks are unmarked, and output a summary report. Diagnostic + backfill tool — use opsx:archive to act on results. No arguments needed.
 argument-hint: (no arguments)
 disable-model-invocation: true
 allowed-tools: Bash(openspec *) Bash(git *) Bash(ls *) Bash(test *) Bash(cat *) Bash(grep *) Bash(find *) Bash(wc *) Bash(sed *) Bash(mv *) Bash(head *) Read Glob Grep Edit AskUserQuestion
 ---
 
-Check all active OpenSpec changes for completion using a four-dimensional model, auto-backfill task markers when contradictions are detected, then output a diagnostic report.
+Check all active OpenSpec changes for completion using a five-dimensional model, auto-backfill task markers when contradictions are detected, then output a diagnostic report.
 
 **Input**: No arguments required. Example: `/check-changes-completed`.
 
@@ -37,7 +37,7 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 
    Store the list as `ACTIVE_CHANGES`.
 
-3. **For each change, run four-dimensional checks**
+3. **For each change, run five-dimensional checks**
 
    For each `<name>` in `ACTIVE_CHANGES`, perform the following checks sequentially. Collect results into a structured record.
 
@@ -125,11 +125,103 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 
    **Circular dependency detection**: Maintain a `VISITED` set across recursive calls. If a change is already in `VISITED`, stop and mark as `循环依赖`.
 
-4. **Smart task backfill (when contradictions detected)**
+   ### Dimension 5 — Project Compliance
 
-   After collecting all four-dimensional results, detect contradictions:
+   Check whether the change satisfies project-level compliance requirements defined in CLAUDE.md.
+
+   **Step 5a: Locate CLAUDE.md files**
+
+   Check for project-level CLAUDE.md:
+   ```bash
+   test -f CLAUDE.md && echo "EXISTS" || echo "MISSING"
+   ```
+
+   If the change's `EXPECTED_FILES` (from D3 Step 3a) include files in subdirectories, also check those subdirectories for CLAUDE.md:
+   ```bash
+   test -f <subdir>/CLAUDE.md && echo "EXISTS" || echo "MISSING"
+   ```
+
+   Store all found CLAUDE.md paths as `CLAUDE_MD_FILES`.
+
+   **Step 5b: Skip conditions**
+
+   - If `CLAUDE_MD_FILES` is empty → D5 = `✓ (无项目规范)`, skip remaining D5 steps.
+   - Read each CLAUDE.md file. If a file cannot be read (encoding issues, binary content) → skip that file. If ALL files are unreadable → D5 = `✓ (无法解析)`, skip remaining D5 steps.
+
+   **Step 5c: Extract companion requirements**
+
+   For each CLAUDE.md file in `CLAUDE_MD_FILES`, scan line-by-line and match against the following keyword patterns (case-insensitive). For each match, extract the requirement type and the full line as description.
+
+   **Pattern table:**
+
+   | Pattern (regex, case-insensitive) | Requirement Type |
+   |---|---|
+   | `must\s+update.*(test\|spec\|测试\|用例)` | `test-sync` |
+   | `必须更新.*(test\|测试\|用例\|spec)` | `test-sync` |
+   | `每次变更后.*(test\|测试\|spec)` | `test-sync` |
+   | `always\s+(run\|write\|update).*(test\|spec)` | `test-sync` |
+   | `must\s+update.*(doc\|文档\|readme)` | `doc-sync` |
+   | `必须更新.*(doc\|文档)` | `doc-sync` |
+   | `always\s+include.*(doc\|文档)` | `doc-sync` |
+   | `must\s+update.*(api\|schema\|接口\|openapi)` | `api-schema-sync` |
+   | `必须更新.*(api\|schema\|接口)` | `api-schema-sync` |
+   | `must\s+update.*(changelog\|变更日志)` | `changelog-sync` |
+
+   Collect all extracted requirements into `COMPANION_REQS` as a list of:
+   `{ type: string, description: string, source_file: string }`
+
+   Deduplicate by `type`: if multiple CLAUDE.md files produce the same type, keep the entry with the most specific description.
+
+   If `COMPANION_REQS` is empty after scanning all files → D5 = `✓ (无合规要求)`, skip remaining D5 steps.
+
+   **Step 5d: Determine if the change triggers companion requirements**
+
+   Determine the change's modification scope from two sources:
+   1. The `EXPECTED_FILES` list from D3 Step 3a.
+   2. If `design.md` exists, read it and check for mentions of API, endpoint, route, or schema changes.
+
+   A companion requirement is "triggered" when the change's scope overlaps with the requirement's domain:
+
+   | Requirement Type | Triggered When |
+   |---|---|
+   | `test-sync` | `EXPECTED_FILES` contains source code files (files NOT matching `test`, `spec`, `_test.` patterns) |
+   | `doc-sync` | `EXPECTED_FILES` contains source code files or `SKILL.md` |
+   | `api-schema-sync` | `design.md` mentions API, endpoint, route, schema, or protocol changes |
+   | `changelog-sync` | `EXPECTED_FILES` is non-empty |
+
+   Collect triggered requirements into `TRIGGERED_REQS`. If empty → D5 = `✓ (不适用)`.
+
+   **Step 5e: Check compliance for each triggered requirement**
+
+   For each triggered requirement in `TRIGGERED_REQS`, verify that the companion artifact was updated alongside the change:
+
+   ```bash
+   CHANGED_FILES=$(git diff main..HEAD --name-only)
+   ```
+
+   Match `CHANGED_FILES` against requirement-specific patterns:
+
+   | Requirement Type | File Pattern (grep) |
+   |---|---|
+   | `test-sync` | `grep -iE '(test\|spec\|_test\.)'` |
+   | `doc-sync` | `grep -iE '(doc\|\.md\|README)'` |
+   | `api-schema-sync` | `grep -iE '(schema\|openapi\|swagger\|\.proto)'` |
+   | `changelog-sync` | `grep -iE '(CHANGELOG\|HISTORY)'` |
+
+   If the pattern match produces output → the requirement is satisfied.
+   If the pattern match produces no output → the requirement is violated; add to `D5_GAPS` list.
+
+   **Result logic:**
+   - All triggered requirements pass → D5 = `✓`
+   - Any triggered requirement fails → D5 = `✗ 缺失: <type-list>`, where `<type-list>` is the comma-separated list of failed requirement types (e.g., `test-sync, doc-sync`)
+
+   Each entry in `D5_GAPS` contains: `{ type, description, source_file }` for use in blocking reasons. (when contradictions detected)**
+
+   After collecting all five-dimensional results, detect contradictions:
 
    A contradiction exists when a change has **D3 = ✓** (code delivered) but **D1 = ✗** (tasks incomplete). This means code is on disk but task markers were not updated.
+
+   **Note**: D5 (Project Compliance) does not participate in backfill. D5 gaps are diagnostic-only and reported as prompts to the user.
 
    Build a list `CONTRADICTORY_CHANGES` of all changes matching this pattern.
 
@@ -234,13 +326,14 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
    ```markdown
    ## Changes Completion Report
 
-   | Change | Tasks | Artifacts | Code 落地 | 依赖 | 可存档? |
-   |--------|-------|-----------|----------|------|---------|
-   | name-1 | ✓ N/N | ✓ | ✓ | ✓ (无依赖) | ✓ |
-   | name-2 | ✗ X/N | ✗ | ✗ 缺失 | ✗ 阻塞 | ✗ |
+   | Change | Tasks | Artifacts | Code 落地 | 依赖 | 合规 | 可存档? |
+   |--------|-------|-----------|----------|------|------|---------|
+   | name-1 | ✓ N/N | ✓ | ✓ | ✓ (无依赖) | ✓ | ✓ |
+   | name-2 | ✗ X/N | ✗ | ✗ 缺失 | ✗ 阻塞 | ✗ 缺失: test-sync | ✗ |
+   | name-3 | ✓ N/N | ✓ | ✓ | ✓ | ✓ (无项目规范) | ✓ |
    ```
 
-   **Archivable logic**: A change is archivable only when ALL four dimensions pass.
+   **Archivable logic**: A change is archivable only when ALL five dimensions pass.
 
    If backfill was performed, output a backfill report immediately after the table:
    ```markdown
@@ -262,6 +355,8 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
    - Artifacts: missing design, specs
    - Code: 缺失 SKILL.md
    - Dependencies: 阻塞 by name-1 (tasks incomplete)
+   - Compliance: 缺失 test-sync — CLAUDE.md 要求 "must update tests when changing source code"
+     → 建议: 运行 `/opsx:explore` 分析需要更新的测试范围
    ```
 
 7. **Archive hint**
@@ -273,7 +368,8 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
    If there are non-archivable changes, additionally output:
    > "未完成: <name-3>
    >   → 运行 `/opsx:apply <name>` 补实施
-   >   → 或 `/new-worktree-apply <name>` 在 worktree 中实施"
+   >   → 或 `/new-worktree-apply <name>` 在 worktree 中实施
+   >   → 如有合规缺失，运行 `/opsx:explore` 分析需要补充的 companion 产出"
 
    If no archivable changes:
    > "No archivable changes found. See blocking reasons above."
@@ -283,9 +379,9 @@ Check all active OpenSpec changes for completion using a four-dimensional model,
 ```
 ## Changes Completion Report
 
-| Change | Tasks | Artifacts | Code 落地 | 依赖 | 可存档? |
-|--------|-------|-----------|----------|------|---------|
-| ...    | ...   | ...       | ...      | ...  | ...     |
+| Change | Tasks | Artifacts | Code 落地 | 依赖 | 合规 | 可存档? |
+|--------|-------|-----------|----------|------|------|---------|
+| ...    | ...   | ...       | ...      | ...  | ...  | ...     |
 
 ### Task Backfill Report
 (if backfill was performed)
@@ -316,3 +412,6 @@ Archivable changes: <list>. Use `/opsx:archive <name>` to archive.
 - Level-1 backfill is automatic (no user confirmation); Level-2 requires explicit user confirmation
 - After backfill, always use `git add -f` for tasks.md to bypass .gitignore
 - Only commit if tasks.md was actually modified
+- D5 (Project Compliance) is strictly read-only and diagnostic: it NEVER auto-creates or auto-modifies companion artifacts. It only reports gaps with suggestions.
+- If CLAUDE.md cannot be parsed (encoding issues, binary content), treat as D5 = `✓ (无法解析)` and do not block archiving.
+- If no CLAUDE.md exists in the project, D5 does not block archiving (D5 = `✓ (无项目规范)`).

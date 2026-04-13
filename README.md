@@ -76,7 +76,7 @@ Step 3: 检查完成度
 ─────────────────────────────
   /check-changes-completed
 
-  → 四维检查（任务 / artifacts / 代码落地 / 依赖）
+  → 四维检查（任务 / artifacts / 代码落地 / 依赖 / 合规）
   → 自动补标记已交付但未勾选的任务
   → 输出"可归档"和"未完成"清单
 
@@ -115,7 +115,7 @@ Step 3: 检查完成度
 ─────────────────────────────
   /check-changes-completed
 
-  → 四维检查 + 自动补标记
+  → 四维检查 + 自动补标记 + 合规检查
 
 Step 4: 归档
 ─────────────────────────────
@@ -134,7 +134,7 @@ Step 4: 归档
 | **parall-new-worktree-apply** | `/parall-new-worktree-apply` | 并行实施多个 changes | 无（自动发现） |
 | **new-worktree-apply** | `/new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> [--branch <name>]` |
 | **merge-worktree-return** | `/merge-worktree-return` | worktree 合并回主干 | `[proposal-name]` |
-| **check-changes-completed** | `/check-changes-completed` | 四维完成度检查 | 无 |
+| **check-changes-completed** | `/check-changes-completed` | 五维完成度检查 | 无 |
 
 ---
 
@@ -177,7 +177,7 @@ Step 4: 归档
       │     │     │
       ▼     ▼     ▼
 /check-changes-completed
-(四维完成度检查+自动补标记)
+(五维完成度检查+自动补标记+合规检查)
             │
             ▼
       /opsx:archive
@@ -256,9 +256,9 @@ Step 4: 归档
 
 ### 5. check-changes-completed
 
-**做什么**: 四维完成度检查 + 智能补标记。
+**做什么**: 五维完成度检查 + 智能补标记 + 项目合规检查。
 
-**四维检查模型**:
+**五维检查模型**:
 
 | 维度 | 检查内容 |
 |------|---------|
@@ -266,14 +266,23 @@ Step 4: 归档
 | D2 - Artifacts | `openspec status --json` 的 artifact 状态 |
 | D3 - Code 落地 | 产出文件是否存在 + git commits |
 | D4 - 依赖 | `dependencies.yaml` 引用的 change 完整性 |
+| D5 - 合规 | CLAUDE.md 定义的合规要求（测试同步/文档更新/API schema 等） |
 
 **补标记机制**（当 D3=✓ 但 D1=✗ 时触发）:
 - **Level-1 自动**: 四规则解析器（反引号路径、目录创建、frontmatter、实现关键词）
 - **Level-2 需确认**: 自动无法匹配但 code 已交付时，询问用户
 
+**合规检查机制**（D5 — 当项目有 CLAUDE.md 时触发）:
+- 载入项目根目录和变更相关子目录中的 CLAUDE.md
+- 提取合规要求（test-sync / doc-sync / api-schema-sync / changelog-sync）
+- 通过 git diff 验证配套产出是否已同步
+- 缺失时不自动补全，仅提示建议运行 `/opsx:explore` 分析
+- 无 CLAUDE.md 时不阻塞归档
+
 **注意事项**:
 - 只修改 D3 通过但 D1 未通过的 `tasks.md`，其他 artifact 严格只读
 - Level-1 自动无需确认，Level-2 需用户确认
+- D5 合规缺失仅提示，不自动补全配套产出
 - 检测循环依赖，防止无限递归
 - 输出结果包含 "可归档" 和 "未完成" 的分类建议
 
