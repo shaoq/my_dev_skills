@@ -135,6 +135,7 @@ Step 4: 归档
 | **new-worktree-apply** | `/new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> [--branch <name>]` |
 | **merge-worktree-return** | `/merge-worktree-return` | worktree 合并回主干 | `[proposal-name]` |
 | **check-changes-completed** | `/check-changes-completed` | 五维完成度检查 | 无 |
+| **verify-impl-consistency** | `/verify-impl-consistency` | 三维语义一致性诊断 | `[change-name]` |
 
 ---
 
@@ -178,6 +179,10 @@ Step 4: 归档
       ▼     ▼     ▼
 /check-changes-completed
 (五维完成度检查+自动补标记+合规检查)
+            │
+            ▼
+      /verify-impl-consistency  ← 可选：语义一致性深度诊断
+      (Doc↔Code / Schema↔API / Tests↔Code)
             │
             ▼
       /opsx:archive
@@ -286,6 +291,34 @@ Step 4: 归档
 - 检测循环依赖，防止无限递归
 - 输出结果包含 "可归档" 和 "未完成" 的分类建议
 
+### 6. verify-impl-consistency
+
+**做什么**: 三维语义一致性诊断 — 深度验证文档/API Schema/集成测试与代码实现的一致性。
+
+**核心机制**:
+- 始终执行项目级扫描，检测到活跃 OpenSpec change 时追加增量验证
+- 两种运行模式自动切换，无需用户选择
+
+**三维检查模型**:
+
+| 维度 | 检查内容 |
+|------|---------|
+| D1 - Doc ↔ Code | 从文档提取可验证声明（端点、函数名、参数等），与代码精确匹配 + 语义分析 |
+| D2 - Schema ↔ API | 解析 OpenAPI/Swagger/Proto/GraphQL，与多语言路由定义交叉验证 |
+| D3 - Tests ↔ Code | 从测试提取被测目标，验证存在性、场景覆盖和孤立测试 |
+
+**分层验证策略**:
+- **Layer 1 精确匹配**: Grep 模式匹配，快速分类 FOUND / NOT_FOUND / UNCERTAIN
+- **Layer 2 语义分析**: Claude 阅读代码段，判定 ALIGNED / DRIFTED / CONFLICT
+
+**多语言路由支持**: Express, Fastify, NestJS, FastAPI, Flask, Django, Gin, Echo, Spring
+
+**注意事项**:
+- 纯诊断工具，**不修改任何文件**，不做 pass/fail 判定
+- 需要 Claude 语义理解能力（不设置 `disable-model-invocation`）
+- 无 Schema 文件时 D2 自动跳过，无测试文件时 D3 自动跳过
+- 与 `check-changes-completed` 互补：后者检查存在性，前者检查语义一致性
+
 ---
 
 ## 目录结构
@@ -297,6 +330,7 @@ my_dev_skills/
 ├── new-worktree-apply/SKILL.md
 ├── merge-worktree-return/SKILL.md
 ├── check-changes-completed/SKILL.md
+├── verify-impl-consistency/SKILL.md
 ├── setup-skills-env.py          # 环境配置脚本
 └── setup-iterm2-claude-notify.py # iTerm2 通知配置
 ```
