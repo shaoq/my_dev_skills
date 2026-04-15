@@ -191,17 +191,23 @@ ls openspec/changes/<dep-name>/ 2>/dev/null
 ```
 ## 执行计划
 
-发现 <N> 个待执行的 Changes，分为 <W> 个 Wave：
+发现 <N> 个待执行的 Changes，分为 <W> 个 Wave，每 Wave 最多 3 个并行：
 
-Wave 1 (并行: <count>)
-  ├─ <change-a>
-  └─ <change-b>
+Wave 1:
+  Batch 1 (并行: 3)
+    ├─ <change-a>
+    ├─ <change-b>
+    └─ <change-c>
+  Batch 2 (并行: 2, Batch 1 合并后执行)
+    ├─ <change-d>
+    └─ <change-e>
 
-Wave 2 (依赖 Wave 1: <dep-list>)
-  └─ <change-c>
+Wave 2 (依赖 Wave 1):
+  Batch 1 (并行: 1)
+    └─ <change-f>
 
 ### 已跳过
-  ├─ <change-d> — 跳过: artifacts 未完成 (design, specs)
+  ├─ <change-g> — 跳过: artifacts 未完成 (design, specs)
 ```
 
 ---
@@ -227,9 +233,30 @@ Wave 2 (依赖 Wave 1: <dep-list>)
 
 对每个 Wave 按顺序执行：
 
-### 4.1 并行 Spawn Agent
+### 4.1 批次划分
 
-为 Wave 内的每个 change spawn 一个 Agent，**在同一消息中并行 spawn** 以实现真正的并行：
+对当前 Wave 的 changes 按目录名字母序排列，以每批最多 3 个切分为多个 Batch：
+
+```
+MAX_PARALLEL = 3
+sorted_changes = 按 change 名称字母序排列
+batches = [sorted_changes[i:i+3] for i in range(0, len(sorted_changes), 3)]
+```
+
+输出当前 Wave 的批次计划：
+```
+Wave <N> — <count> 个 changes，分为 <batch_count> 个 Batch:
+  Batch 1 (并行: 3): <name-a>, <name-b>, <name-c>
+  Batch 2 (并行: 2): <name-d>, <name-e>
+```
+
+### 4.2 Batch 执行循环
+
+对当前 Wave 的每个 Batch 按顺序执行：
+
+#### 4.2.1 并行 Spawn Agent
+
+为 Batch 内的每个 change spawn 一个 Agent，**在同一消息中并行 spawn** 以实现真正的并行：
 
 每个 Agent 的配置：
 - `subagent_type`: "general-purpose"
@@ -277,9 +304,9 @@ Wave 2 (依赖 Wave 1: <dep-list>)
   完成后返回: 实施状态（成功/失败）、已完成/总任务数、补标记详情、任何错误信息。
   ```
 
-### 4.2 等待 Agent 完成
+#### 4.2.2 等待 Agent 完成
 
-等待当前 Wave 内所有 Agent 完成。
+等待当前 Batch 内所有 Agent 完成。
 
 **重要**: 耐心等待。Agent 可能需要较长时间完成 apply。不要主动检查或中断。
 
@@ -288,15 +315,25 @@ Wave 2 (依赖 Wave 1: <dep-list>)
 - 分支名称（若 isolation: "worktree" 返回了 branch）
 - 错误信息（若有）
 
-### 4.3 记录失败
+#### 4.2.3 记录失败
 
 Agent 失败不阻塞其他 Agent 的等待。失败的 Agent 记录到结果列表中，后续跳过其分支的合并。
+
+#### 4.2.4 合并当前 Batch
+
+当前 Batch 所有 Agent 完成后，**立即执行 Step 5 合并流程**，将成功的分支逐个合并回主干。
+
+合并完成后 main HEAD 已推进。下一个 Batch 的 worktree 虽基于更早的 HEAD 创建，但 rebase 时会自动同步到最新 main，确保合并基线准确。
+
+### 4.3 Wave 完成
+
+当前 Wave 所有 Batch 执行并合并完毕后，进入下一个 Wave。
 
 ---
 
 ## Step 5: 串行合并
 
-**每个 Wave 完成后**（所有 Agent 返回后），按目录名字母序逐个合并成功的分支。
+由 Step 4.2.4 调用。**每个 Batch 完成后**，按目录名字母序逐个合并成功的分支。
 
 ### 5.1 合并单个分支
 
@@ -504,8 +541,10 @@ Wave 2:
 ## Guardrails
 
 - 始终确保 worktree 代码基于最新 HEAD（Agent isolation: "worktree" 自动保证）
-- Agent spawn 必须在同一消息中并行，不要串行 spawn 同一 Wave 的 Agent
+- 每 Wave 内并行 Agent 上限为 3，超出按字母序分 Batch 串行执行
+- 同一 Batch 内的 Agent spawn 必须在同一消息中并行
 - 合并必须串行，每个分支合并后再处理下一个
+- 每个 Batch 完成后立即合并（方案 A），而非等整个 Wave 完成再合并
 - 失败的 Agent 或冲突的分支不阻塞其他 Agent/分支
 - 最终验证必须重新扫描 tasks.md，不信任中间状态
 - 若待执行 changes 为 0，直接退出不做任何操作

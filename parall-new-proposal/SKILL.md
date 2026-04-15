@@ -86,14 +86,14 @@ Q3: 产出是否有独立价值？
 
 对通过三问判定的子方案列表执行数量检测：
 
-- **子方案数 ≤ 2**: 输出提示：
+- **子方案数 ≤ 1**: 输出提示：
   > "需求规模较小（仅产生 N 个子方案），建议直接使用 `/opsx:propose` 逐个创建。"
   使用 AskUserQuestion 询问用户是否仍要继续使用本 skill。
 
-- **子方案数 > 8**: 输出警告：
-  > "⚠️ 拆分粒度可能过细（N 个子方案），建议检查是否可合并部分子方案。"
+- **子方案数 > 6**: 输出警告：
+  > "⚠️ 拆分粒度可能过细（N 个子方案），建议检查是否可合并部分子方案。超过 6 个会导致 Wave 和 Batch 数增多，实际耗时反而更长。"
 
-- **3-8 个**: 正常范围，继续执行。
+- **2-6 个**: 正常范围，继续执行。
 
 ---
 
@@ -143,6 +143,23 @@ Q3: 产出是否有独立价值？
 
 同一 Wave 内的子方案无互相依赖，可并行执行。
 
+### 3.4 Wave 内批次划分
+
+对每个 Wave，按子方案名称（kebab-case）字母序排列，以每批最多 3 个切分为批次：
+
+```
+MAX_PARALLEL = 3
+对每个 Wave:
+  sorted_names = 按 kebab-case 名称字母序排列
+  batches = [sorted_names[i:i+3] for i in range(0, len(sorted_names), 3)]
+```
+
+批次规则：
+- 同一批次内的子方案并行执行（最多 3 个）
+- 不同批次串行执行
+- 每个批次完成后立即合并回主干，再执行下一个批次
+- 在展示方案时（Step 4.1）标注批次信息
+
 ---
 
 ## Step 4: 用户确认
@@ -156,24 +173,43 @@ Q3: 产出是否有独立价值？
 
 ### 子方案列表
 
-| # | 名称 | 描述 | 依赖 | Wave |
-|---|------|------|------|------|
-| 1 | auth-user-model | ... | (无) | 1 |
-| 2 | auth-jwt-service | ... | (无) | 1 |
-| 3 | auth-http-layer | ... | auth-user-model, auth-jwt-service | 2 |
+| # | 名称 | 描述 | 依赖 | Wave | Batch |
+|---|------|------|------|------|-------|
+| 1 | auth-acl | ... | (无) | 1 | 1 |
+| 2 | auth-user-model | ... | (无) | 1 | 1 |
+| 3 | auth-jwt-service | ... | (无) | 1 | 1 |
+| 4 | auth-session | ... | (无) | 1 | 2 |
+| 5 | auth-http-layer | ... | auth-user-model, auth-jwt-service | 2 | 1 |
+
+### 执行计划
+
+Wave 1 (4 个子方案):
+  Batch 1 (并行: 3)
+    ├─ auth-acl
+    ├─ auth-jwt-service
+    └─ auth-user-model
+  Batch 2 (串行: 1, Batch 1 合并后执行)
+    └─ auth-session
+
+Wave 2 (依赖 Wave 1, 1 个子方案):
+  Batch 1 (并行: 1)
+    └─ auth-http-layer
 
 ### 依赖图
 
-Wave 1 (并行: 2)        Wave 2 (依赖 Wave 1)
-┌─────────────────┐     ┌─────────────────┐
-│ auth-user-model │     │                 │
-└────────┬────────┘     │ auth-http-layer │
-         │              │                 │
-┌─────────────────┐     └─────────────────┘
-│ auth-jwt-service│              ▲
-└────────┬────────┘              │
-         │                       │
-         └───────────────────────┘
+Wave 1                    Wave 2
+┌───────────┐             ┌─────────────────┐
+│ auth-acl  │             │                 │
+└───────────┘             │ auth-http-layer │
+┌─────────────────┐       │                 │
+│ auth-user-model ├──────►└─────────────────┘
+└─────────────────┘              ▲
+┌─────────────────┐              │
+│ auth-jwt-service├──────────────┘
+└─────────────────┘
+┌──────────────┐
+│ auth-session │
+└──────────────┘
 
 ### 合并记录
 - "user-repository" 合并到 "auth-user-model" (Q2 未通过: 是内部步骤)
@@ -271,24 +307,27 @@ dependencies:
 
 ### 创建的提案
 
-| # | 名称 | 位置 | 依赖 | Wave |
-|---|------|------|------|------|
-| 1 | auth-user-model | openspec/changes/auth-user-model/ | (无) | 1 |
-| 2 | auth-jwt-service | openspec/changes/auth-jwt-service/ | (无) | 1 |
-| 3 | auth-http-layer | openspec/changes/auth-http-layer/ | auth-user-model, auth-jwt-service | 2 |
+| # | 名称 | 位置 | 依赖 | Wave | Batch |
+|---|------|------|------|------|-------|
+| 1 | auth-acl | openspec/changes/auth-acl/ | (无) | 1 | 1 |
+| 2 | auth-user-model | openspec/changes/auth-user-model/ | (无) | 1 | 1 |
+| 3 | auth-jwt-service | openspec/changes/auth-jwt-service/ | (无) | 1 | 1 |
+| 4 | auth-session | openspec/changes/auth-session/ | (无) | 1 | 2 |
+| 5 | auth-http-layer | openspec/changes/auth-http-layer/ | auth-user-model, auth-jwt-service | 2 | 1 |
 
-### 依赖图
+### 执行计划
 
-Wave 1 (并行: 2)        Wave 2 (依赖 Wave 1)
-┌─────────────────┐     ┌─────────────────┐
-│ auth-user-model │     │                 │
-└────────┬────────┘     │ auth-http-layer │
-         │              │                 │
-┌─────────────────┐     └─────────────────┘
-│ auth-jwt-service│              ▲
-└────────┬────────┘              │
-         │                       │
-         └───────────────────────┘
+Wave 1 (4 个子方案):
+  Batch 1 (并行: 3)
+    ├─ auth-acl
+    ├─ auth-jwt-service
+    └─ auth-user-model
+  Batch 2 (串行: 1, Batch 1 合并后执行)
+    └─ auth-session
+
+Wave 2 (依赖 Wave 1, 1 个子方案):
+  Batch 1 (并行: 1)
+    └─ auth-http-layer
 
 ### 下一步
 
@@ -320,6 +359,8 @@ Wave 1 (并行: 2)        Wave 2 (依赖 Wave 1)
 - 拆解方案必须经用户确认后才创建提案
 - 三问判定是硬约束：未通过的候选必须合并，不可保留为独立提案
 - `dependencies.yaml` 格式必须与 `parall-new-worktree-apply` Step 2.1 解析规则兼容
-- 需求 ≤ 2 个子方案时提示用户考虑直接使用 `/opsx:propose`
-- 超过 8 个子方案时标注警告
+- 需求 ≤ 1 个子方案时提示用户考虑直接使用 `/opsx:propose`
+- 超过 6 个子方案时标注警告
+- 每 Wave 并行上限为 3（由 `parall-new-worktree-apply` 执行时控制）
+- 每个批次完成后立即合并回主干，再执行下一个批次
 - 失败的子方案不阻塞其他子方案的创建
