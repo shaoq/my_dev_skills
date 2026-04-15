@@ -141,7 +141,17 @@ Deep consistency verification between documentation, API schema, and integration
 
 4. **D2 — Schema ↔ API Code consistency**
 
-   If `SCHEMA_FILES` is empty → skip D2, add informational note "No API schema files found".
+   D2 operates in two modes based on available artifacts:
+
+   | Condition | Mode | Sub-steps |
+   |-----------|------|-----------|
+   | `SCHEMA_FILES` is non-empty | **Schema-file mode** | 4a → 4b → 4c |
+   | `SCHEMA_FILES` is empty AND `TECH_STACK` contains `fastapi` | **Code-first mode** | 4d → 4e → 4f |
+   | `SCHEMA_FILES` is empty AND no code-first framework detected | **Skip** | informational note |
+
+   If skipping → add note "No API schema files found and no code-first framework detected".
+
+   **Schema-file mode** (standalone schema files exist):
 
    ### 4a. Extract schema definitions
 
@@ -190,6 +200,89 @@ Deep consistency verification between documentation, API schema, and integration
    Record findings as:
    ```
    { dimension: "D2", severity, schema_file, endpoint, field_name, finding, suggestion }
+   ```
+
+   **Code-first mode** (no standalone schema files, but code-first framework detected):
+
+   ### 4d. Build Pydantic Model registry
+
+   Use Grep to find all Pydantic model definitions:
+   ```
+   pattern: class \w+\(.*BaseModel.*\):
+   ```
+
+   For each discovered model:
+   - Read the source file
+   - Extract field definitions:
+     - Typed fields with Field(): `field_name: type = Field(...)` → parse Field() parameters
+     - Bare typed fields: `field_name: type` → record with empty Field metadata
+   - Extract Field() parameters when present:
+     - `description=` → human-readable description
+     - `examples=` / `example=` → example values
+     - `ge=/gt=/lt=/le=` → numeric constraints
+     - `min_length=/max_length=` → string length constraints
+     - `pattern=` → regex validation pattern
+   - Detect nested model references:
+     - `List[X]`, `Optional[X]`, `Union[X, Y]` → extract inner type names
+     - `Dict[str, X]` → extract value type name
+     - Cross-reference inner type names against MODEL_REGISTRY
+   - Skip fields with default values that are not Field() calls (e.g., `field: str = "default"`)
+
+   Build `MODEL_REGISTRY`:
+   ```
+   { model_name, source_file, fields: [{ name, type, field_params: { description?, examples?, constraints? } }], nested_refs: [type_name] }
+   ```
+
+   ### 4e. Route metadata extraction & consistency checks
+
+   Use Grep to find all FastAPI route decorators:
+   ```
+   pattern: @\w+\.(get|post|put|delete|patch|options|head)\s*\(\s*["'][^"']+["']
+   ```
+   Also scan for `add_api_route(` calls.
+
+   For each route, extract metadata from the decorator and handler function:
+   - HTTP method (from decorator name)
+   - URL path (first positional argument)
+   - Keyword arguments: `response_model`, `status_code`, `responses`, `tags`, `summary`, `description`, `response_model_include`, `response_model_exclude`, `response_model_exclude_unset`
+   - Return type annotation from handler: `def handler(...) -> SomeType:`
+   - Handler function docstring (triple-quoted string immediately after def)
+
+   Perform the following checks for each route:
+
+   | Check | Condition | Severity |
+   |-------|-----------|----------|
+   | Missing response model | No `response_model=` AND no `-> Type` return annotation (or `-> None` / `-> dict`) | WARNING |
+   | status_code/body conflict | `status_code` is 204 or 304 AND has non-None `response_model` | ERROR |
+   | Undocumented HTTPException | Handler body contains `raise HTTPException(status_code=N)` but `responses=` dict does not include N | WARNING |
+   | Schema filtering mismatch | Route uses `response_model_include`, `response_model_exclude`, or `response_model_exclude_unset` | WARNING |
+   | No tags | Route decorator has no `tags=` parameter | INFO |
+   | No summary/description | No `summary=` or `description=` parameter AND no handler docstring | INFO |
+
+   Record findings as:
+   ```
+   { dimension: "D2", severity, route, check_type, finding, suggestion }
+   ```
+
+   ### 4f. Pydantic Model quality checks
+
+   For each model in `MODEL_REGISTRY`:
+
+   | Check | Condition | Severity |
+   |-------|-----------|----------|
+   | Missing Field description | Field uses `Field()` but no `description=` parameter | INFO |
+   | Missing Field examples | Field uses `Field()` but no `examples=` or `example=` parameter | INFO |
+   | Unknown type reference | Field type is not a Python built-in AND not found in MODEL_REGISTRY | WARNING |
+   | Circular dependency | Model A references B, B references A (direct or transitive chain) | WARNING |
+
+   For circular dependency detection:
+   - Build a directed graph from MODEL_REGISTRY's nested_refs
+   - Detect cycles via depth-first traversal
+   - Report the full cycle chain (e.g., "Order → OrderItem → Order")
+
+   Record findings as:
+   ```
+   { dimension: "D2", severity, model_name, field_name?, check_type, finding, suggestion }
    ```
 
 5. **D3 — Tests ↔ Code consistency**
@@ -312,7 +405,8 @@ Deep consistency verification between documentation, API schema, and integration
    ### 7c. Skipped dimensions
 
    For any skipped dimension (no files found), note:
-   - "D2: Skipped — no API schema files found"
+   - "D2: Skipped — no API schema files found and no code-first framework detected"
+   - "D2: Schema-file mode (X endpoints checked)" or "D2: Code-first mode (X routes, Y models checked)"
    - "D3: Skipped — no test files found"
 
 **Output On Success**
