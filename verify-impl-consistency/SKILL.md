@@ -329,6 +329,69 @@ Deep consistency verification between documentation, API schema, and integration
    { dimension: "D3", severity, test_file, target, finding, suggestion }
    ```
 
+   ### 5d. Spec-grounded assertion verification (conditional)
+
+   **Prerequisite**: This step executes ONLY when spec files (from `DOC_FILES` or OpenSpec change specs) contain WHEN/THEN scenarios. If no WHEN/THEN scenarios are found → skip this step with informational note "No spec scenarios found for assertion verification".
+
+   **Overview**: Extract quantifiable expected values from spec THEN clauses → match against actual test assertions → report deviations graded by severity.
+
+   #### 5d-i. Extract spec expected values
+
+   For each WHEN/THEN scenario found in spec files:
+
+   Apply structured extraction rules to the THEN clause:
+
+   **Status code extraction**:
+   ```
+   Pattern: (returns?|返回|responds?\s+with)\s+(status\s+)?(\d{3})
+   Extract: expected_status = <3-digit number>
+   ```
+
+   **Response field extraction**:
+   ```
+   Pattern: (returns?|返回|response\s+contains?)\s*\{([^}]+)\}
+   Extract: expected_fields = [split by comma, trim whitespace]
+   Also match: "returns field <name>", "returns <name> and <name2>"
+   ```
+
+   **Error type extraction**:
+   ```
+   Pattern: (throws?|raises?|抛出)\s+(\w+Error|\w+Exception)
+   Extract: expected_error = <Error/Exception name>
+   ```
+
+   **Fallback**: When no pattern matches → store full THEN text as `expected_behavior` (free text) for Layer 2 semantic analysis.
+
+   Collect into `SPEC_EXPECTATIONS`:
+   ```
+   { spec_source, scenario_name, expected_status?, expected_fields?, expected_error?, expected_behavior? }
+   ```
+
+   #### 5d-ii. Match test assertions against spec expectations
+
+   For each entry in `SPEC_EXPECTATIONS`, locate the corresponding test (by matching scenario context from 5c coverage results):
+
+   **Status code comparison**:
+   - Test asserts same status as expected → `ALIGNED`
+   - Test asserts different status than expected → `CRITICAL`: "Test asserts status <actual> but spec expects <expected>"
+
+   **Response field comparison**:
+   - Test asserts all expected fields → `ALIGNED`
+   - Test asserts subset of expected fields → `WARNING`: "Test verifies partial spec expectations (<found>), missing: <missing_fields>"
+
+   **Error type comparison**:
+   - Test asserts same error type as expected → `ALIGNED`
+   - Test asserts different error type or no error → `CRITICAL`: "Test expects <actual_error> but spec requires <expected_error>"
+
+   **Extra assertions**: Test contains assertions for fields/values not mentioned in spec → `INFO` (not a problem, just noted): "Test verifies additional behavior beyond spec: <description>"
+
+   **Unstructured expectations**: For `expected_behavior` entries → use Layer 2 semantic analysis: Read the test code and assess whether it verifies the described behavior. Classify as `ALIGNED` or `UNCERTAIN`.
+
+   Record findings as:
+   ```
+   { dimension: "D3", sub_dimension: "spec-grounded", severity, spec_source, scenario_name, expected, actual, finding, suggestion }
+   ```
+
 6. **OpenSpec incremental verification (conditional)**
 
    Run:
@@ -372,13 +435,15 @@ Deep consistency verification between documentation, API schema, and integration
 
    Count findings per dimension and severity:
    ```
-   | Dimension | Findings | CRITICAL | WARNING | INFO |
-   |-----------|----------|----------|---------|------|
-   | D1 Doc ↔ Code      | N | X | Y | Z |
-   | D2 Schema ↔ API    | N | X | Y | Z |
-   | D3 Tests ↔ Code    | N | X | Y | Z |
-   | OpenSpec Incremental| N | X | Y | Z |
+   | Dimension | Findings | CRITICAL | WARNING | INFO | Assertion Drift |
+   |-----------|----------|----------|---------|------|-----------------|
+   | D1 Doc ↔ Code      | N | X | Y | Z | — |
+   | D2 Schema ↔ API    | N | X | Y | Z | — |
+   | D3 Tests ↔ Code    | N | X | Y | Z | D (spec-grounded) |
+   | OpenSpec Incremental| N | X | Y | Z | — |
    ```
+
+   The "Assertion Drift" column counts findings from Step 5d (spec-grounded assertion verification). Use `—` for dimensions that do not perform assertion checking.
 
    ### 7b. Detailed findings
 
@@ -402,12 +467,37 @@ Deep consistency verification between documentation, API schema, and integration
 
    Repeat for D2, D3, and OpenSpec incremental.
 
+   **D3 additional sub-section** (when Step 5d was executed):
+
+   ```
+   ##### Spec-grounded Assertion Verification
+
+   ###### CRITICAL: Test asserts wrong status code
+   - **Spec**: <spec_source> — scenario "<name>"
+   - **Expected**: status <expected>
+   - **Actual**: test asserts status <actual>
+   - **Suggestion**: Update test to assert status <expected> per spec
+
+   ###### WARNING: Test verifies partial spec expectations
+   - **Spec**: <spec_source> — scenario "<name>"
+   - **Expected fields**: <field_list>
+   - **Verified**: <found_fields>
+   - **Missing**: <missing_fields>
+   - **Suggestion**: Add assertions for missing fields
+
+   ###### INFO: Test verifies extra behavior beyond spec
+   - **Spec**: <spec_source> — scenario "<name>"
+   - **Extra assertions**: <description>
+   ```
+
    ### 7c. Skipped dimensions
 
    For any skipped dimension (no files found), note:
    - "D2: Skipped — no API schema files found and no code-first framework detected"
    - "D2: Schema-file mode (X endpoints checked)" or "D2: Code-first mode (X routes, Y models checked)"
    - "D3: Skipped — no test files found"
+   - "D3 Step 5d: Skipped — no spec scenarios found for assertion verification"
+   - "D3 Step 5d: N scenarios checked, M assertion drifts found"
 
 **Output On Success**
 
@@ -416,12 +506,12 @@ Deep consistency verification between documentation, API schema, and integration
 
 ## Summary
 
-| Dimension | Findings | CRITICAL | WARNING | INFO |
-|-----------|----------|----------|---------|------|
-| D1 Doc ↔ Code       | N | X | Y | Z |
-| D2 Schema ↔ API     | N | X | Y | Z |
-| D3 Tests ↔ Code     | N | X | Y | Z |
-| OpenSpec Incremental | N | X | Y | Z |
+| Dimension | Findings | CRITICAL | WARNING | INFO | Assertion Drift |
+|-----------|----------|----------|---------|------|-----------------|
+| D1 Doc ↔ Code       | N | X | Y | Z | — |
+| D2 Schema ↔ API     | N | X | Y | Z | — |
+| D3 Tests ↔ Code     | N | X | Y | Z | D (spec-grounded) |
+| OpenSpec Incremental | N | X | Y | Z | — |
 
 ## Detailed Findings
 
@@ -433,6 +523,9 @@ Deep consistency verification between documentation, API schema, and integration
 
 ### D3: Tests ↔ Code
 (grouped by severity)
+
+#### Spec-grounded Assertion Verification (if applicable)
+(CRITICAL: assertion contradicts spec → WARNING: partial coverage → INFO: extra assertions)
 
 ### OpenSpec Incremental (if applicable)
 (grouped by change name, then severity)
