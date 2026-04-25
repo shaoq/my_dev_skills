@@ -1,6 +1,6 @@
 ---
 name: verify-impl-consistency
-description: Deep consistency verification between docs, API schema, and integration tests vs actual code implementation. Two-layer verification — precise pattern matching first, then semantic analysis for uncertain items. Auto-detects OpenSpec changes for enhanced verification. Pure diagnostic tool (no pass/fail judgment, no auto-fix). Supports multiple languages: TS/JS, Python, Go, Java.
+description: "Deep consistency verification between docs, API schema, and integration tests vs actual code implementation. Two-layer verification — precise pattern matching first, then semantic analysis for uncertain items. Auto-detects OpenSpec changes for enhanced verification. Pure diagnostic tool (no pass/fail judgment, no auto-fix). Supports multiple languages: TS/JS, Python, Go, Java."
 argument-hint: "[change-name]"
 allowed-tools: Bash(openspec *) Bash(git *) Read Glob Grep AskUserQuestion
 ---

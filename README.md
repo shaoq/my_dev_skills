@@ -32,11 +32,22 @@ python3 setup-skills-env.py --uninstall
 ### iTerm2 通知（可选）
 
 ```bash
-python3 setup-iterm2-claude-notify.py    # 安装通知触发器
+python3 setup-iterm2-claude-notify.py           # 安装 iTerm2 + Claude Code + Codex 通知
 python3 setup-iterm2-claude-notify.py --check  # 检查状态
+python3 setup-iterm2-claude-notify.py --remove # 卸载受管配置
 ```
 
+> 安装内容：
+> 1. iTerm2 Notification Center alerts：统一承接通知中心提醒
+> 2. Claude Code hooks：完成提醒、权限提醒、idle 提醒，走 iTerm2 `notify`
+> 3. Codex `[tui]` 通知：approval prompts + completed turns，走 iTerm2 `notify`
+> 4. tmux passthrough：在 iTerm2 内启动 tmux 后仍可继续通知
+>
 > 运行前请关闭 iTerm2，或运行后重启使其生效。
+>
+> 说明：
+> - 受管路径为 notify-only，不再安装 `BellTrigger`，也不再依赖 BEL 提醒
+> - 若 `--check` 仍提示存在旧版受管 trigger，重新执行安装会自动迁移
 
 ---
 
