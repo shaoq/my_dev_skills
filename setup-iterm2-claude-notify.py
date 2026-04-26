@@ -79,9 +79,9 @@ def write_json_file(path: Path, data: dict) -> None:
 def load_state() -> dict:
     state = read_json_file(
         STATE_PATH,
-        default={"version": 2, "iterm2": {"profiles": {}}, "codex": {}},
+        default={"version": 3, "iterm2": {"profiles": {}}, "codex": {}},
     )
-    state["version"] = 2
+    state["version"] = 3
     return state
 
 
@@ -259,15 +259,6 @@ def build_managed_claude_hooks() -> dict[str, list[dict]]:
         "Notification": [
             {
                 "matcher": "permission_prompt",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": helper_shell_command("claude-notification"),
-                    }
-                ],
-            },
-            {
-                "matcher": "idle_prompt",
                 "hooks": [
                     {
                         "type": "command",
@@ -657,12 +648,36 @@ def check_claude_hook_status() -> list[str]:
         return ["hooks 结构无法识别"]
 
     results = []
-    for event_name in ("Stop", "Notification"):
-        groups = hooks.get(event_name, [])
-        managed_count = 0
-        if isinstance(groups, list):
-            managed_count = sum(1 for group in groups if is_managed_claude_hook_group(group))
-        results.append(f"{event_name}: {managed_count} 组受管 hooks")
+
+    # Stop event
+    stop_groups = hooks.get("Stop", [])
+    stop_managed = [g for g in stop_groups if is_managed_claude_hook_group(g)] if isinstance(stop_groups, list) else []
+    results.append(f"Stop: {'已安装' if stop_managed else '未安装'}受管 hook")
+
+    # Notification event — break down by matcher
+    notif_groups = hooks.get("Notification", [])
+    if not isinstance(notif_groups, list):
+        notif_groups = []
+
+    managed_matchers: dict[str, list[dict]] = {}
+    for group in notif_groups:
+        if is_managed_claude_hook_group(group):
+            matcher = group.get("matcher", "")
+            managed_matchers.setdefault(matcher, []).append(group)
+
+    pp_groups = managed_matchers.get("permission_prompt", [])
+    results.append(
+        f"Notification(permission_prompt): {'已安装' if pp_groups else '未安装'}受管 hook"
+    )
+
+    idle_groups = managed_matchers.get("idle_prompt", [])
+    if idle_groups:
+        results.append(
+            "Notification(idle_prompt): ⚠ 检测到旧版受管 idle_prompt，需重装当前配置以移除"
+        )
+    else:
+        results.append("Notification(idle_prompt): 未安装受管 hook (正常)")
+
     return results
 
 
@@ -796,6 +811,7 @@ def install_all() -> None:
     print("后续步骤:")
     print("  1. 重启 iTerm2 使 Notification Center alerts 配置生效")
     print("  2. 重启 Claude Code / Codex 会话，使 hooks / [tui] 通知生效")
+    print("     (旧版会话可能仍按旧 hooks 触发，helper 会自动抑制重复通知)")
     print("  3. 在 Claude Code 或 Codex 中触发一次确认/完成场景测试")
     print("  4. 若在 tmux 中运行，请确保当前 tmux 会话由 iTerm2 启动")
     print()
@@ -831,7 +847,7 @@ def remove_all() -> None:
     )
 
     state = prune_state(state)
-    if state in ({}, {"version": 1}, {"version": 2}):
+    if state in ({}, {"version": 1}, {"version": 2}, {"version": 3}):
         if STATE_PATH.exists():
             STATE_PATH.unlink()
     else:

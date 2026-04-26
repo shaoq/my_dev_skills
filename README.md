@@ -39,7 +39,7 @@ python3 setup-iterm2-claude-notify.py --remove # 卸载受管配置
 
 > 安装内容：
 > 1. iTerm2 Notification Center alerts：统一承接通知中心提醒
-> 2. Claude Code hooks：完成提醒、权限提醒、idle 提醒，走 iTerm2 `notify`
+> 2. Claude Code hooks：完成提醒（`Stop`）、权限提醒（`permission_prompt`），走 iTerm2 `notify`
 > 3. Codex `[tui]` 通知：approval prompts + completed turns，走 iTerm2 `notify`
 > 4. tmux passthrough：在 iTerm2 内启动 tmux 后仍可继续通知
 >
@@ -47,7 +47,13 @@ python3 setup-iterm2-claude-notify.py --remove # 卸载受管配置
 >
 > 说明：
 > - 受管路径为 notify-only，不再安装 `BellTrigger`，也不再依赖 BEL 提醒
-> - 若 `--check` 仍提示存在旧版受管 trigger，重新执行安装会自动迁移
+> - Claude 完成提醒默认只安装 `Stop`，不再安装 `Notification(idle_prompt)`，避免重复通知
+> - 运行时 helper 内置去重逻辑，防止重复 `Stop` 投递和旧版遗留 `idle_prompt` 再次提醒
+> - 若 `--check` 仍提示存在旧版受管 trigger 或 idle_prompt，重新执行安装会自动迁移
+>
+> 升级说明：
+> - 从旧版升级后，需重启 Claude Code 会话以使新 hooks 生效
+> - 重装时安装器会自动移除旧版受管 `idle_prompt` hook group
 
 ---
 
