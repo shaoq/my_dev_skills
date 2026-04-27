@@ -403,6 +403,9 @@ def should_suppress_focused_session() -> bool:
             return current_resolved == focused_resolved
         except OSError:
             return False
+
+
+def escape_osc9_message(message: str) -> str:
     sanitized = []
     for char in message:
         if char in ("\x1b", "\x07"):
