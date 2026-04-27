@@ -17,6 +17,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -26,6 +27,8 @@ TTY_TARGET = Path("/dev/tty")
 DEDUP_STATE_PATH = Path.home() / ".config/agent-notify/claude-dedup.json"
 DEDUP_WINDOW_SECONDS = 10  # Stop 短窗口去重
 LEGACY_IDLE_SUPPRESS_SECONDS = 120  # 遗留 idle_prompt 抑制窗口
+EXIT_SUPPRESS_WINDOW_SECONDS = 10  # 退出抑制关联窗口
+EXIT_CONFIRM_DELAY_SECONDS = 0.3  # Stop 等待 SessionEnd 的短延迟
 
 
 def truncate_text(value: str, limit: int = 120) -> str:
@@ -149,6 +152,13 @@ def _prune_sessions(state: dict, max_age: float = 600.0) -> None:
     for sid in expired:
         sessions.pop(sid, None)
 
+    # 清理过期的退出标记（超过窗口的不再关联）
+    for info in sessions.values():
+        exit_at = info.get("exit_requested_at")
+        if exit_at and (now - exit_at) > EXIT_SUPPRESS_WINDOW_SECONDS:
+            info.pop("exit_requested_at", None)
+            info.pop("last_session_end_reason", None)
+
 
 def should_suppress_stop(payload: dict) -> bool:
     """检查是否应抑制重复 Stop 通知。返回 True 表示应抑制。"""
@@ -171,6 +181,11 @@ def should_suppress_stop(payload: dict) -> bool:
         if (time.time() - last_global) < DEDUP_WINDOW_SECONDS:
             return True
 
+    # 退出抑制判断：同 session 最近是否有 prompt_input_exit
+    if session_id:
+        if _should_suppress_for_exit(state, session_id):
+            return True
+
     # 不抑制 — 记录并发通知
     now = time.time()
     if session_id:
@@ -184,6 +199,35 @@ def should_suppress_stop(payload: dict) -> bool:
         state["_global_last_stop_at"] = now
 
     _save_dedup_state(state)
+    return False
+
+
+def _should_suppress_for_exit(state: dict, session_id: str) -> bool:
+    """检查同 session 是否有最近的退出标记。支持 SessionEnd 先到和后到两种场景。"""
+    sessions = state.get("sessions", {})
+    info = sessions.get(session_id, {})
+    exit_at = info.get("exit_requested_at")
+    exit_reason = info.get("last_session_end_reason")
+
+    # 如果已有退出标记且在窗口内，直接抑制
+    if exit_at and exit_reason == "prompt_input_exit":
+        if (time.time() - exit_at) < EXIT_SUPPRESS_WINDOW_SECONDS:
+            return True
+
+    # SessionEnd 可能还没到——短延迟后再查一次
+    time.sleep(EXIT_CONFIRM_DELAY_SECONDS)
+
+    # 重新加载状态（SessionEnd 可能已写入）
+    state.update(_load_dedup_state())
+    sessions = state.get("sessions", {})
+    info = sessions.get(session_id, {})
+    exit_at = info.get("exit_requested_at")
+    exit_reason = info.get("last_session_end_reason")
+
+    if exit_at and exit_reason == "prompt_input_exit":
+        if (time.time() - exit_at) < EXIT_SUPPRESS_WINDOW_SECONDS:
+            return True
+
     return False
 
 
@@ -206,7 +250,158 @@ def should_suppress_idle(payload: dict) -> bool:
     return False
 
 
-def escape_osc9_message(message: str) -> str:
+def record_session_end(payload: dict) -> None:
+    """处理 SessionEnd 事件，记录退出状态。"""
+    session_id = _extract_session_id(payload)
+    reason = str(payload.get("reason", "")).strip()
+
+    if not session_id:
+        return
+
+    state = _load_dedup_state()
+    _prune_sessions(state)
+    sessions = state.setdefault("sessions", {})
+
+    if session_id not in sessions:
+        sessions[session_id] = {}
+
+    info = sessions[session_id]
+
+    if reason == "prompt_input_exit":
+        info["exit_requested_at"] = time.time()
+        info["last_session_end_reason"] = reason
+    else:
+        info["last_session_end_reason"] = reason
+
+    _save_dedup_state(state)
+
+
+def _get_current_tty() -> str | None:
+    """获取当前进程关联的 tty 设备路径。"""
+    try:
+        return os.ttyname(sys.stdin.fileno())
+    except OSError:
+        pass
+    try:
+        return os.ttyname(sys.stderr.fileno())
+    except OSError:
+        pass
+    try:
+        return os.ttyname(sys.stdout.fileno())
+    except OSError:
+        return None
+
+
+def _get_iterm2_focused_tty() -> str | None:
+    """通过 AppleScript 查询 iTerm2 当前焦点 session 的 tty。
+
+    降级策略：任何查询失败返回 None，调用者应不抑制。
+    """
+    # 先检查前台 app 是否为 iTerm2
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", 'tell application "System Events" to get name of first process whose frontmost is true'],
+            capture_output=True, text=True, timeout=2,
+        )
+        frontmost = result.stdout.strip()
+        if frontmost != "iTerm2":
+            return None  # 前台 app 不是 iTerm2，不因焦点规则 suppress
+    except Exception:
+        return None  # 查询失败，降级
+
+    # 查询 iTerm2 焦点 session 的 tty
+    try:
+        result = subprocess.run(
+            ["osascript", "-e",
+             'tell application "iTerm2" to get tty of current session of current window'],
+            capture_output=True, text=True, timeout=2,
+        )
+        tty = result.stdout.strip()
+        if not tty or result.returncode != 0:
+            return None
+        return tty
+    except Exception:
+        return None
+
+
+def _resolve_tmux_client_tty() -> str | None:
+    """在 tmux 环境下，解析当前 pane 关联的外层 tty。"""
+    tmux = os.environ.get("TMUX")
+    if not tmux:
+        return None
+
+    # tmux 环境下，/proc 或 tmux 命令可以获取 client tty
+    # TMUX 格式: /tmp/tmux-UID/default,CLIENT_PID
+    parts = tmux.split(",")
+    if len(parts) < 2:
+        return None
+
+    try:
+        client_pid = int(parts[1])
+        # 通过 tmux list-clients 找到对应的 tty
+        result = subprocess.run(
+            ["tmux", "list-clients", "-F", "#{client_tty} #{client_pid}"],
+            capture_output=True, text=True, timeout=2,
+        )
+        for line in result.stdout.strip().splitlines():
+            parts_line = line.rsplit(" ", 1)
+            if len(parts_line) == 2:
+                try:
+                    pid = int(parts_line[1])
+                    if pid == client_pid:
+                        return parts_line[0]
+                except ValueError:
+                    continue
+    except Exception:
+        pass
+
+    return None
+
+
+def should_suppress_focused_session() -> bool:
+    """检查当前 hook 是否运行在 iTerm2 焦点 session 上。
+
+    返回 True 表示应抑制（当前焦点 session 的完成提醒）。
+    降级策略：任何查询失败则不抑制。
+    """
+    current_tty = _get_current_tty()
+    if not current_tty:
+        return False  # 无法获取当前 tty，降级为不抑制
+
+    # tmux 场景：当前 tty 是 pts 设备（tmux 内部），
+    # 需要解析为外层 iTerm2 session 的 tty 来比较
+    if os.environ.get("TMUX"):
+        # tmux 下焦点判定更复杂——获取外层 client tty
+        client_tty = _resolve_tmux_client_tty()
+        if not client_tty:
+            # 无法可靠判断，降级为不抑制（继续提醒）
+            return False
+
+        focused_tty = _get_iterm2_focused_tty()
+        if not focused_tty:
+            return False
+
+        # 比较 tmux client tty 与 iTerm2 焦点 session tty
+        # tmux 下如果焦点 session 就是当前 tmux 所在的 session，suppress
+        try:
+            # 规范化路径比较
+            client_resolved = os.path.realpath(client_tty)
+            focused_resolved = os.path.realpath(focused_tty)
+            return client_resolved == focused_resolved
+        except OSError:
+            return False
+    else:
+        # 非 tmux 场景：直接比较当前 tty 与焦点 tty
+        focused_tty = _get_iterm2_focused_tty()
+        if not focused_tty:
+            return False
+
+        try:
+            current_resolved = os.path.realpath(current_tty)
+            focused_resolved = os.path.realpath(focused_tty)
+            return current_resolved == focused_resolved
+        except OSError:
+            return False
     sanitized = []
     for char in message:
         if char in ("\x1b", "\x07"):
@@ -254,7 +449,14 @@ def main() -> int:
         payload = read_stdin_payload()
         if should_suppress_stop(payload):
             return 0
+        # 焦点 session 抑制：仅抑制 claude-stop，不影响 permission_prompt
+        if should_suppress_focused_session():
+            return 0
         title, message = build_claude_stop_message(payload)
+    elif args.source == "claude-session-end":
+        payload = read_stdin_payload()
+        record_session_end(payload)
+        return 0
     elif args.source == "claude-notification":
         payload = read_stdin_payload()
         notification_type = str(payload.get("notification_type", "")).strip()

@@ -39,7 +39,7 @@ python3 setup-iterm2-claude-notify.py --remove # 卸载受管配置
 
 > 安装内容：
 > 1. iTerm2 Notification Center alerts：统一承接通知中心提醒
-> 2. Claude Code hooks：完成提醒（`Stop`）、权限提醒（`permission_prompt`），走 iTerm2 `notify`
+> 2. Claude Code hooks：完成提醒（`Stop`）、权限提醒（`permission_prompt`）、退出感知（`SessionEnd`），走 iTerm2 `notify`
 > 3. Codex `[tui]` 通知：approval prompts + completed turns，走 iTerm2 `notify`
 > 4. tmux passthrough：在 iTerm2 内启动 tmux 后仍可继续通知
 >
@@ -49,11 +49,19 @@ python3 setup-iterm2-claude-notify.py --remove # 卸载受管配置
 > - 受管路径为 notify-only，不再安装 `BellTrigger`，也不再依赖 BEL 提醒
 > - Claude 完成提醒默认只安装 `Stop`，不再安装 `Notification(idle_prompt)`，避免重复通知
 > - 运行时 helper 内置去重逻辑，防止重复 `Stop` 投递和旧版遗留 `idle_prompt` 再次提醒
+> - `/exit` 退出时不会触发完成提醒（通过 `SessionEnd` hook 感知退出语义）
+> - 当前焦点 iTerm2 session 完成时不弹通知，后台 session 仍正常提醒（精确 tty 比较）
+> - 焦点 session 抑制在 tmux 下自动降级：无法可靠判断时仍发送提醒
 > - 若 `--check` 仍提示存在旧版受管 trigger 或 idle_prompt，重新执行安装会自动迁移
+>
+> 受管链路边界：
+> - 退出抑制和焦点 session 抑制仅对受管 Claude hooks 生效，不处理用户自定义的非受管 hooks
+> - `SessionEnd` 受管 hook 仅用于退出语义识别，不直接发送用户通知
 >
 > 升级说明：
 > - 从旧版升级后，需重启 Claude Code 会话以使新 hooks 生效
 > - 重装时安装器会自动移除旧版受管 `idle_prompt` hook group
+> - 新增 `SessionEnd` 受管 hook，安装后 `--check` 会显示其安装状态
 
 ---
 

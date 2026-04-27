@@ -267,6 +267,17 @@ def build_managed_claude_hooks() -> dict[str, list[dict]]:
                 ],
             },
         ],
+        "SessionEnd": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": helper_shell_command("claude-session-end"),
+                    }
+                ],
+            }
+        ],
     }
 
 
@@ -677,6 +688,17 @@ def check_claude_hook_status() -> list[str]:
         )
     else:
         results.append("Notification(idle_prompt): 未安装受管 hook (正常)")
+
+    # SessionEnd event
+    session_end_groups = hooks.get("SessionEnd", [])
+    session_end_managed = (
+        [g for g in session_end_groups if is_managed_claude_hook_group(g)]
+        if isinstance(session_end_groups, list)
+        else []
+    )
+    results.append(
+        f"SessionEnd: {'已安装' if session_end_managed else '未安装'}受管 hook"
+    )
 
     return results
 
