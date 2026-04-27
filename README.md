@@ -49,7 +49,7 @@ python3 setup-iterm2-claude-notify.py --remove # 卸载受管配置
 > - 受管路径为 notify-only，不再安装 `BellTrigger`，也不再依赖 BEL 提醒
 > - Claude 完成提醒默认只安装 `Stop`，不再安装 `Notification(idle_prompt)`，避免重复通知
 > - 运行时 helper 内置去重逻辑，防止重复 `Stop` 投递和旧版遗留 `idle_prompt` 再次提醒
-> - `/exit` 退出时不会触发完成提醒（通过 `SessionEnd` hook 感知退出语义）
+> - `/exit` 和 `/clear` 退出时不会触发完成提醒（通过 `SessionEnd` hook 感知退出语义）
 > - 当前焦点 iTerm2 session 完成时不弹通知，后台 session 仍正常提醒（精确 tty 比较）
 > - 焦点 session 抑制在 tmux 下自动降级：无法可靠判断时仍发送提醒
 > - 若 `--check` 仍提示存在旧版受管 trigger 或 idle_prompt，重新执行安装会自动迁移

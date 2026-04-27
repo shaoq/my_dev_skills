@@ -134,15 +134,15 @@ Claude 官方 hooks 模型里，退出语义不在 `Stop` 上，而在 `SessionE
 - 提取 `session_id`
 - 读取 `reason`
 
-如果 `reason == prompt_input_exit`：
+如果 `reason` 属于应抑制集合（当前为 `prompt_input_exit` 和 `clear`）：
 
 - 为该 `session_id` 记录 `exit_requested_at`
-- 记录 `last_session_end_reason = prompt_input_exit`
+- 记录 `last_session_end_reason`
 
-如果 `reason` 是 `clear`、`logout` 或 `other`：
+如果 `reason` 是 `logout` 或 `other`：
 
 - 可以记录最近结束原因，供调试或后续扩展
-- 默认不把它们视为“应抑制完成提醒”的退出类型，除非后续验证发现也需要覆盖
+- 默认不把它们视为”应抑制完成提醒”的退出类型，除非后续验证发现也需要覆盖
 
 ### 3. Stop 抑制规则
 
@@ -156,7 +156,7 @@ Claude 官方 hooks 模型里，退出语义不在 `Stop` 上，而在 `SessionE
 
 - 若同一 `session_id` 最近存在 `exit_requested_at`
 - 且其时间戳落在短窗口内
-- 且最近退出原因是 `prompt_input_exit`
+- 且最近退出原因属于应抑制集合（`prompt_input_exit` 或 `clear`）
 - 则当前 `Stop` 视为退出流程的一部分，直接 suppress
 
 该短窗口只用于连接“退出”与“紧随其后的 stop”，例如 2 到 10 秒；它不用于普通完成去重。

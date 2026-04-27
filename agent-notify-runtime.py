@@ -29,6 +29,7 @@ DEDUP_WINDOW_SECONDS = 10  # Stop 短窗口去重
 LEGACY_IDLE_SUPPRESS_SECONDS = 120  # 遗留 idle_prompt 抑制窗口
 EXIT_SUPPRESS_WINDOW_SECONDS = 10  # 退出抑制关联窗口
 EXIT_CONFIRM_DELAY_SECONDS = 0.3  # Stop 等待 SessionEnd 的短延迟
+EXIT_SUPPRESS_REASONS = frozenset({"prompt_input_exit", "clear"})  # 应抑制完成提醒的退出原因
 
 
 def truncate_text(value: str, limit: int = 120) -> str:
@@ -210,7 +211,7 @@ def _should_suppress_for_exit(state: dict, session_id: str) -> bool:
     exit_reason = info.get("last_session_end_reason")
 
     # 如果已有退出标记且在窗口内，直接抑制
-    if exit_at and exit_reason == "prompt_input_exit":
+    if exit_at and exit_reason in EXIT_SUPPRESS_REASONS:
         if (time.time() - exit_at) < EXIT_SUPPRESS_WINDOW_SECONDS:
             return True
 
@@ -224,7 +225,7 @@ def _should_suppress_for_exit(state: dict, session_id: str) -> bool:
     exit_at = info.get("exit_requested_at")
     exit_reason = info.get("last_session_end_reason")
 
-    if exit_at and exit_reason == "prompt_input_exit":
+    if exit_at and exit_reason in EXIT_SUPPRESS_REASONS:
         if (time.time() - exit_at) < EXIT_SUPPRESS_WINDOW_SECONDS:
             return True
 
@@ -267,7 +268,7 @@ def record_session_end(payload: dict) -> None:
 
     info = sessions[session_id]
 
-    if reason == "prompt_input_exit":
+    if reason in EXIT_SUPPRESS_REASONS:
         info["exit_requested_at"] = time.time()
         info["last_session_end_reason"] = reason
     else:

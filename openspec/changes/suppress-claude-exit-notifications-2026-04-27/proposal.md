@@ -20,7 +20,7 @@
 
 ## What Changes
 
-- 为 Claude 受管通知链路增加“退出抑制”语义，使 `/exit` 触发的退出流程不会产生完成提醒
+- 为 Claude 受管通知链路增加”退出抑制”语义，使 `/exit` 和 `/clear` 触发的会话结束流程不会产生完成提醒
 - 为 Claude 受管通知链路增加“焦点 session 抑制”语义：当前正在被用户操作的 iTerm2 session 完成时不提醒，但其他非焦点 session 仍提醒
 - 在安装器中增加 Claude `SessionEnd` 受管 hook，用于识别退出原因并写入退出状态
 - 在运行时 helper 中增加 Claude 会话级退出抑制状态，以及基于 iTerm2 焦点 session tty 的精确前台抑制判断

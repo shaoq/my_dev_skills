@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
-### Requirement: Claude completion reminders exclude prompt-exit session termination
-The managed Claude notification flow SHALL distinguish a normal completed turn from a prompt-driven session exit. A `Stop` event that belongs to a recent `SessionEnd(reason=prompt_input_exit)` flow SHALL NOT emit a managed completion reminder.
+### Requirement: Claude completion reminders exclude prompt-exit and clear session termination
+The managed Claude notification flow SHALL distinguish a normal completed turn from an explicit session exit. A `Stop` event that belongs to a recent `SessionEnd(reason=prompt_input_exit)` or `SessionEnd(reason=clear)` flow SHALL NOT emit a managed completion reminder.
 
 #### Scenario: Normal Claude turn completion
 - **WHEN** Claude triggers the managed `Stop` hook for a normal completed turn
@@ -12,6 +12,12 @@ The managed Claude notification flow SHALL distinguish a normal completed turn f
 - **AND** a managed `Stop` event for the same session occurs within the exit suppression window
 - **THEN** the managed helper suppresses that completion reminder
 - **AND** the user receives no managed completion notification for the exit flow
+
+#### Scenario: User clears session
+- **WHEN** Claude ends a session with `SessionEnd(reason=clear)`
+- **AND** a managed `Stop` event for the same session occurs within the exit suppression window
+- **THEN** the managed helper suppresses that completion reminder
+- **AND** the user receives no managed completion notification for the clear flow
 
 #### Scenario: Permission prompt remains enabled
 - **WHEN** Claude emits managed `Notification(permission_prompt)`
