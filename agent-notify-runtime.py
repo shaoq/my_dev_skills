@@ -30,6 +30,8 @@ LEGACY_IDLE_SUPPRESS_SECONDS = 120  # 遗留 idle_prompt 抑制窗口
 EXIT_SUPPRESS_WINDOW_SECONDS = 10  # 退出抑制关联窗口
 EXIT_CONFIRM_DELAY_SECONDS = 0.3  # Stop 等待 SessionEnd 的短延迟
 EXIT_SUPPRESS_REASONS = frozenset({"prompt_input_exit", "clear"})  # 应抑制完成提醒的退出原因
+PERMISSION_PROMPT_SUPPRESS_SECONDS = 10  # permission_prompt 抑制 Stop 的窗口
+PERMISSION_PROMPT_CONFIRM_DELAY_SECONDS = 0.3  # Stop 等待 permission_prompt 的短延迟
 
 
 def truncate_text(value: str, limit: int = 120) -> str:
@@ -187,6 +189,11 @@ def should_suppress_stop(payload: dict) -> bool:
         if _should_suppress_for_exit(state, session_id):
             return True
 
+    # permission_prompt 抑制判断：同 session 最近是否有权限确认
+    if session_id:
+        if _should_suppress_for_permission_prompt(state, session_id):
+            return True
+
     # 不抑制 — 记录并发通知
     now = time.time()
     if session_id:
@@ -228,6 +235,48 @@ def _should_suppress_for_exit(state: dict, session_id: str) -> bool:
     if exit_at and exit_reason in EXIT_SUPPRESS_REASONS:
         if (time.time() - exit_at) < EXIT_SUPPRESS_WINDOW_SECONDS:
             return True
+
+    return False
+
+
+def record_permission_prompt(payload: dict) -> None:
+    """记录 permission_prompt 事件时间戳，供 Stop handler 检查。"""
+    session_id = _extract_session_id(payload)
+    if not session_id:
+        return
+
+    state = _load_dedup_state()
+    _prune_sessions(state)
+    sessions = state.setdefault("sessions", {})
+
+    if session_id not in sessions:
+        sessions[session_id] = {}
+
+    sessions[session_id]["last_permission_prompt_at"] = time.time()
+    _save_dedup_state(state)
+
+
+def _should_suppress_for_permission_prompt(state: dict, session_id: str) -> bool:
+    """检查同 session 是否有最近的 permission_prompt，支持时序不确定的场景。"""
+    sessions = state.get("sessions", {})
+    info = sessions.get(session_id, {})
+    prompt_at = info.get("last_permission_prompt_at")
+
+    # 如果已有 permission_prompt 标记且在窗口内，直接抑制
+    if prompt_at and (time.time() - prompt_at) < PERMISSION_PROMPT_SUPPRESS_SECONDS:
+        return True
+
+    # permission_prompt 可能还没到——短延迟后再查一次
+    time.sleep(PERMISSION_PROMPT_CONFIRM_DELAY_SECONDS)
+
+    # 重新加载状态
+    state.update(_load_dedup_state())
+    sessions = state.get("sessions", {})
+    info = sessions.get(session_id, {})
+    prompt_at = info.get("last_permission_prompt_at")
+
+    if prompt_at and (time.time() - prompt_at) < PERMISSION_PROMPT_SUPPRESS_SECONDS:
+        return True
 
     return False
 
@@ -467,6 +516,8 @@ def main() -> int:
         # permission_prompt 始终放行，不参与去重
         if notification_type == "idle_prompt" and should_suppress_idle(payload):
             return 0
+        if notification_type == "permission_prompt":
+            record_permission_prompt(payload)
         title, message = build_claude_notification_message(payload)
     elif args.source == "codex-notify":
         payload = load_json_payload(args.payload)
