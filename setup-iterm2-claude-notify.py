@@ -6,6 +6,7 @@ iTerm2 / Claude Code / Codex 通知配置脚本
   - 安装统一运行时通知脚本，用于 Claude hooks 通过 iTerm2 notify 提醒
   - 受管迁移旧版 BellTrigger / BEL 配置到 notify-only 模式
   - 受管合并 ~/.claude/settings.json 与 ~/.codex/config.toml
+  - 受管关闭 Claude 内建通知通道，避免与即时完成提醒重复
   - 幂等安装、检查、卸载，不覆盖无关用户配置
 
 用法：
@@ -16,6 +17,12 @@ iTerm2 / Claude Code / Codex 通知配置脚本
 要求：
   - macOS + iTerm2
   - 运行前请关闭 iTerm2（或运行后重启 iTerm2 使配置生效）
+
+重要说明：
+  - 本脚本会受管开启 iTerm2 的 "Notification Center alerts"
+  - 但 iTerm2 的 "Filter Alerts" 细分项目前仍需手动确认
+  - 若没有把 Filter Alerts 收敛为仅 "Send escape sequence-generated alerts"
+    iTerm2 仍可能对输出、空闲、铃声、会话关闭等事件弹通知
 """
 
 from __future__ import annotations
@@ -34,6 +41,7 @@ from pathlib import Path
 
 PLIST_PATH = Path.home() / "Library/Preferences/com.googlecode.iterm2.plist"
 CLAUDE_SETTINGS_PATH = Path.home() / ".claude/settings.json"
+CLAUDE_GLOBAL_CONFIG_PATH = Path.home() / ".claude.json"
 CODEX_CONFIG_PATH = Path.home() / ".codex/config.toml"
 HELPER_SOURCE_PATH = Path(__file__).with_name("agent-notify-runtime.py")
 HELPER_INSTALL_PATH = Path.home() / ".local/bin/agent-notify"
@@ -46,6 +54,8 @@ CODEX_NOTIFY_BEGIN = "# BEGIN agent-notify managed notify"
 CODEX_NOTIFY_END = "# END agent-notify managed notify"
 CODEX_TUI_BEGIN = "# BEGIN agent-notify managed tui notifications"
 CODEX_TUI_END = "# END agent-notify managed tui notifications"
+CLAUDE_PREFERRED_NOTIF_DISABLED = "notifications_disabled"
+MISSING = object()
 
 CODEX_TUI_DEFAULTS = {
     "notifications": "true",
@@ -79,9 +89,9 @@ def write_json_file(path: Path, data: dict) -> None:
 def load_state() -> dict:
     state = read_json_file(
         STATE_PATH,
-        default={"version": 3, "iterm2": {"profiles": {}}, "codex": {}},
+        default={"version": 4, "iterm2": {"profiles": {}}, "codex": {}, "claude": {}},
     )
-    state["version"] = 3
+    state["version"] = 4
     return state
 
 
@@ -98,6 +108,8 @@ def prune_state(state: dict) -> dict:
         state.pop("iterm2", None)
     if state.get("codex") == {}:
         state.pop("codex", None)
+    if state.get("claude") == {}:
+        state.pop("claude", None)
     if state.get("version") is None:
         state.pop("version", None)
     return state
@@ -256,9 +268,18 @@ def build_managed_claude_hooks() -> dict[str, list[dict]]:
                 ],
             }
         ],
+        "UserPromptSubmit": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": helper_shell_command("claude-user-prompt-submit"),
+                    }
+                ],
+            }
+        ],
         "Notification": [
             {
-                "matcher": "permission_prompt",
                 "hooks": [
                     {
                         "type": "command",
@@ -291,6 +312,17 @@ def is_managed_claude_hook_group(group: dict) -> bool:
     return False
 
 
+def validate_claude_preferred_notification_value(data: dict) -> tuple[bool, str | None]:
+    value = data.get("preferredNotifChannel", MISSING)
+    if value is MISSING:
+        return (False, None)
+    if not isinstance(value, str):
+        raise ValueError(
+            f"{CLAUDE_GLOBAL_CONFIG_PATH} 中 preferredNotifChannel 不是字符串，无法自动合并"
+        )
+    return (True, value)
+
+
 def ensure_claude_hooks() -> list[str]:
     data = read_json_file(CLAUDE_SETTINGS_PATH, default={})
     hooks = data.setdefault("hooks", {})
@@ -311,6 +343,35 @@ def ensure_claude_hooks() -> list[str]:
 
     write_json_file(CLAUDE_SETTINGS_PATH, data)
     return changes
+
+
+def ensure_claude_preferred_notification_channel(state: dict) -> list[str]:
+    data = read_json_file(CLAUDE_GLOBAL_CONFIG_PATH, default={})
+    has_existing, existing_value = validate_claude_preferred_notification_value(data)
+
+    claude_state = state.setdefault("claude", {})
+    saved = claude_state.setdefault("preferred_notification_channel", {})
+    if "present" not in saved:
+        saved["present"] = has_existing
+        if has_existing:
+            saved["value"] = existing_value
+
+    current_value = existing_value if has_existing else None
+    if current_value == CLAUDE_PREFERRED_NOTIF_DISABLED:
+        return []
+
+    data["preferredNotifChannel"] = CLAUDE_PREFERRED_NOTIF_DISABLED
+    write_json_file(CLAUDE_GLOBAL_CONFIG_PATH, data)
+
+    if has_existing:
+        return [
+            "Claude preferredNotifChannel: 已从 "
+            f"{existing_value} 切换为 {CLAUDE_PREFERRED_NOTIF_DISABLED}"
+        ]
+    return [
+        "Claude preferredNotifChannel: 已设置为 "
+        f"{CLAUDE_PREFERRED_NOTIF_DISABLED}"
+    ]
 
 
 def remove_claude_hooks() -> list[str]:
@@ -342,6 +403,38 @@ def remove_claude_hooks() -> list[str]:
         else:
             data.pop("hooks", None)
         write_json_file(CLAUDE_SETTINGS_PATH, data)
+    return changes
+
+
+def remove_claude_preferred_notification_channel(state: dict) -> list[str]:
+    if not CLAUDE_GLOBAL_CONFIG_PATH.exists():
+        return []
+
+    data = read_json_file(CLAUDE_GLOBAL_CONFIG_PATH, default={})
+    validate_claude_preferred_notification_value(data)
+
+    claude_state = state.setdefault("claude", {})
+    saved = claude_state.pop("preferred_notification_channel", None)
+    if not isinstance(saved, dict):
+        return []
+
+    changes = []
+    if saved.get("present"):
+        original_value = saved.get("value")
+        if not isinstance(original_value, str):
+            raise ValueError("受管 state 中 preferredNotifChannel 原值损坏，无法恢复")
+        if data.get("preferredNotifChannel") != original_value:
+            data["preferredNotifChannel"] = original_value
+            changes.append(
+                "Claude preferredNotifChannel: 已恢复安装前的原值 "
+                f"{original_value}"
+            )
+    elif "preferredNotifChannel" in data:
+        data.pop("preferredNotifChannel", None)
+        changes.append("Claude preferredNotifChannel: 已移除受管字段并恢复为未设置")
+
+    if changes:
+        write_json_file(CLAUDE_GLOBAL_CONFIG_PATH, data)
     return changes
 
 
@@ -665,29 +758,33 @@ def check_claude_hook_status() -> list[str]:
     stop_managed = [g for g in stop_groups if is_managed_claude_hook_group(g)] if isinstance(stop_groups, list) else []
     results.append(f"Stop: {'已安装' if stop_managed else '未安装'}受管 hook")
 
-    # Notification event — break down by matcher
+    # UserPromptSubmit event
+    prompt_submit_groups = hooks.get("UserPromptSubmit", [])
+    prompt_submit_managed = (
+        [g for g in prompt_submit_groups if is_managed_claude_hook_group(g)]
+        if isinstance(prompt_submit_groups, list)
+        else []
+    )
+    results.append(
+        "UserPromptSubmit: "
+        f"{'已安装' if prompt_submit_managed else '未安装'}受管 hook"
+    )
+
+    # Notification event — Notification hooks 不支持 matcher，受管 helper 在运行时区分类型。
     notif_groups = hooks.get("Notification", [])
     if not isinstance(notif_groups, list):
         notif_groups = []
-
-    managed_matchers: dict[str, list[dict]] = {}
-    for group in notif_groups:
-        if is_managed_claude_hook_group(group):
-            matcher = group.get("matcher", "")
-            managed_matchers.setdefault(matcher, []).append(group)
-
-    pp_groups = managed_matchers.get("permission_prompt", [])
+    notification_managed = [g for g in notif_groups if is_managed_claude_hook_group(g)]
     results.append(
-        f"Notification(permission_prompt): {'已安装' if pp_groups else '未安装'}受管 hook"
+        f"Notification: {'已安装' if notification_managed else '未安装'}受管 hook"
     )
-
-    idle_groups = managed_matchers.get("idle_prompt", [])
-    if idle_groups:
+    if notification_managed:
         results.append(
-            "Notification(idle_prompt): ⚠ 检测到旧版受管 idle_prompt，需重装当前配置以移除"
+            "Notification(idle_prompt): 由受管 helper 在运行时抑制，不再发送第二次提醒"
         )
-    else:
-        results.append("Notification(idle_prompt): 未安装受管 hook (正常)")
+        results.append(
+            "Notification(permission_prompt): 由受管 helper 在运行时放行"
+        )
 
     # SessionEnd event
     session_end_groups = hooks.get("SessionEnd", [])
@@ -699,6 +796,24 @@ def check_claude_hook_status() -> list[str]:
     results.append(
         f"SessionEnd: {'已安装' if session_end_managed else '未安装'}受管 hook"
     )
+
+    global_config = read_json_file(CLAUDE_GLOBAL_CONFIG_PATH, default={})
+    has_pref, pref_value = validate_claude_preferred_notification_value(global_config)
+    if not has_pref:
+        results.append(
+            "preferredNotifChannel: 未设置 "
+            "(Claude 内建通知默认仍可能启用，可能与受管即时通知重复)"
+        )
+    elif pref_value == CLAUDE_PREFERRED_NOTIF_DISABLED:
+        results.append(
+            "preferredNotifChannel: notifications_disabled "
+            "(已禁用 Claude 内建通知，保留受管即时提醒)"
+        )
+    else:
+        results.append(
+            "preferredNotifChannel: "
+            f"{pref_value} (⚠ Claude 内建通知仍开启，可能与受管即时通知重复)"
+        )
 
     return results
 
@@ -798,6 +913,11 @@ def check_iterm2_status() -> None:
         profile_name = profile.get("Name", "Unknown")
         notify_enabled = profile.get("BM Growl", False)
         print(f"   Profile [{profile_name}]: Notification Center alerts={notify_enabled}")
+        if notify_enabled:
+            print(
+                "     提示: 请在 iTerm2 的 Filter Alerts 中仅保留 "
+                "'Send escape sequence-generated alerts'，否则 /exit 等非受管事件也可能弹通知"
+            )
         flashing = profile.get("Flashing Bell", False)
         silence = profile.get("Silence Bell", False)
         if flashing or silence:
@@ -823,6 +943,17 @@ def install_all() -> None:
     for change in ensure_claude_hooks():
         print(f"   {change}")
 
+    print("\n⚙️ 安装 Claude 通知通道设置...")
+    changes = ensure_claude_preferred_notification_channel(state)
+    if changes:
+        for change in changes:
+            print(f"   {change}")
+    else:
+        print(
+            "   Claude preferredNotifChannel: 已为 "
+            f"{CLAUDE_PREFERRED_NOTIF_DISABLED}"
+        )
+
     print("\n⚙️ 安装 Codex [tui] 通知...")
     for change in ensure_codex_tui_notifications(state):
         print(f"   {change}")
@@ -834,8 +965,14 @@ def install_all() -> None:
     print("  1. 重启 iTerm2 使 Notification Center alerts 配置生效")
     print("  2. 重启 Claude Code / Codex 会话，使 hooks / [tui] 通知生效")
     print("     (旧版会话可能仍按旧 hooks 触发，helper 会自动抑制重复通知)")
-    print("  3. 在 Claude Code 或 Codex 中触发一次确认/完成场景测试")
-    print("  4. 若在 tmux 中运行，请确保当前 tmux 会话由 iTerm2 启动")
+    print("  3. 在 iTerm2 -> Profiles -> Terminal -> Filter Alerts 中")
+    print("     仅勾选 'Send escape sequence-generated alerts'")
+    print("     不要保留 output / idle / bell / close 类 alerts，否则 /exit 仍可能弹通知")
+    print(
+        "  4. Claude 内建 iTerm2 通知已受管关闭，完成提醒应只走受管即时路径"
+    )
+    print("  5. 在 Claude Code 或 Codex 中触发一次确认/完成场景测试")
+    print("  6. 若在 tmux 中运行，请确保当前 tmux 会话由 iTerm2 启动")
     print()
     print("检查: python3 setup-iterm2-claude-notify.py --check")
     print("卸载: python3 setup-iterm2-claude-notify.py --remove")
@@ -854,6 +991,14 @@ def remove_all() -> None:
     else:
         print("   未找到受管 Claude hooks。")
 
+    print("\n⚙️ 恢复 Claude 通知通道设置...")
+    changes = remove_claude_preferred_notification_channel(state)
+    if changes:
+        for change in changes:
+            print(f"   {change}")
+    else:
+        print("   未找到受管 preferredNotifChannel 状态。")
+
     print("\n⚙️ 卸载 Codex [tui] 通知...")
     changes = remove_codex_tui_notifications(state)
     if changes:
@@ -869,7 +1014,7 @@ def remove_all() -> None:
     )
 
     state = prune_state(state)
-    if state in ({}, {"version": 1}, {"version": 2}, {"version": 3}):
+    if state in ({}, {"version": 1}, {"version": 2}, {"version": 3}, {"version": 4}):
         if STATE_PATH.exists():
             STATE_PATH.unlink()
     else:

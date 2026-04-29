@@ -25,13 +25,16 @@ from pathlib import Path
 
 TTY_TARGET = Path("/dev/tty")
 DEDUP_STATE_PATH = Path.home() / ".config/agent-notify/claude-dedup.json"
+EVENT_LOG_PATH = Path.home() / ".config/agent-notify/claude-events.log"
 DEDUP_WINDOW_SECONDS = 10  # Stop 短窗口去重
 LEGACY_IDLE_SUPPRESS_SECONDS = 120  # 遗留 idle_prompt 抑制窗口
 EXIT_SUPPRESS_WINDOW_SECONDS = 10  # 退出抑制关联窗口
-EXIT_CONFIRM_DELAY_SECONDS = 0.3  # Stop 等待 SessionEnd 的短延迟
+EXIT_CONFIRM_MAX_WAIT_SECONDS = 1.5  # Stop 等待 SessionEnd 的最大确认窗口
+EXIT_CONFIRM_POLL_INTERVAL_SECONDS = 0.05  # Stop 等待 SessionEnd 的轮询间隔
 EXIT_SUPPRESS_REASONS = frozenset({"prompt_input_exit", "clear"})  # 应抑制完成提醒的退出原因
 PERMISSION_PROMPT_SUPPRESS_SECONDS = 10  # permission_prompt 抑制 Stop 的窗口
 PERMISSION_PROMPT_CONFIRM_DELAY_SECONDS = 0.3  # Stop 等待 permission_prompt 的短延迟
+EXIT_COMMANDS = frozenset({"/exit", "/quit", "/clear"})
 
 
 def truncate_text(value: str, limit: int = 120) -> str:
@@ -126,6 +129,23 @@ def _save_dedup_state(state: dict) -> None:
     DEDUP_STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n")
 
 
+def _append_event_log(source: str, payload: dict, note: str = "") -> None:
+    event = {
+        "ts": time.time(),
+        "source": source,
+        "note": note,
+        "session_id": _extract_session_id(payload),
+        "hook_event_name": payload.get("hook_event_name"),
+        "reason": payload.get("reason"),
+        "notification_type": payload.get("notification_type"),
+        "prompt": truncate_text(str(payload.get("prompt", "")).strip(), 80),
+        "command_name": payload.get("command_name"),
+    }
+    EVENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with EVENT_LOG_PATH.open("a") as fh:
+        fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
 def _extract_session_id(payload: dict) -> str | None:
     """从 Claude hook payload 提取 session_id。"""
     sid = payload.get("session_id") or payload.get("sessionId")
@@ -161,6 +181,44 @@ def _prune_sessions(state: dict, max_age: float = 600.0) -> None:
         if exit_at and (now - exit_at) > EXIT_SUPPRESS_WINDOW_SECONDS:
             info.pop("exit_requested_at", None)
             info.pop("last_session_end_reason", None)
+            info.pop("exit_intent_at", None)
+            info.pop("last_exit_intent", None)
+
+
+def _get_session_info(state: dict, session_id: str) -> dict:
+    sessions = state.setdefault("sessions", {})
+    info = sessions.get(session_id)
+    if isinstance(info, dict):
+        return info
+    info = {}
+    sessions[session_id] = info
+    return info
+
+
+def _normalize_prompt(text: str) -> str:
+    return " ".join(text.strip().split())
+
+
+def _extract_exit_command_from_prompt(prompt: str) -> str | None:
+    normalized = _normalize_prompt(prompt)
+    if normalized in EXIT_COMMANDS:
+        return normalized
+    return None
+
+
+def _has_recent_exit_marker(info: dict) -> bool:
+    now = time.time()
+    exit_at = info.get("exit_requested_at")
+    exit_reason = info.get("last_session_end_reason")
+    if exit_at and exit_reason in EXIT_SUPPRESS_REASONS:
+        if (now - exit_at) < EXIT_SUPPRESS_WINDOW_SECONDS:
+            return True
+
+    intent_at = info.get("exit_intent_at")
+    if intent_at and (now - intent_at) < EXIT_SUPPRESS_WINDOW_SECONDS:
+        return True
+
+    return False
 
 
 def should_suppress_stop(payload: dict) -> bool:
@@ -171,8 +229,7 @@ def should_suppress_stop(payload: dict) -> bool:
     _prune_sessions(state)
 
     if session_id:
-        sessions = state.setdefault("sessions", {})
-        info = sessions.get(session_id, {})
+        info = _get_session_info(state, session_id)
         prev_fp = info.get("last_completion_fingerprint")
         prev_at = info.get("last_completion_at", 0)
 
@@ -197,12 +254,10 @@ def should_suppress_stop(payload: dict) -> bool:
     # 不抑制 — 记录并发通知
     now = time.time()
     if session_id:
-        sessions = state.setdefault("sessions", {})
-        sessions[session_id] = {
-            "last_completion_at": now,
-            "last_completion_fingerprint": fingerprint,
-            "last_event_type": "stop",
-        }
+        info = _get_session_info(state, session_id)
+        info["last_completion_at"] = now
+        info["last_completion_fingerprint"] = fingerprint
+        info["last_event_type"] = "stop"
     else:
         state["_global_last_stop_at"] = now
 
@@ -212,29 +267,21 @@ def should_suppress_stop(payload: dict) -> bool:
 
 def _should_suppress_for_exit(state: dict, session_id: str) -> bool:
     """检查同 session 是否有最近的退出标记。支持 SessionEnd 先到和后到两种场景。"""
-    sessions = state.get("sessions", {})
-    info = sessions.get(session_id, {})
-    exit_at = info.get("exit_requested_at")
-    exit_reason = info.get("last_session_end_reason")
+    deadline = time.time() + EXIT_CONFIRM_MAX_WAIT_SECONDS
 
-    # 如果已有退出标记且在窗口内，直接抑制
-    if exit_at and exit_reason in EXIT_SUPPRESS_REASONS:
-        if (time.time() - exit_at) < EXIT_SUPPRESS_WINDOW_SECONDS:
+    while True:
+        sessions = state.get("sessions", {})
+        info = sessions.get(session_id, {})
+        if _has_recent_exit_marker(info):
             return True
 
-    # SessionEnd 可能还没到——短延迟后再查一次
-    time.sleep(EXIT_CONFIRM_DELAY_SECONDS)
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            break
 
-    # 重新加载状态（SessionEnd 可能已写入）
-    state.update(_load_dedup_state())
-    sessions = state.get("sessions", {})
-    info = sessions.get(session_id, {})
-    exit_at = info.get("exit_requested_at")
-    exit_reason = info.get("last_session_end_reason")
-
-    if exit_at and exit_reason in EXIT_SUPPRESS_REASONS:
-        if (time.time() - exit_at) < EXIT_SUPPRESS_WINDOW_SECONDS:
-            return True
+        time.sleep(min(EXIT_CONFIRM_POLL_INTERVAL_SECONDS, remaining))
+        state.clear()
+        state.update(_load_dedup_state())
 
     return False
 
@@ -247,13 +294,34 @@ def record_permission_prompt(payload: dict) -> None:
 
     state = _load_dedup_state()
     _prune_sessions(state)
-    sessions = state.setdefault("sessions", {})
-
-    if session_id not in sessions:
-        sessions[session_id] = {}
-
-    sessions[session_id]["last_permission_prompt_at"] = time.time()
+    info = _get_session_info(state, session_id)
+    info["last_permission_prompt_at"] = time.time()
     _save_dedup_state(state)
+
+
+def record_exit_intent(payload: dict, source: str) -> None:
+    """在用户提交 /exit /clear 时提前记录退出意图。"""
+    session_id = _extract_session_id(payload)
+    if not session_id:
+        return
+
+    prompt = str(payload.get("prompt", "")).strip()
+    command_name = str(payload.get("command_name", "")).strip()
+    exit_command = _extract_exit_command_from_prompt(prompt)
+    if not exit_command and command_name:
+        normalized_command = "/" + command_name.lstrip("/")
+        if normalized_command in EXIT_COMMANDS:
+            exit_command = normalized_command
+    if not exit_command:
+        return
+
+    state = _load_dedup_state()
+    _prune_sessions(state)
+    info = _get_session_info(state, session_id)
+    info["exit_intent_at"] = time.time()
+    info["last_exit_intent"] = exit_command
+    _save_dedup_state(state)
+    _append_event_log(source, payload, note=f"record-exit-intent:{exit_command}")
 
 
 def _should_suppress_for_permission_prompt(state: dict, session_id: str) -> bool:
@@ -310,12 +378,7 @@ def record_session_end(payload: dict) -> None:
 
     state = _load_dedup_state()
     _prune_sessions(state)
-    sessions = state.setdefault("sessions", {})
-
-    if session_id not in sessions:
-        sessions[session_id] = {}
-
-    info = sessions[session_id]
+    info = _get_session_info(state, session_id)
 
     if reason in EXIT_SUPPRESS_REASONS:
         info["exit_requested_at"] = time.time()
@@ -500,21 +563,36 @@ def main() -> int:
 
     if args.source == "claude-stop":
         payload = read_stdin_payload()
+        _append_event_log(args.source, payload)
         if should_suppress_stop(payload):
+            _append_event_log(args.source, payload, note="suppress-stop")
             return 0
         # 焦点 session 抑制：仅抑制 claude-stop，不影响 permission_prompt
         if should_suppress_focused_session():
+            _append_event_log(args.source, payload, note="suppress-focused-session")
             return 0
         title, message = build_claude_stop_message(payload)
+    elif args.source == "claude-user-prompt-submit":
+        payload = read_stdin_payload()
+        _append_event_log(args.source, payload)
+        record_exit_intent(payload, args.source)
+        return 0
+    elif args.source == "claude-user-prompt-expansion":
+        payload = read_stdin_payload()
+        _append_event_log(args.source, payload)
+        record_exit_intent(payload, args.source)
+        return 0
     elif args.source == "claude-session-end":
         payload = read_stdin_payload()
+        _append_event_log(args.source, payload)
         record_session_end(payload)
         return 0
     elif args.source == "claude-notification":
         payload = read_stdin_payload()
+        _append_event_log(args.source, payload)
         notification_type = str(payload.get("notification_type", "")).strip()
-        # permission_prompt 始终放行，不参与去重
-        if notification_type == "idle_prompt" and should_suppress_idle(payload):
+        # 当前受管策略下，idle_prompt 不再作为用户提醒来源，统一直接抑制。
+        if notification_type == "idle_prompt":
             return 0
         if notification_type == "permission_prompt":
             record_permission_prompt(payload)
