@@ -3,7 +3,7 @@ name: merge-worktree-return
 description: Commit worktree changes, rebase onto main, merge back to main branch, and exit the worktree. Use when finishing implementation in a worktree. Optional proposal name argument verifies OpenSpec completion. Requires git.
 argument-hint: [proposal-name]
 disable-model-invocation: true
-allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(awk *) Bash(sed *) Bash(cat *) Bash(head *) Bash(test *) Read Write Edit Glob Grep Skill AskUserQuestion
+allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(awk *) Bash(sed *) Bash(cat *) Bash(head *) Bash(test *) EnterWorktree ExitWorktree Read Write Edit Glob Grep Skill AskUserQuestion
 ---
 
 Commit worktree changes, merge back to main branch, and exit the worktree safely.
@@ -161,16 +161,27 @@ Commit worktree changes, merge back to main branch, and exit the worktree safely
    - [x] Step 6: Merge to main verified successful
    - [x] Step 2: If proposal name given, proposal is complete (or user confirmed)
 
-   Only if ALL conditions are met, use the **ExitWorktree** tool with:
-   - `action`: "remove"
+   Only if ALL conditions are met, 根据当前环境选择退出方式：
 
-   After ExitWorktree completes, verify:
+   **Claude Code 环境（ExitWorktree 工具可用）**:
+   使用 **ExitWorktree** 工具，参数 `action`: "remove"。
+
+   **其他环境（Codex CLI 等，ExitWorktree 工具不可用）**:
+   Step 6 已通过 `cd <MAIN_DIR>` 切回主目录，只需清理 worktree：
+   ```bash
+   git worktree remove <worktree-path>
+   ```
+   其中 `<worktree-path>` 为 Step 1 中记录的 worktree 目录路径。
+
+   判断依据：检查 **ExitWorktree** 工具是否在当前环境中可用。
+
+   退出完成后，验证：
    ```bash
    pwd
    git branch --show-current
    ```
 
-   Confirm we are back in the main project directory on the main branch.
+   确认已回到主项目目录且在主分支上。
 
 **Output On Success**
 
@@ -208,6 +219,7 @@ All worktree changes have been successfully merged to <MAIN_BRANCH>.
 - Never exit the worktree unless all merge conditions are verified
 - Never use --force flags on git commands
 - If rebase fails, always use `git rebase --abort` to return to safe state
-- If merge verification fails, do NOT call ExitWorktree
+- If merge verification fails, do NOT call ExitWorktree or remove the worktree
 - All git command failures should stop execution immediately
+- 非 Claude Code 环境下使用 `git worktree remove` 替代 `ExitWorktree`，Step 6 已确保 CWD 在主目录，无需额外 `cd`
 - Always confirm with user before merging if proposal tasks are incomplete

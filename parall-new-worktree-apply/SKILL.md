@@ -268,6 +268,24 @@ Wave <N> — <count> 个 changes，分为 <batch_count> 个 Batch:
   ```
   你正在一个隔离的 git worktree 中实施 OpenSpec change "<change-name>"。
 
+  **平台适配指引（必须遵守）**:
+  判断当前环境中 **EnterWorktree** 工具是否可用：
+  - **可用（Claude Code）**: worktree 已由系统自动创建并切换 CWD，直接开始实施。禁止使用 `git worktree add`。
+  - **不可用（Codex 等其他环境）**: 若 isolation: "worktree" 未生效，需手动创建：
+    ```bash
+    git worktree add .claude/worktrees/<change-name> -b <change-name>
+    cd .claude/worktrees/<change-name>
+    ```
+    必须在后续所有操作前显式 cd 到 worktree 目录。
+
+  **CWD 验证（必须执行）**:
+  开始实施前，执行：
+  ```bash
+  pwd
+  git branch --show-current
+  ```
+  确认当前目录包含 "<change-name>" 且分支正确。若验证失败，停止并报告。
+
   请严格按照以下步骤执行:
 
   1. 调用 Skill 工具执行 opsx:apply，参数为 "<change-name>"
@@ -286,7 +304,15 @@ Wave <N> — <count> 个 changes，分为 <batch_count> 个 Batch:
        c. 检测通过的自动改为 "- [x]"
        d. 输出补标记报告
 
-     Step B — Force-add + Commit:
+     Step B — CWD 验证:
+       在执行 commit 前，确认当前仍在正确的 worktree 目录中：
+       ```bash
+       pwd
+       git branch --show-current
+       ```
+       若 `pwd` 不包含 "<change-name>" 或分支不正确，必须先 cd 回 worktree 目录再继续。
+
+     Step C — Force-add + Commit:
        git add -A
        git add -f openspec/changes/<change-name>/tasks.md
        统计 DONE/TOTAL:

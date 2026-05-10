@@ -3,7 +3,7 @@ name: new-worktree-apply
 description: Create a git worktree branch for an OpenSpec proposal and apply it. Use when starting implementation of an OpenSpec change in an isolated worktree. Requires git and openspec CLI.
 argument-hint: <proposal-name> [--branch <main-branch>]
 disable-model-invocation: true
-allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(test *) Bash(head *) Bash(sed *) Read Write Edit Glob Grep Skill AskUserQuestion
+allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(test *) Bash(head *) Bash(sed *) EnterWorktree ExitWorktree Read Write Edit Glob Grep Skill AskUserQuestion
 ---
 
 Create a git worktree for an OpenSpec proposal and start applying it.
@@ -87,12 +87,42 @@ Create a git worktree for an OpenSpec proposal and start applying it.
 
 5. **Create the worktree**
 
-   Use the **EnterWorktree** tool with:
+   根据当前环境选择创建方式：
+
+   **Claude Code 环境（EnterWorktree 工具可用）**:
+   **必须** 使用 **EnterWorktree** 工具，**禁止** 使用 `git worktree add`。
    - `name`: the proposal name
 
-   This creates a new branch named after the proposal, creates a worktree directory, and switches the session CWD.
+   这会创建以 proposal 命名的新分支，创建 worktree 目录，并自动切换会话 CWD。
 
-   If EnterWorktree fails → error with the failure message. Suggest the user check git status and try manually.
+   **其他环境（Codex CLI 等，EnterWorktree 工具不可用）**:
+   ```bash
+   git worktree add .claude/worktrees/<proposal-name> -b <proposal-name>
+   cd .claude/worktrees/<proposal-name>
+   ```
+   必须在 `git worktree add` 后显式 `cd` 到 worktree 目录。后续所有操作必须在 worktree 目录中执行。
+
+   判断依据：检查 **EnterWorktree** 工具是否在当前环境中可用。
+
+   如果创建失败 → 报错并附带失败信息。建议用户检查 git status 后重试。
+
+   **CWD 验证（必须执行）**:
+   创建 worktree 后，立即验证工作目录是否正确切换：
+   ```bash
+   pwd
+   git branch --show-current
+   ```
+
+   预期结果：
+   - `pwd` 应显示 worktree 目录路径（包含 `<proposal-name>`）
+   - `git branch --show-current` 应显示 `<proposal-name>`
+
+   如果验证失败 → 报错并停止执行：
+   > "CWD 验证失败：当前目录 <pwd> 或分支 <branch> 不符合预期。请检查 worktree 是否正确创建。"
+   >
+   > **恢复建议**:
+   > 1. 手动执行 `cd .claude/worktrees/<proposal-name>` 切换目录
+   > 2. 若 worktree 未创建成功，执行 `git worktree add .claude/worktrees/<proposal-name> -b <proposal-name>`
 
 6. **Verify HEAD consistency**
 
@@ -243,3 +273,5 @@ Use `/merge-worktree-return <proposal-name>` when ready to merge.
 - Commit messages include proposal name for traceability
 - If EnterWorktree fails, do not attempt manual worktree creation — report to user
 - All git command failures should stop execution immediately
+- **在 Claude Code 环境下，禁止使用 `git worktree add` 替代 `EnterWorktree`** — 必须使用内置工具以确保 CWD 正确切换
+- CWD 验证（Step 5）不可跳过，验证失败必须停止执行
