@@ -29,11 +29,22 @@ git rev-parse --is-inside-work-tree
 错误: 当前目录不是 git 仓库。请在 git 仓库中运行此命令。
 ```
 
-### 0.3 确认在主分支
+### 0.3 检测主分支并确认当前所在
 
-检测主分支名称（按优先级 main → master → trunk）：
+按优先级检测主分支名称（`main` → `master` → `trunk` → origin HEAD fallback）：
+
 ```bash
-git branch --list main master trunk
+MAIN_BRANCH=""
+git rev-parse --verify main 2>/dev/null && MAIN_BRANCH="main"
+if [ -z "$MAIN_BRANCH" ]; then git rev-parse --verify master 2>/dev/null && MAIN_BRANCH="master"; fi
+if [ -z "$MAIN_BRANCH" ]; then git rev-parse --verify trunk 2>/dev/null && MAIN_BRANCH="trunk"; fi
+if [ -z "$MAIN_BRANCH" ]; then MAIN_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}'); fi
+```
+
+若 `MAIN_BRANCH` 为空（所有检测均失败），报错退出，**停止在 Discovery 和 Agent spawn 之前**：
+```
+错误: 无法检测主分支。
+请确保仓库存在 main/master/trunk 分支，或远程 origin 可访问。
 ```
 
 确认当前在主分支上：
@@ -41,11 +52,13 @@ git branch --list main master trunk
 git branch --show-current
 ```
 
-若不在主分支，报错并提示切换：
+若当前分支与 `MAIN_BRANCH` 不一致，报错并提示切换：
 ```
 错误: 当前不在主分支 (当前: <current-branch>)。
-请先切换到主分支 (<main-branch>) 后再执行。
+请先切换到主分支 (<MAIN_BRANCH>) 后再执行。
 ```
+
+将检测到的 `MAIN_BRANCH` 记录为变量，后续所有 Step 使用 `<MAIN_BRANCH>` 替代硬编码分支名。
 
 ### 0.4 Auto-commit
 
@@ -349,7 +362,7 @@ Agent 失败不阻塞其他 Agent 的等待。失败的 Agent 记录到结果列
 
 当前 Batch 所有 Agent 完成后，**立即执行 Step 5 合并流程**，将成功的分支逐个合并回主干。
 
-合并完成后 main HEAD 已推进。下一个 Batch 的 worktree 虽基于更早的 HEAD 创建，但 rebase 时会自动同步到最新 main，确保合并基线准确。
+合并完成后 `<MAIN_BRANCH>` HEAD 已推进。下一个 Batch 的 worktree 虽基于更早的 HEAD 创建，但 rebase 时会自动同步到最新 `<MAIN_BRANCH>`，确保合并基线准确。
 
 ### 4.3 Wave 完成
 
@@ -361,25 +374,78 @@ Agent 失败不阻塞其他 Agent 的等待。失败的 Agent 记录到结果列
 
 由 Step 4.2.4 调用。**每个 Batch 完成后**，按目录名字母序逐个合并成功的分支。
 
-### 5.1 合并单个分支
+### 5.1 合并前控制器验证
 
-对每个成功的分支，按以下顺序操作：
+**对每个成功的分支，合并前必须验证主控状态**：
+
+```bash
+pwd
+git branch --show-current
+```
+
+验证条件：
+- `pwd` 必须是主工作树路径（不包含 worktree 子目录）
+- `git branch --show-current` 必须等于 `<MAIN_BRANCH>`
+
+**CWD 验证失败**时，报告详细信息并**跳过该分支合并**：
+```
+错误: 主控 CWD 验证失败
+  当前目录: <pwd 输出>
+  期望主工作树: <主工作树路径>
+  当前分支: <branch --show-current 输出>
+  期望分支: <MAIN_BRANCH>
+  合并已中止，请切换到正确的工作树和分支后重试。
+```
+
+**分支验证失败**时，尝试恢复：
+```bash
+git checkout <MAIN_BRANCH>
+```
+
+若恢复后验证仍失败，报告错误并**跳过该分支合并**：
+```
+错误: 主控分支验证失败
+  当前分支: <branch>
+  期望分支: <MAIN_BRANCH>
+  恢复尝试失败，跳过此分支合并。
+```
+
+### 5.2 合并单个分支
+
+主控验证通过后，对每个成功的分支按以下顺序操作：
 
 ```
-Step A: Rebase 到最新 main
-  git rebase main <branch>
+Step A: Rebase 到最新 <MAIN_BRANCH>
+  git rebase <MAIN_BRANCH> <branch>
 
 Step B: 检查是否有冲突 → 转到 Step 6（冲突解决）
 
-Step C: 切换到 main 并合并
-  git checkout main
+Step C: 切换到 <MAIN_BRANCH> 并合并
+  git checkout <MAIN_BRANCH>
   git merge <branch>
 
-Step D: 验证合并成功
-  git log --oneline -1  # 确认 HEAD 已推进
+Step D: 验证合并完整性
+  git log <MAIN_BRANCH>..<branch>
+  输出必须为空，表示该分支无剩余未合并的提交。
 
-Step E: 验证 tasks.md 标记状态
-  对该 change 检查 main 上的 tasks.md:
+  若输出不为空：
+    报告合并验证失败:
+    ```
+    警告: 合并验证失败 — 分支 <branch> 仍有未合并提交
+      未合并提交:
+        <git log <MAIN_BRANCH>..<branch> 输出>
+      该分支不会被标记为已合并，将在最终报告中列出。
+    ```
+    跳过该分支，继续处理下一个。
+
+Step E: 验证合并后主控仍在 <MAIN_BRANCH>
+  git branch --show-current
+  若结果不是 <MAIN_BRANCH>:
+    git checkout <MAIN_BRANCH>
+    重新验证。若仍失败，报告错误并停止串行合并。
+
+Step F: 验证 tasks.md 标记状态
+  对该 change 检查 <MAIN_BRANCH> 上的 tasks.md:
   DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<name>/tasks.md)
   TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<name>/tasks.md)
 
@@ -393,15 +459,15 @@ Step E: 验证 tasks.md 标记状态
     - git commit -m "fix: backfill task markers for <name> (DONE/TOTAL tasks)"
 ```
 
-### 5.2 合并顺序
+### 5.3 合并顺序
 
-按分支对应 change 的目录名字母序逐个合并。每合并一个分支后，main HEAD 推进，下一个分支的 rebase 基于此新 HEAD。
+按分支对应 change 的目录名字母序逐个合并。每合并一个分支后，`<MAIN_BRANCH>` HEAD 推进，下一个分支的 rebase 基于此新 HEAD。
 
 ---
 
 ## Step 6: 冲突智能解决
 
-当 `git rebase main <branch>` 产生冲突时执行此步骤。
+当 `git rebase <MAIN_BRANCH> <branch>` 产生冲突时执行此步骤。
 
 ### 6.1 检测冲突
 
@@ -497,10 +563,19 @@ git commit -m "fix: backfill task markers for <name> (DONE/TOTAL tasks)"
 ### Wave 执行结果
 
 Wave 1:
-| Change | Agent 状态 | 合并状态 | 备注 |
-|--------|-----------|---------|------|
-| <name> | ✓ 成功    | ✓ 已合并 |      |
-| <name> | ✓ 成功    | ✗ 冲突  | 冲突文件: <files> |
+| Change | Agent 状态 | 合并状态 | CWD 验证 | 合并验证 | 备注 |
+|--------|-----------|---------|---------|---------|------|
+| <name> | ✓ 成功    | ✓ 已合并 | ✓       | ✓       |      |
+| <name> | ✓ 成功    | ✗ 跳过  | ✗ 失败  | —       | CWD 验证失败: <详情> |
+| <name> | ✓ 成功    | ✗ 未验证| —       | ✗ 失败  | 合并不完整: <n> 个提交未合并 |
+| <name> | ✗ 失败    | — 跳过  | —       | —       | Agent 执行失败: <原因> |
+| <name> | ✓ 成功    | ✗ 冲突  | —       | —       | 冲突文件: <files> |
+
+说明:
+- "✗ 跳过 (CWD 验证失败)": 主控工作树或分支异常，合并未执行
+- "✗ 未验证 (合并验证失败)": merge 已执行但分支仍有未合并提交
+- "— 跳过 (Agent 失败)": Agent 执行失败，分支不可合并
+- "✗ 冲突": rebase 冲突且无法自动解决
 
 Wave 2:
 ...
@@ -555,11 +630,12 @@ Wave 2:
 | 步骤 | 错误 | 处理 |
 |------|------|------|
 | 0.2 | 非 git 仓库 | 直接退出 |
-| 0.3 | 不在主分支 | 直接退出，提示切换 |
+| 0.3 | 主分支无法检测 / 不在主分支 | 直接退出，停止在 Discovery 之前 |
 | 2.2 | 依赖引用不存在 | 直接退出，提示检查 |
 | 2.3 | 循环依赖 | 直接退出，列出环中 changes |
 | 4.2 | Agent 执行失败 | 记录失败，继续其他 Agent |
-| 5.1 | Rebase 冲突 | 尝试智能解决，失败则跳过该分支 |
+| 5.1 | CWD/分支验证失败 | 跳过该分支，继续下一个 |
+| 5.2 | Rebase 冲突 / 合并验证失败 | 尝试智能解决，失败则跳过该分支 |
 | 7.1 | 验证未通过 | 在报告中标注，不阻塞 |
 
 ---

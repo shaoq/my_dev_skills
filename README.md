@@ -247,16 +247,17 @@ Step 4: 归档
 - 自动发现有未完成 `[ ]` 任务的 change
 - 解析 `dependencies.yaml` 构建依赖图
 - 同一 Wave 内的 changes 通过 Agent 在隔离 worktree 中并行 spawn
-- 串行合并回主干（按字母序）
+- 串行合并回主干（按字母序），合并前验证主控 CWD 和分支、合并后验证分支完整性
 - 冲突智能解决（非重叠自动合并、语义可合并、无法解决则跳过）
 
 **注意事项**:
-- **必须在主分支上执行**，否则报错
+- **必须在主分支上执行**，主分支通过 `main` → `master` → `trunk` → origin HEAD 自动检测（不硬编码 `main`）
 - 待执行 changes = 0 时直接退出
 - 待执行 changes = 1 时走简化路径（直接 apply，不 spawn Agent）
 - 每 Wave 最多 3 个并行 Agent，超出自动分 Batch 串行执行
 - Agent spawn 必须在同一消息中并行（同一 Batch 内）
 - 合并必须串行，每个 Batch 完成后立即合并
+- 串行合并前验证主控 CWD 和分支，合并后验证分支完整性
 - artifacts 不完整的 change 会被跳过
 - 失败的 Agent/分支不阻塞其他
 
@@ -266,7 +267,7 @@ Step 4: 归档
 
 **核心机制**:
 - 验证 proposal artifacts 完整性
-- 通过 `EnterWorktree` 工具创建隔离分支
+- Claude Code 环境使用内置 `EnterWorktree` 工具创建隔离分支；非 Claude Code 环境（如 Codex CLI）使用 `git worktree add` + 显式 `cd` 作为回退
 - 实施任务
 - Post-apply 自动补标记（四规则检测）+ 强制提交 `tasks.md`
 
@@ -282,7 +283,7 @@ Step 4: 归档
 **核心机制**:
 - 验证在 worktree 中（检查 `.git` 是否为 `gitdir:` 文件）
 - 可选验证 proposal 完成度（传参时）
-- Rebase onto main → 处理冲突 → checkout main → merge → ExitWorktree
+- Rebase onto main → 处理冲突 → checkout main → merge → ExitWorktree（Claude Code 使用内置工具退出；非 Claude Code 环境使用 `git worktree remove`）
 
 **注意事项**:
 - 必须在 worktree 内运行，否则报错
