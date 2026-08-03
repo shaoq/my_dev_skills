@@ -33,7 +33,7 @@
 
 - [x] 5.1 将参数处理从“忽略所有参数”改为仅接受可选 `--target`，并把 Discovery、artifact 检查和依赖图构建保留在只读预检阶段
 - [x] 5.2 把现有 Auto-commit 移到执行计划确认和复检之后，提交后刷新批量创建所用目标 HEAD
-- [x] 5.3 让每个 agent/手动 child worktree 从同一个已确认目标快照创建，并在 agent 提示中传递目标和 CWD/HEAD 验证要求
+- [x] 5.3 让同一 Batch 的每个 agent/手动 child worktree 从最新 `BATCH_TARGET_HEAD` 创建，并在 agent 提示中传递目标和 CWD/HEAD 验证要求
 - [x] 5.4 将每个 Batch 的 rebase、checkout、merge、tasks 回填和验证从 `MAIN_BRANCH` 改为 `TARGET_BRANCH`
 - [x] 5.5 修复单 change 路径，使其也在隔离 worktree 中 apply、提交并通过相同目标合并流程返回
 - [x] 5.6 更新冲突恢复、失败保留、最终报告和 Guardrails，显示目标选择依据及每个分支的目标包含验证
@@ -47,3 +47,12 @@
 - [x] 6.5 验证 `merge-worktree-return` 对非 `main` 目标的 rebase、merge、包含检查和清理，以及目标脏状态和不完整 proposal 的失败路径
 - [x] 6.6 验证 `parall-new-worktree-apply` 的单 change、多个 wave/batch、取消计划、Auto-commit 时机、串行目标合并和失败 worktree 保留
 - [x] 6.7 运行适用的 skill/OpenSpec 校验，并在提交前执行 `gitnexus_detect_changes()`，确认只影响三个预期 skill 和 `worktree-targeting` 流程
+
+## 7. 评审回归修复
+
+- [x] 7.1 将 `new-worktree-apply` 的状态读取、复检和 Auto-commit 全部绑定到 `TARGET_WORKTREE_DIR`
+- [x] 7.2 为 `new-worktree-apply` 增加 Claude Code 目标调用上下文只读门槛，并在 `EnterWorktree` 前验证目标 CWD、分支和 HEAD
+- [x] 7.3 将 `parall-new-worktree-apply` 的状态快照和 Auto-commit 绑定到同一个 `TARGET_WORKTREE_DIR`
+- [x] 7.4 在并行控制器 spawn Agent 和串行合并前持久进入并验证 `TARGET_WORKTREE_DIR`
+- [x] 7.5 每个 Batch 使用最新 `BATCH_TARGET_HEAD`，并在每个 Wave 合并后刷新下一 Wave 的目标基线
+- [x] 7.6 在隔离临时仓库复现旧目录/快照错误，并验证目标提交、控制器上下文和依赖 Wave 新基线

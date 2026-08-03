@@ -51,11 +51,15 @@ Each worktree skill SHALL select `TARGET_BRANCH` in this order: explicit `--targ
 - **THEN** the skill asks the user to provide `--target` and performs no Git write
 
 ### Requirement: Shared worktree topology preflight
-Each worktree skill SHALL derive the primary worktree, invocation worktree, checked-out branch mapping, and applicable target/source worktrees from `git worktree list --porcelain`. The skill MUST identify a safe execution directory and validate all required local refs before requesting confirmation.
+Each worktree skill SHALL derive the primary worktree, invocation worktree, checked-out branch mapping, and applicable target/source worktrees from `git worktree list --porcelain`. The skill MUST identify a safe execution directory and validate all required local refs before requesting confirmation. Target status snapshots, revalidation, staging, and commits MUST all address the same confirmed `TARGET_WORKTREE_DIR`.
 
 #### Scenario: Target is checked out in another worktree
 - **WHEN** the selected target is already checked out outside the invocation worktree
 - **THEN** the skill records that worktree as `TARGET_WORKTREE_DIR` and does not attempt a duplicate checkout
+
+#### Scenario: Target worktree contains pending changes
+- **WHEN** the target is checked out outside the invocation worktree and has pending changes
+- **THEN** preflight displays those target changes and any authorized Auto-commit stages and commits in `TARGET_WORKTREE_DIR`, not the invocation or primary worktree
 
 #### Scenario: Target is not checked out
 - **WHEN** the selected target is not checked out and the clean primary worktree can safely switch
@@ -68,6 +72,10 @@ Each worktree skill SHALL derive the primary worktree, invocation worktree, chec
 #### Scenario: Required branch is detached
 - **WHEN** a workflow requires a named source or target but the relevant worktree is detached
 - **THEN** the skill reports detached HEAD as unsupported and performs no Git write
+
+#### Scenario: Persistent target context cannot be established
+- **WHEN** an implicit worktree or Agent creation mechanism would inherit the invocation checkout and the controller cannot persistently enter `TARGET_WORKTREE_DIR`
+- **THEN** the skill stops before creation and does not treat `git -C` as a controller context switch
 
 ### Requirement: Mandatory preflight confirmation
 Each worktree skill SHALL finish its read-only preflight and display the command scope, target branch and source, relevant worktree paths, pending file changes, planned writes, and risk warnings. The skill MUST obtain an explicit affirmative response with no default or timed approval before any Git write or OpenSpec apply action.
@@ -112,7 +120,11 @@ After confirmation and before the first write, each skill SHALL revalidate the p
 
 #### Scenario: Claude worktree creation can use target context
 - **WHEN** `EnterWorktree` is available and the confirmed target checkout context is available
-- **THEN** the skill creates from that context and verifies the resulting HEAD equals `TARGET_HEAD`
+- **THEN** the skill first verifies the controller CWD, current branch, and current HEAD in `TARGET_WORKTREE_DIR`, then creates from that context and verifies the resulting HEAD equals `TARGET_HEAD`
+
+#### Scenario: Claude invocation is outside the target worktree
+- **WHEN** `EnterWorktree` is available but the selected target is checked out in a different worktree from the invocation
+- **THEN** the skill stops during read-only preflight and asks the user to rerun from the target worktree
 
 #### Scenario: Platform cannot guarantee the target start point
 - **WHEN** the worktree creation mechanism cannot prove it will branch from `TARGET_HEAD`
@@ -142,15 +154,23 @@ After confirmation and before the first write, each skill SHALL revalidate the p
 - **THEN** the skill reports the failure and MUST NOT remove the source worktree
 
 ### Requirement: Parallel apply uses one confirmed target
-`parall-new-worktree-apply` SHALL use the confirmed `TARGET_BRANCH` as the start point for every child worktree and as the destination for every serial rebase and merge. Auto-commit and apply execution MUST occur only after confirmation and revalidation.
+`parall-new-worktree-apply` SHALL use the confirmed `TARGET_BRANCH` as the destination for every serial rebase and merge. Before spawning, the controller MUST persistently enter `TARGET_WORKTREE_DIR`. Each Batch SHALL read the latest target commit as `BATCH_TARGET_HEAD`, create every child in that Batch from the same snapshot, and refresh the target baseline after merges so later Waves include dependency code during implementation. Auto-commit and apply execution MUST occur only after confirmation and revalidation.
 
 #### Scenario: Multiple changes run against one target
 - **WHEN** multiple changes are discovered and the user confirms `develop`
-- **THEN** every child worktree starts from the confirmed target snapshot and every successful branch is serially integrated into `develop`
+- **THEN** every child worktree in one Batch starts from that Batch's latest target snapshot and every successful branch is serially integrated into `develop`
 
 #### Scenario: Auto-commit is needed
 - **WHEN** the target worktree has changes that the confirmed plan says will be auto-committed
 - **THEN** the skill commits them only after confirmation and refreshes the target HEAD before creating child worktrees
+
+#### Scenario: Controller was invoked from another worktree
+- **WHEN** `INVOCATION_WORKTREE_DIR` differs from `TARGET_WORKTREE_DIR`
+- **THEN** the controller persistently enters and verifies `TARGET_WORKTREE_DIR` before spawning any Agent or performing serial merges
+
+#### Scenario: Later Wave depends on an earlier Wave
+- **WHEN** Wave 2 contains a change that depends on a change merged by Wave 1
+- **THEN** Wave 2's Batch baseline is refreshed from the post-Wave-1 target HEAD and includes the Wave 1 implementation during apply
 
 #### Scenario: User cancels the batch plan
 - **WHEN** the user declines after reviewing waves, batches, target, and planned writes

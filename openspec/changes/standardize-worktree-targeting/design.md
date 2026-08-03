@@ -69,7 +69,7 @@
 - `TARGET_WORKTREE_DIR`（若目标已检出）
 - `SOURCE_BRANCH`/`SOURCE_WORKTREE_DIR`（回收与批量合并场景）
 
-目标已在某个 worktree 检出时，在该目录读取或更新目标；目标未检出时，仅在干净且可安全切换的主工作树中于确认后 checkout 目标。目标工作树必须满足各流程要求：回收流程要求干净；创建和批量流程若保留 Auto-commit，则必须在摘要中列出将被提交的目标工作树改动。
+目标已在某个 worktree 检出时，在该目录读取或更新目标；目标未检出时，仅在干净且可安全切换的主工作树中于确认后 checkout 目标，并将该目录设为计划中的 `TARGET_WORKTREE_DIR`。目标工作树必须满足各流程要求：回收流程要求干净；创建和批量流程若保留 Auto-commit，则状态读取、复检、`git add` 和 `git commit` 都必须显式绑定同一个 `TARGET_WORKTREE_DIR`，摘要中列出的改动与实际提交对象不能因调用 CWD 不同而漂移。
 
 ### 5. 建立共享的只读预检和确认门槛
 
@@ -100,7 +100,7 @@ Codex CLI 使用带显式起点的命令：
 git worktree add <path> -b <proposal-name> <TARGET_BRANCH>
 ```
 
-Claude Code 使用 `EnterWorktree` 时，必须从已确认目标的 checkout/HEAD 上下文创建；若平台能力不能指定起点，则先在确认后将干净的主工作树切换到目标，或停止并要求用户调整环境，不能从其他当前 HEAD 静默创建。
+Claude Code 使用 `EnterWorktree` 时，必须从已确认目标的 checkout/HEAD 上下文创建。若目标已在另一 worktree 检出而调用上下文不在目标上，必须在只读预检阶段停止并要求用户从目标 worktree 重试；若目标尚未检出，则调用上下文必须是计划 checkout 的主工作树。调用前再次验证持久 CWD、当前分支和 HEAD；单条 `git -C` 不能建立 `EnterWorktree` 的创建上下文。
 
 创建后要求 `WORKTREE_HEAD == TARGET_HEAD` 才能进入 apply。基线不一致时停止，不用 `git merge <TARGET_BRANCH>` 掩盖错误起点。原有 artifact 检查、apply、任务回填和提交在正确 worktree 中继续执行。
 
@@ -110,7 +110,9 @@ Claude Code 使用 `EnterWorktree` 时，必须从已确认目标的 checkout/HE
 
 ### 9. `parall-new-worktree-apply` 围绕已确认目标批量执行
 
-批量 skill 接受 `--target`，发现 changes、构建依赖图和读取状态属于确认前只读阶段。现有 Auto-commit 移到计划确认与复检之后。所有 agent worktree 必须从同一个已确认目标 HEAD 创建；每个 Batch 完成后，分支依次 rebase 并 merge 到同一个 `TARGET_BRANCH`。
+批量 skill 接受 `--target`，发现 changes、构建依赖图和读取状态属于确认前只读阶段。现有 Auto-commit 移到计划确认与复检之后，并始终绑定 `TARGET_WORKTREE_DIR`。首个 Agent spawn 前必须将控制器的持久执行上下文切换到目标 worktree，并验证 CWD、分支和 HEAD；无法保持该上下文时停止，不能依赖 `git -C` 假定 Agent 隔离基线已改变。
+
+首次确认的 `TARGET_HEAD` 只承担“首次写操作前快照”的职责，不作为整个依赖图的永久基线。每个 Batch spawn 前读取最新 `BATCH_TARGET_HEAD`，同一 Batch 的 agents 使用相同快照；每个 Wave 合并完成后刷新下一 Wave 的 `TARGET_HEAD`。这样依赖 Wave 在实施阶段即可读取上游 Wave 的代码，而不是等到事后 rebase 才接触依赖。每个 Batch 完成后，分支依次 rebase 并 merge 到同一个 `TARGET_BRANCH`。
 
 即使只发现一个 change，也必须走隔离 worktree 的创建、apply、提交和合并流程，不能直接在目标工作树中调用 apply。最终报告显示目标分支、选择依据和每个分支的合并验证。
 
@@ -125,6 +127,8 @@ Claude Code 使用 `EnterWorktree` 时，必须从已确认目标的 checkout/HE
 - **[Claude Code 创建 API 无显式 start-point]** → 从目标 checkout 上下文调用；不能证明基线一致时停止，不静默回退。
 - **[目标工作树含未提交改动]** → 在摘要中精确显示；只有明确授权的创建/批量流程才可确认后提交，回收流程要求目标干净。
 - **[等待确认期间状态变化]** → 写操作前复检，变化即重新确认。
+- **[目标 worktree 与调用 worktree 不同]** → 所有目标状态与提交使用显式 `-C TARGET_WORKTREE_DIR`；隐式创建或 Agent spawn 前另行验证持久控制器上下文。
+- **[依赖 Wave 使用过期基线]** → 每 Batch 读取当前目标快照，每 Wave 合并后刷新下一 Wave 基线。
 - **[批量 skill 文件较长、易规则漂移]** → tasks 按共享契约和三个 skill 分组，并用同一场景矩阵逐项核对。
 
 ## Migration Plan

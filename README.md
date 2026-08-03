@@ -248,7 +248,8 @@ Step 4: 归档
 - 自动发现有未完成 `[ ]` 任务的 change
 - 解析 `dependencies.yaml` 构建依赖图
 - 只读预检（Discovery + 依赖图 + 目标/工作树状态）后展示完整计划，**等待用户明确确认**，确认后复检快照才执行写操作
-- Auto-commit 移到确认之后，提交后刷新目标 HEAD；所有 child worktree 从同一个目标快照创建
+- 目标状态、复检与 Auto-commit 始终绑定 `TARGET_WORKTREE_DIR`；确认后提交并刷新目标 HEAD
+- Agent spawn 前控制器持久进入目标工作树；同一 Batch 共享最新 `BATCH_TARGET_HEAD`，每个 Wave 合并后刷新下一 Wave 基线
 - 同一 Wave 内的 changes 通过 Agent 在隔离 worktree 中并行 spawn
 - 串行合并回目标分支（按字母序），合并前验证主控 CWD 和分支、合并后用 `git log <target>..<branch>` 验证目标包含全部提交
 - 冲突智能解决（非重叠自动合并、语义可合并、无法解决则跳过）

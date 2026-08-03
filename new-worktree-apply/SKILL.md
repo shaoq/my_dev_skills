@@ -105,16 +105,19 @@ Examples:
 
    **Topology rules:**
    - If `TARGET_BRANCH` is checked out in a non-invocation worktree → record it as `TARGET_WORKTREE_DIR`; do not plan a duplicate checkout.
-   - If `TARGET_BRANCH` is not checked out anywhere → record that a post-confirmation `git checkout` of `TARGET_BRANCH` in the clean primary worktree is required (only when the primary worktree is clean and can switch safely). If the primary worktree cannot switch safely → error with recovery guidance, stop before confirmation.
+   - If `TARGET_BRANCH` is not checked out anywhere → record that a post-confirmation `git checkout` of `TARGET_BRANCH` in the clean primary worktree is required (only when the primary worktree is clean and can switch safely), and set the planned `TARGET_WORKTREE_DIR=<PRIMARY_WORKTREE_DIR>`. If the primary worktree cannot switch safely → error with recovery guidance, stop before confirmation.
    - **Detached HEAD is unsupported** for the required target/source: if the primary worktree that must supply the target is detached (and no explicit target was given) → error: "Primary worktree is in detached HEAD state. Use `--target <branch>`." No Git write.
+   - **Claude Code creation-context gate:** `EnterWorktree` branches from the controller's current checkout and cannot take an explicit start-point. If `TARGET_BRANCH` is already checked out, `INVOCATION_WORKTREE_DIR` MUST equal `TARGET_WORKTREE_DIR`; if a target checkout is planned, `INVOCATION_WORKTREE_DIR` MUST equal `PRIMARY_WORKTREE_DIR`. Otherwise stop during this read-only preflight and ask the user to `cd <TARGET_WORKTREE_DIR>` (or the primary worktree for a planned checkout) and rerun. Do not auto-commit, checkout, or create anything first. Codex/manual creation is not subject to this gate because Step 7c passes an explicit start-point.
 
 4. **Read state for the preflight summary** (read-only)
 
    Record the true target HEAD and pending state **without writing**:
    ```bash
    TARGET_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)
-   git -C <PRIMARY_WORKTREE_DIR> status --porcelain
+   git -C <TARGET_WORKTREE_DIR> status --porcelain
    ```
+
+   The status snapshot is always taken from `TARGET_WORKTREE_DIR`, including when the primary worktree is only the planned target checkout. Do not substitute the invocation or primary worktree merely because the command was launched there.
 
    Validate the proposal branch does not already exist (read-only):
    ```bash
@@ -136,7 +139,7 @@ Examples:
    - Command scope: `new-worktree-apply <proposal-name>`.
    - Target branch, `TARGET_SOURCE`, and `TARGET_HEAD`.
    - `TARGET_WORKTREE_DIR` (or the planned post-confirmation checkout) and `PRIMARY_WORKTREE_DIR`.
-   - Any pending changes in the primary/target worktree that the plan will auto-commit (with file list), or "no pending changes".
+   - Any pending changes in `TARGET_WORKTREE_DIR` that the plan will auto-commit (with file list), or "no pending changes".
    - The planned write operations: auto-commit (if needed), optional `git checkout <TARGET_BRANCH>` in the clean primary worktree, `git worktree add`/`EnterWorktree` from `TARGET_HEAD`, then `openspec apply`, task backfill, and `git commit`.
    - Risk warnings: proposal branch does not exist yet (it will be created); whether a checkout of the primary worktree is required.
 
@@ -152,7 +155,7 @@ Examples:
    - Parsed arguments (proposal, target).
    - `TARGET_BRANCH` ref still resolves and `TARGET_HEAD` is unchanged.
    - Worktree mapping (`PRIMARY_WORKTREE_DIR`, `TARGET_WORKTREE_DIR`) unchanged.
-   - Pending-change state of the target/primary worktree.
+   - Pending-change state from `git -C <TARGET_WORKTREE_DIR> status --porcelain`.
    - Required checkout (still needed / still safe).
    - Displayed risk warnings.
 
@@ -162,14 +165,14 @@ Examples:
 
 7. **Execute confirmed writes** (writes begin here)
 
-   7a. **Handle pending target/primary worktree changes** — if the confirmed summary said pending changes will be auto-committed:
+   7a. **Handle pending target worktree changes** — if the confirmed summary said pending changes will be auto-committed, bind both staging and commit to the exact directory that was displayed and revalidated:
    ```bash
-   git add -A
-   git commit -m "chore: auto-commit before worktree for <proposal-name>"
+   git -C <TARGET_WORKTREE_DIR> add -A
+   git -C <TARGET_WORKTREE_DIR> commit -m "chore: auto-commit before worktree for <proposal-name>"
    ```
    If the commit advanced `TARGET_BRANCH` (e.g. the target worktree had changes on `TARGET_BRANCH`), **refresh** `TARGET_HEAD`:
    ```bash
-   TARGET_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)
+   TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
    ```
    All later creation steps use this refreshed snapshot.
 
@@ -180,14 +183,21 @@ Examples:
      ```bash
      git -C <PRIMARY_WORKTREE_DIR> checkout <TARGET_BRANCH>
      ```
+   - After checkout, set `TARGET_WORKTREE_DIR=<PRIMARY_WORKTREE_DIR>` and verify that directory is on `TARGET_BRANCH` at `TARGET_HEAD`.
    - This is a confirmed, displayed write. If the primary worktree is not clean or cannot switch, do not proceed — report and stop.
 
    7c. **Create the worktree from `TARGET_HEAD`** — choose by environment:
 
    **Claude Code (EnterWorktree available):**
-   - `EnterWorktree` branches from the **current HEAD**, so the primary worktree MUST be on `TARGET_BRANCH` (ensured by 7b) before creation. This is the "target checkout context".
-   - Call `EnterWorktree` with `name: <proposal-name>`.
-   - If the platform cannot prove it will branch from `TARGET_HEAD` (primary worktree is not on `TARGET_BRANCH` and cannot be aligned) → **stop safely** instead of silently using another HEAD. Do not fall back.
+   - `EnterWorktree` branches from the controller's **current HEAD**. Enter the target worktree as the controller's persistent execution context; a one-off `git -C` command does not satisfy this requirement:
+     ```bash
+     cd <TARGET_WORKTREE_DIR>
+     test "$(pwd -P)" = "<TARGET_WORKTREE_DIR>"
+     test "$(git branch --show-current)" = "<TARGET_BRANCH>"
+     test "$(git rev-parse HEAD)" = "<TARGET_HEAD>"
+     ```
+   - Only after all three checks pass may the controller call `EnterWorktree` with `name: <proposal-name>`.
+   - If the platform cannot keep subsequent tool calls bound to that target checkout context, or any check fails → **stop safely** instead of silently using another HEAD. Do not call `EnterWorktree` and do not fall back.
 
    **Other environments (Codex CLI, EnterWorktree unavailable):**
    - Create with an **explicit start point**:

@@ -68,7 +68,6 @@ git rev-parse --is-inside-work-tree
 git worktree list --porcelain
 git rev-parse --show-toplevel
 git -C <PRIMARY_WORKTREE_DIR> branch --show-current
-git -C <PRIMARY_WORKTREE_DIR> status --porcelain
 ```
 
 记录：
@@ -78,8 +77,15 @@ git -C <PRIMARY_WORKTREE_DIR> status --porcelain
 
 **拓扑规则**：
 - 若 `TARGET_BRANCH` 已在某 worktree 检出 → 记为 `TARGET_WORKTREE_DIR`，不计划重复 checkout。
-- 若未检出 → 记录"需在确认后将干净主工作树 checkout 到 `TARGET_BRANCH`"；若主工作树不干净或不能安全切换 → 报错，确认前停止。
+- 若未检出 → 记录"需在确认后将干净主工作树 checkout 到 `TARGET_BRANCH`"，并将计划中的 `TARGET_WORKTREE_DIR=<PRIMARY_WORKTREE_DIR>`；若主工作树不干净或不能安全切换 → 报错，确认前停止。
 - 若主工作树处于 detached HEAD 且未显式指定 `--target` → `错误: 主工作树为 detached HEAD。请使用 --target <branch>。` 零写操作。
+- 状态快照、确认后复检和 Auto-commit MUST 始终针对同一个 `TARGET_WORKTREE_DIR`；不能因为命令从主工作树或其他 worktree 调用，就改查 `PRIMARY_WORKTREE_DIR` 或调用 CWD。
+- 记录控制器是否需要从 `INVOCATION_WORKTREE_DIR` 持久切换到 `TARGET_WORKTREE_DIR`。若平台无法让后续 Agent spawn 与主控命令保持该执行上下文，则在只读预检阶段停止并要求用户从目标工作树重新运行；单条 `git -C` 不算切换控制器上下文。
+
+解析出实际或计划中的 `TARGET_WORKTREE_DIR` 后，再读取目标状态：
+```bash
+git -C <TARGET_WORKTREE_DIR> status --porcelain
+```
 
 ---
 
@@ -198,7 +204,7 @@ Wave 2 (依赖 Wave 1):
 - Wave/Batch 结构与每 Batch 串行合并说明
 - 目标工作树待提交改动清单（若有），或"无待提交改动"
 - 计划写操作: Auto-commit、每个 change 的隔离 worktree 创建/apply/提交、每 Batch 串行 rebase+merge 到 `TARGET_BRANCH`、失败保留策略
-- 风险警告: 主工作树是否需要 checkout 目标；单 change 也将走隔离 worktree；冲突分支不阻塞其他分支
+- 风险警告: 主工作树是否需要 checkout 目标；控制器是否需要持久切换到 `TARGET_WORKTREE_DIR`；单 change 也将走隔离 worktree；冲突分支不阻塞其他分支
 
 **确认处理**：
 - **确认** → 进入 Step 4（复检）。
@@ -210,7 +216,7 @@ Wave 2 (依赖 Wave 1):
 
 ## Step 4: 确认后快照复检（只读，首次写操作前）
 
-重新验证: 参数、`TARGET_BRANCH` ref 与 `TARGET_HEAD`、worktree 映射、主/目标工作树状态、所需 checkout、展示过的风险警告。
+重新验证: 参数、`TARGET_BRANCH` ref 与 `TARGET_HEAD`、worktree 映射、`git -C <TARGET_WORKTREE_DIR> status --porcelain` 的目标状态、所需 checkout、控制器上下文切换能力、展示过的风险警告。
 
 **任一实质事实变化** → 使确认失效，展示更新摘要并重新请求确认（回到 Step 3）。零写操作直到重新确认。
 
@@ -228,6 +234,7 @@ Wave 2 (依赖 Wave 1):
 ```bash
 git -C <PRIMARY_WORKTREE_DIR> checkout <TARGET_BRANCH>
 ```
+checkout 成功后设置 `TARGET_WORKTREE_DIR=<PRIMARY_WORKTREE_DIR>`，并验证该目录位于 `TARGET_BRANCH`。
 
 若 `TARGET_WORKTREE_DIR` 有待提交改动（按已确认计划）：
 ```bash
@@ -240,7 +247,16 @@ git -C <TARGET_WORKTREE_DIR> commit -m "chore: auto-commit before parallel workt
 TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
 ```
 
-所有 child worktree 必须从此 `TARGET_HEAD` 创建。
+将控制器的**持久执行上下文**切换到已确认目标工作树；单条 `git -C` 不能替代此步骤：
+```bash
+cd <TARGET_WORKTREE_DIR>
+test "$(pwd -P)" = "<TARGET_WORKTREE_DIR>"
+test "$(git rev-parse --show-toplevel)" = "<TARGET_WORKTREE_DIR>"
+test "$(git branch --show-current)" = "<TARGET_BRANCH>"
+test "$(git rev-parse HEAD)" = "<TARGET_HEAD>"
+```
+
+只有四项检查都通过，才可 spawn 第一个 Agent。若后续 Agent 工具调用不能继承该目标上下文，停止且不 spawn；不得从 `INVOCATION_WORKTREE_DIR` 的 HEAD 创建隔离 worktree。
 
 若无待提交改动 → 跳过 commit，仍记录 `TARGET_HEAD`。
 
@@ -252,6 +268,14 @@ TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
 
 对每个 Wave 按顺序执行：
 
+在当前 Wave 开始时，从目标工作树读取合并完上一 Wave 后的最新 HEAD：
+```bash
+TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
+WAVE_TARGET_HEAD=$TARGET_HEAD
+```
+
+`WAVE_TARGET_HEAD` 用于记录该 Wave 的进入基线；禁止复用首次确认时的旧 HEAD 作为后续 Wave 基线。
+
 #### 5.3.1 批次划分
 
 当前 Wave 的 changes 按目录名字母序，每批最多 3 个切分为多个 Batch（满足 `batch-concurrency-control` 规格的并发上限 3）。
@@ -260,9 +284,19 @@ TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
 
 对当前 Wave 的每个 Batch 按顺序执行：
 
+每个 Batch spawn 前再次读取当前目标 HEAD，使前一 Batch 已合并的结果也可见；同一 Batch 的所有 Agent 共享该快照：
+```bash
+BATCH_TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
+test "$(pwd -P)" = "<TARGET_WORKTREE_DIR>"
+test "$(git branch --show-current)" = "<TARGET_BRANCH>"
+test "$(git rev-parse HEAD)" = "<BATCH_TARGET_HEAD>"
+```
+
+任一控制器上下文检查失败 → 本 Batch 不 spawn Agent，报告目标上下文漂移并停止；不能让隔离机制从调用 worktree 的 HEAD 创建。
+
 ##### 5.3.2.1 并行 Spawn Agent（同一消息内并行）
 
-为 Batch 内每个 change spawn 一个 Agent，**在同一消息中并行 spawn**。每个 Agent **从同一个已确认 `TARGET_HEAD` 创建**。
+为 Batch 内每个 change spawn 一个 Agent，**在同一消息中并行 spawn**。每个 Agent **从当前 Batch 的同一个 `BATCH_TARGET_HEAD` 创建**。
 
 Agent 配置：
 - `subagent_type`: "general-purpose"
@@ -274,19 +308,20 @@ Agent 配置：
   ```
   你正在一个隔离的 git worktree 中实施 OpenSpec change "<change-name>"。
   目标分支（基线）: <TARGET_BRANCH>
-  预期基线 HEAD: <TARGET_HEAD>
+  当前 Wave 进入基线: <WAVE_TARGET_HEAD>
+  当前 Batch 预期基线 HEAD: <BATCH_TARGET_HEAD>
 
   **平台适配（必须遵守）**:
   判断 EnterWorktree 工具是否可用：
   - 可用（Claude Code，isolation: "worktree" 已生效）: worktree 已从 <TARGET_BRANCH> HEAD 创建并切换 CWD，直接开始。
   - 不可用（Codex 等，isolation 未生效）: 手动创建，**必须使用显式 start-point**:
-    git worktree add .claude/worktrees/<change-name> -b <change-name> <TARGET_BRANCH>
+    git worktree add .claude/worktrees/<change-name> -b <change-name> <BATCH_TARGET_HEAD>
     cd .claude/worktrees/<change-name>
     必须在后续所有操作前显式 cd 到该 worktree。
 
   **基线验证（必须执行，不可跳过）**:
     WORKTREE_HEAD=$(git rev-parse HEAD)
-    若 WORKTREE_HEAD != <TARGET_HEAD> → 停止，报告基线错误，不进入 apply。
+    若 WORKTREE_HEAD != <BATCH_TARGET_HEAD> → 停止，报告基线错误，不进入 apply。
 
   **CWD 验证（必须执行）**:
     pwd; git branch --show-current
@@ -325,7 +360,12 @@ Agent 配置：
 
 ### 5.4 Wave 完成
 
-当前 Wave 所有 Batch 执行并合并完毕，进入下一个 Wave。
+当前 Wave 所有 Batch 执行并合并完毕后，立即刷新供下一 Wave 使用的目标基线：
+```bash
+TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
+```
+
+下一 Wave 必须从此最新 `TARGET_HEAD` 开始，并在其首个 Batch 记录新的 `BATCH_TARGET_HEAD`；依赖 change 因而能在实施期间看到上一 Wave 的代码，而不是只在事后 rebase。
 
 ---
 
@@ -337,10 +377,11 @@ Agent 配置：
 
 **对每个成功分支，合并前验证主控状态**：
 ```bash
-pwd
+pwd -P
+git rev-parse --show-toplevel
 git branch --show-current
 ```
-- `pwd` 必须是 `TARGET_WORKTREE_DIR`（不包含 worktree 子目录）
+- `pwd -P` 和 `git rev-parse --show-toplevel` 都必须是 `TARGET_WORKTREE_DIR`（不包含 worktree 子目录）
 - `git branch --show-current` 必须等于 `<TARGET_BRANCH>`
 
 **CWD 验证失败** → 报告并**跳过该分支合并**：
@@ -517,8 +558,9 @@ Wave 1:
 ## Guardrails
 
 - Step 0–4 为只读：确认前不产生任何 Git 写操作、不 spawn 实施 agent、不调用 apply。
-- 始终确保每个 child worktree 基于同一个已确认 `TARGET_HEAD`（显式 start-point 或目标 checkout 上下文）；创建后验证基线。
-- Auto-commit 只在确认与复检之后执行，提交后刷新批量创建所用的 `TARGET_HEAD`。
+- 目标状态读取、复检和 Auto-commit 始终绑定同一个 `TARGET_WORKTREE_DIR`；Auto-commit 只在确认与复检之后执行。
+- Agent spawn 前必须将控制器持久切换到 `TARGET_WORKTREE_DIR`；`git -C` 只约束单条命令，不能代替控制器 CWD 切换。
+- 同一 Batch 的 child worktree 基于同一个最新 `BATCH_TARGET_HEAD`；每个 Batch spawn 前刷新，且每个 Wave 合并完成后刷新下一 Wave 的 `TARGET_HEAD`，创建后验证基线。
 - 每 Wave 内并行 Agent 上限为 3，超出按字母序分 Batch 串行执行（满足 `batch-concurrency-control` 规格并发上限 3）。
 - 同一 Batch 内 Agent spawn 必须在同一消息中并行。
 - 合并必须串行绑定到 `TARGET_BRANCH`，每个分支合并后再处理下一个；每个 Batch 完成后立即合并。
