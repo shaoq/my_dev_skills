@@ -100,7 +100,7 @@ Step 2: 并行实施所有提案
 
   → 自动发现所有待执行的 changes
   → 按 Wave 并行 spawn Agent，在隔离 worktree 中实施
-  → 完成后自动 rebase + merge 回主干
+  → 完成后自动 rebase + merge 回目标分支（默认主工作树当前分支，可用 --target 指定）
 
 Step 3: 检查完成度
 ─────────────────────────────
@@ -135,11 +135,11 @@ Step 1: 在 worktree 中实施
   → 创建以 proposal 名命名的隔离分支
   → 验证 artifacts 完整性 → 执行实施 → 自动补标记 → 提交
 
-Step 2: 合并回主干
+Step 2: 合并回目标分支
 ─────────────────────────────
   /merge-worktree-return add-user-auth
 
-  → rebase 到最新主干 → 合并 → 退出并清理 worktree
+  → rebase 到目标分支 → 合并 → 退出并清理 worktree
 
 Step 3: 检查完成度
 ─────────────────────────────
@@ -161,9 +161,9 @@ Step 4: 归档
 | Skill 名称 | 调用方式 | 用途 | 参数 |
 |------------|---------|------|------|
 | **parall-new-proposal** | `/parall-new-proposal` | 并行提案拆分 | 需求描述文本 |
-| **parall-new-worktree-apply** | `/parall-new-worktree-apply` | 并行实施多个 changes | 无（自动发现） |
-| **new-worktree-apply** | `/new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> [--branch <name>]` |
-| **merge-worktree-return** | `/merge-worktree-return` | worktree 合并回主干 | `[proposal-name]` |
+| **parall-new-worktree-apply** | `/parall-new-worktree-apply` | 并行实施多个 changes | `[--target <target-branch>]` |
+| **new-worktree-apply** | `/new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> [--target <target-branch>]` |
+| **merge-worktree-return** | `/merge-worktree-return` | worktree 合并回目标分支 | `[proposal-name] [--target <target-branch>]` |
 | **check-changes-completed** | `/check-changes-completed` | 五维完成度检查 | 无 |
 | **verify-impl-consistency** | `/verify-impl-consistency` | 三维语义一致性诊断 | `[change-name]` |
 
@@ -204,7 +204,7 @@ Step 4: 归档
 (单个 worktree 实施)  (并行 worktree 实施)
       │     │     │
       ▼     │     ▼
-/merge-worktree-return  自动合并回主干
+/merge-worktree-return  自动合并回目标分支
       │     │     │
       ▼     ▼     ▼
 /check-changes-completed
@@ -244,52 +244,62 @@ Step 4: 归档
 **做什么**: 自动发现所有待执行 changes，按依赖图分 Wave 并行实施。
 
 **核心机制**:
+- 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择，并记录选择依据
 - 自动发现有未完成 `[ ]` 任务的 change
 - 解析 `dependencies.yaml` 构建依赖图
+- 只读预检（Discovery + 依赖图 + 目标/工作树状态）后展示完整计划，**等待用户明确确认**，确认后复检快照才执行写操作
+- Auto-commit 移到确认之后，提交后刷新目标 HEAD；所有 child worktree 从同一个目标快照创建
 - 同一 Wave 内的 changes 通过 Agent 在隔离 worktree 中并行 spawn
-- 串行合并回主干（按字母序），合并前验证主控 CWD 和分支、合并后验证分支完整性
+- 串行合并回目标分支（按字母序），合并前验证主控 CWD 和分支、合并后用 `git log <target>..<branch>` 验证目标包含全部提交
 - 冲突智能解决（非重叠自动合并、语义可合并、无法解决则跳过）
 
 **注意事项**:
-- **必须在主分支上执行**，主分支通过 `main` → `master` → `trunk` → origin HEAD 自动检测（不硬编码 `main`）
+- **所有 Git 写操作只在显式确认之后执行**；拒绝/取消/模糊确认时不创建 worktree、不 spawn Agent、不 commit
 - 待执行 changes = 0 时直接退出
-- 待执行 changes = 1 时走简化路径（直接 apply，不 spawn Agent）
+- **即使只发现 1 个 change，也走隔离 worktree 实施 + 目标合并流程**（不再直接 apply）
 - 每 Wave 最多 3 个并行 Agent，超出自动分 Batch 串行执行
 - Agent spawn 必须在同一消息中并行（同一 Batch 内）
-- 合并必须串行，每个 Batch 完成后立即合并
-- 串行合并前验证主控 CWD 和分支，合并后验证分支完整性
+- 合并必须串行绑定目标分支，每个 Batch 完成后立即合并
 - artifacts 不完整的 change 会被跳过
-- 失败的 Agent/分支不阻塞其他
+- 失败的 Agent/分支不阻塞其他，失败 worktree 保留待人工处理
 
 ### 3. new-worktree-apply
 
 **做什么**: 为单个 proposal 创建 git worktree 并在其中实施。
 
 **核心机制**:
+- 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择
+- 只读预检（目标、工作树、artifacts）后展示计划并**等待用户明确确认**，确认后复检快照才执行写操作
+- 从目标 HEAD 精确创建 worktree：Claude Code 用内置 `EnterWorktree`（从目标 checkout 上下文），非 Claude Code（如 Codex CLI）用 `git worktree add <path> -b <proposal> <TARGET_BRANCH>` 显式 start-point
 - 验证 proposal artifacts 完整性
-- Claude Code 环境使用内置 `EnterWorktree` 工具创建隔离分支；非 Claude Code 环境（如 Codex CLI）使用 `git worktree add` + 显式 `cd` 作为回退
 - 实施任务
 - Post-apply 自动补标记（四规则检测）+ 强制提交 `tasks.md`
 
 **注意事项**:
+- **BREAKING**：旧 `--branch` 已由 `--target` 替代；传 `--branch` 时不产生任何 Git 写操作，只显示迁移命令
+- 所有 Git 写操作只在显式确认之后执行
 - 分支名必须符合 worktree 命名规则（kebab-case，max 64 chars）
 - 若分支已存在则报错停止，**不覆盖**
-- HEAD 会与主分支对比，不一致时自动 merge
+- 创建后验证 `WORKTREE_HEAD == TARGET_HEAD`；**基线不一致时停止 apply，不再用 `git merge` 掩盖错误起点**
 
 ### 4. merge-worktree-return
 
-**做什么**: 将 worktree 的改动 rebase + merge 回主分支，然后退出 worktree。
+**做什么**: 将 worktree 的改动 rebase + merge 回目标分支，然后退出 worktree。
 
 **核心机制**:
-- 验证在 worktree 中（检查 `.git` 是否为 `gitdir:` 文件）
-- 可选验证 proposal 完成度（传参时）
-- Rebase onto main → 处理冲突 → checkout main → merge → ExitWorktree（Claude Code 使用内置工具退出；非 Claude Code 环境使用 `git worktree remove`）
+- 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择
+- 验证在 worktree 中（检查 `.git` 是否为 `gitdir:` 文件），记录 `SOURCE_BRANCH` 与 `TARGET_WORKTREE_DIR`，验证来源≠目标、目标工作树干净
+- 只读预检后展示计划（含未完成任务、目标脏状态等风险）并**等待用户明确确认**，确认后复检快照才执行写操作
+- Rebase `SOURCE_BRANCH` onto `TARGET_BRANCH` → 处理冲突 → 在目标工作树 merge → 用 `git log <target>..<source>` 验证目标包含全部来源提交
+- 验证通过后退出：Claude Code 用 `ExitWorktree`，非 Claude Code 用 `git worktree remove`
 
 **注意事项**:
 - 必须在 worktree 内运行，否则报错
-- 未完成任务的 proposal 会警告并**询问用户确认**
+- 目标工作树必须干净；来源 detached HEAD 或来源==目标时报错停止
+- 未完成任务、目标脏状态等风险并入**单次预检确认**（不再单独询问）
+- 所有 Git 写操作只在显式确认之后执行
 - Rebase 失败时用 `git rebase --abort` 回到安全状态
-- 所有步骤验证通过后才会调用 `ExitWorktree` 移除 worktree
+- 目标包含验证失败时**不退出/不移除** worktree，保留待恢复
 - **绝不使用 --force 标志**
 
 ### 5. check-changes-completed
