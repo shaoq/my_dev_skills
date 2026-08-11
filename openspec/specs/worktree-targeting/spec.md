@@ -138,7 +138,7 @@ After confirmation and before the first write, each skill SHALL revalidate the p
 - **THEN** the skill stops before apply and does not hide the mismatch by merging the target branch
 
 ### Requirement: Worktree return merges only to the confirmed target
-`merge-worktree-return` SHALL commit the source when authorized, rebase `SOURCE_BRANCH` onto `TARGET_BRANCH`, merge it in `TARGET_WORKTREE_DIR`, and verify the target contains every source commit before removing the source worktree.
+`merge-worktree-return` SHALL commit the source when authorized, rebase `SOURCE_BRANCH` onto `TARGET_BRANCH`, merge it in `TARGET_WORKTREE_DIR`, and verify the target contains every source commit before removing the source worktree. After successful worktree removal, it SHALL conditionally delete the local `SOURCE_BRANCH` with safe `git branch -d` only when that ref still exists and remains contained in `TARGET_BRANCH`; a platform that already removed the ref SHALL be treated as an idempotent success.
 
 #### Scenario: Return succeeds to a non-main target
 - **WHEN** the user confirms `develop` as the target and all operations succeed
@@ -154,7 +154,27 @@ After confirmation and before the first write, each skill SHALL revalidate the p
 
 #### Scenario: Merge verification fails
 - **WHEN** any source commit remains outside `TARGET_BRANCH`
-- **THEN** the skill reports the failure and MUST NOT remove the source worktree
+- **THEN** the skill reports the failure and MUST NOT remove the source worktree or delete the local source branch
+
+#### Scenario: Local source branch remains after worktree removal
+- **WHEN** target containment and worktree removal succeed and `refs/heads/SOURCE_BRANCH` still exists
+- **THEN** the skill uses an explicit ancestry failure gate, temporarily removes only the source branch's local upstream configuration when present, and deletes only that local ref with `git branch -d`, without deleting any remote ref
+
+#### Scenario: Worktree tool already removed the local source branch
+- **WHEN** target containment and worktree removal succeed and `refs/heads/SOURCE_BRANCH` is already absent
+- **THEN** the skill treats branch cleanup as an idempotent success and does not run a failing delete command
+
+#### Scenario: Safe local branch deletion is refused
+- **WHEN** `git branch -d` refuses to delete the source branch
+- **THEN** the skill restores the original upstream when one existed, MUST NOT escalate to `-D` or another forced ref deletion, and reports that the worktree was removed but the local branch remains
+
+#### Scenario: Source worktree removal is not confirmed
+- **WHEN** the exact `SOURCE_WORKTREE_DIR` still appears in parsed `git worktree list --porcelain` output
+- **THEN** the skill stops before local branch cleanup and does not rely on substring or prefix matching
+
+#### Scenario: Cleanup verification command fails
+- **WHEN** CWD, current branch, worktree-list, source-ref, or final cleanup verification cannot be executed reliably
+- **THEN** the skill treats the command error as a hard failure rather than interpreting it as an absent worktree or source branch
 
 ### Requirement: Parallel apply uses one confirmed target
 `parall-new-worktree-apply` SHALL use the confirmed `TARGET_BRANCH` as the destination for every serial rebase and merge. Before spawning, the controller MUST persistently enter `TARGET_WORKTREE_DIR`. Each Batch SHALL read the latest target commit as `BATCH_TARGET_HEAD`, create every child in that Batch from the same snapshot, and refresh the target baseline after merges so later Waves include dependency code during implementation. Auto-commit and apply execution MUST occur only after confirmation and revalidation.
@@ -201,4 +221,3 @@ All three skills SHALL use `TARGET_BRANCH` terminology in frontmatter, instructi
 #### Scenario: Verification blocks cleanup
 - **WHEN** target containment, CWD, branch, or other required verification fails
 - **THEN** the skill does not remove the affected source worktree
-

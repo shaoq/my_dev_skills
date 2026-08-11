@@ -1,7 +1,7 @@
 ---
 name: merge-worktree-return
 description: Commit worktree changes, rebase onto the confirmed target, merge back to the target branch, and exit the worktree. Use when finishing implementation in a worktree. Optional proposal name verifies OpenSpec completion. Requires git. All Git write actions happen only after an explicit preflight confirmation.
-argument-hint: [proposal-name] [--target <target-branch>]
+argument-hint: "[proposal-name] [--target <target-branch>]"
 disable-model-invocation: true
 allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(awk *) Bash(sed *) Bash(cat *) Bash(head *) Bash(test *) EnterWorktree ExitWorktree Read Write Edit Glob Grep Skill AskUserQuestion
 ---
@@ -15,7 +15,7 @@ Examples:
 - `/merge-worktree-return add-user-auth`
 - `/merge-worktree-return add-user-auth --target develop`
 
-**Invariant (read-only before confirmation)**: Steps 1–6 perform no Git write and do not invoke apply. `git add`, `git commit`, `git checkout`/`git switch`, `git rebase`, `git merge`, `git worktree remove`, and `ExitWorktree` only run in Step 7 onward — after confirmation and snapshot revalidation.
+**Invariant (read-only before confirmation)**: Steps 1–6 perform no Git write and do not invoke apply. `git add`, `git commit`, `git checkout`/`git switch`, `git rebase`, `git merge`, `git worktree remove`, conditional `git branch -d`, and `ExitWorktree` only run in Step 7 onward — after confirmation and snapshot revalidation.
 
 **Steps**
 
@@ -102,7 +102,7 @@ Examples:
    - `SOURCE_BRANCH` → `TARGET_BRANCH`, with `TARGET_SOURCE` and `TARGET_HEAD`.
    - `SOURCE_WORKTREE_DIR` and `TARGET_WORKTREE_DIR`.
    - Pending source changes that the plan will auto-commit (file list), or "no pending changes".
-   - Planned writes: source auto-commit, `git rebase <TARGET_BRANCH>` (with conflict handling), merge `SOURCE_BRANCH` into `TARGET_BRANCH` inside `TARGET_WORKTREE_DIR`, then worktree removal.
+   - Planned writes: source auto-commit, `git rebase <TARGET_BRANCH>` (with conflict handling), merge `SOURCE_BRANCH` into `TARGET_BRANCH` inside `TARGET_WORKTREE_DIR`, worktree removal, then conditional safe deletion of the local `SOURCE_BRANCH` if that ref still exists.
    - Risk warnings: incomplete OpenSpec tasks (if any) — explicitly ask whether to merge despite the risk; required target/primary checkout (if any).
 
    **Confirmation handling:**
@@ -155,7 +155,7 @@ Examples:
    ```
    This MUST return empty. If it returns commits → merge verification **failed**: report and do **not** proceed to exit/remove. The source worktree is preserved for recovery.
 
-9. **Safely exit the worktree** (only after verification succeeds)
+9. **Safely exit the worktree and clean the local source branch** (only after verification succeeds)
 
    Confirm ALL of:
    - [x] Step 7a: source files committed
@@ -174,12 +174,100 @@ Examples:
      git worktree remove <SOURCE_WORKTREE_DIR>
      ```
 
-   After exit, verify:
+   After exit/removal, verify the controller is back in the confirmed target worktree and the source worktree is gone:
    ```bash
-   pwd
-   git branch --show-current
+   if [ "$(pwd -P)" != "$TARGET_WORKTREE_DIR" ]; then
+     echo "Current directory is not the confirmed target worktree" >&2
+     exit 1
+   fi
+   if [ "$(git branch --show-current)" != "$TARGET_BRANCH" ]; then
+     echo "Current branch is not the confirmed target branch" >&2
+     exit 1
+   fi
+   if ! WORKTREE_LIST=$(git worktree list --porcelain); then
+     echo "Failed to verify worktree removal" >&2
+     exit 1
+   fi
+   if ! SOURCE_WORKTREE_MATCH=$(
+     printf '%s\n' "$WORKTREE_LIST" \
+       | awk -v path="$SOURCE_WORKTREE_DIR" \
+         '/^worktree / { candidate = substr($0, 10); if (candidate == path) print candidate }'
+   ); then
+     echo "Failed to parse worktree list" >&2
+     exit 1
+   fi
+   if [ "$SOURCE_WORKTREE_MATCH" = "$SOURCE_WORKTREE_DIR" ]; then
+     echo "Source worktree still exists: $SOURCE_WORKTREE_DIR" >&2
+     exit 1
+   fi
    ```
-   Confirm CWD is the target worktree and on `TARGET_BRANCH`.
+   Confirm:
+   - CWD is `TARGET_WORKTREE_DIR` and the current branch is `TARGET_BRANCH`.
+   - `SOURCE_WORKTREE_DIR` is absent from `git worktree list --porcelain`.
+
+   Then conditionally clean the local source branch. `ExitWorktree` implementations may already remove their temporary branch, while plain `git worktree remove` normally leaves it behind:
+   ```bash
+   SOURCE_BRANCH_CLEANUP="already absent"
+   if git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
+     if ! git merge-base --is-ancestor \
+       "refs/heads/$SOURCE_BRANCH" \
+       "refs/heads/$TARGET_BRANCH"; then
+       echo "Local source branch is not contained in target: $SOURCE_BRANCH" >&2
+       exit 1
+     fi
+     # `git branch -d` checks the configured upstream before HEAD. Remove only
+     # this soon-to-be-deleted branch's local upstream config so the already
+     # verified TARGET_BRANCH/HEAD is the safety reference. Restore it if the
+     # safe deletion is refused.
+     if ! SOURCE_UPSTREAM=$(git for-each-ref \
+       --format='%(upstream:short)' "refs/heads/$SOURCE_BRANCH"); then
+       echo "Failed to inspect source branch upstream" >&2
+       exit 1
+     fi
+     if [ -n "$SOURCE_UPSTREAM" ]; then
+       if ! git branch --unset-upstream "$SOURCE_BRANCH"; then
+         echo "Failed to clear source branch upstream before safe deletion" >&2
+         exit 1
+       fi
+     fi
+     if ! git branch -d -- "$SOURCE_BRANCH"; then
+       if [ -n "$SOURCE_UPSTREAM" ]; then
+         if ! git branch --set-upstream-to="$SOURCE_UPSTREAM" "$SOURCE_BRANCH"; then
+           echo "Safe deletion failed and the original upstream could not be restored: $SOURCE_UPSTREAM" >&2
+           exit 1
+         fi
+       fi
+       echo "Worktree was removed but local source branch remains: $SOURCE_BRANCH" >&2
+       exit 1
+     fi
+     SOURCE_BRANCH_CLEANUP="deleted"
+   else
+     source_ref_status=$?
+     if [ "$source_ref_status" -ne 1 ]; then
+       echo "Failed to inspect local source branch ref: $SOURCE_BRANCH" >&2
+       exit 1
+     fi
+   fi
+   ```
+
+   Finally verify that the local source ref is absent:
+   ```bash
+   if git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
+     echo "Local source branch still exists: $SOURCE_BRANCH" >&2
+     exit 1
+   else
+     source_ref_status=$?
+     if [ "$source_ref_status" -ne 1 ]; then
+       echo "Failed to verify local source branch cleanup: $SOURCE_BRANCH" >&2
+       exit 1
+     fi
+   fi
+   ```
+
+   Report `Local source branch: $SOURCE_BRANCH_CLEANUP`.
+   - If the ref was already absent, `SOURCE_BRANCH_CLEANUP` remains `already absent` and cleanup succeeds idempotently.
+   - If `git branch -d` refuses deletion, restore the original upstream when one existed, stop without escalating to `-D`, and report that the worktree was removed but the local source branch remains. Include `TARGET_WORKTREE_DIR`, `TARGET_BRANCH`, and `SOURCE_BRANCH` so recovery can rerun the displayed ancestry check and safe `git branch -d` from the target worktree without re-entering the removed worktree.
+   - This cleanup never deletes `origin/<SOURCE_BRANCH>` or any other remote ref.
 
 **Output On Success**
 
@@ -190,6 +278,7 @@ Examples:
 **Branch merged:** <SOURCE_BRANCH> → <TARGET_BRANCH>
 **Target source:** <TARGET_SOURCE>
 **Worktree:** removed
+**Local source branch:** <SOURCE_BRANCH_CLEANUP>
 **Containment:** ✓ (<SOURCE_BRANCH> fully contained in <TARGET_BRANCH>)
 **Current branch:** <TARGET_BRANCH>
 
@@ -220,9 +309,14 @@ All worktree changes have been successfully merged to <TARGET_BRANCH>.
 - Source and target MUST differ; detached source HEAD is unsupported.
 - The target worktree MUST be clean before merge; never merge into a dirty target.
 - Never exit the worktree unless rebase succeeded AND `git log <TARGET_BRANCH>..<SOURCE_BRANCH>` is empty.
+- Delete the local `SOURCE_BRANCH` only after containment succeeds, the source worktree is removed, CWD/target branch are verified, and the ref still exists.
+- Use only `git branch -d -- <SOURCE_BRANCH>`; never use `-D`, `--force`, `update-ref -d`, or delete a remote branch.
+- Bind the final ancestry check with an explicit failure branch; never rely on ambient `set -e` to guard `git branch -d`.
+- Treat CWD, target-branch, worktree-list, source-ref, and cleanup checks as explicit failure gates; a command error is never equivalent to an absent worktree or branch.
+- If the platform already removed the local source ref, treat cleanup as an idempotent no-op and report `already absent`.
 - Never use `--force` flags on git commands.
 - If rebase fails, use `git rebase --abort` to return to a safe state.
-- If merge containment verification fails, do **NOT** call `ExitWorktree` or `git worktree remove` — preserve the source worktree for recovery.
+- If merge containment verification fails, do **NOT** call `ExitWorktree`, `git worktree remove`, or delete `SOURCE_BRANCH` — preserve the source worktree and branch for recovery.
 - OpenSpec incomplete-task warnings are part of the single preflight confirmation, never a separate gate.
 - All git command failures should stop execution immediately.
 - 非 Claude Code 环境下使用 `git worktree remove` 替代 `ExitWorktree`，Step 8 已确保 CWD 在目标工作树（非来源目录），无需额外 `cd`。

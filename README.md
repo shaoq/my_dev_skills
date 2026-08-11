@@ -292,7 +292,7 @@ Step 4: 归档
 - 验证在 worktree 中（检查 `.git` 是否为 `gitdir:` 文件），记录 `SOURCE_BRANCH` 与 `TARGET_WORKTREE_DIR`，验证来源≠目标、目标工作树干净
 - 只读预检后展示计划（含未完成任务、目标脏状态等风险）并**等待用户明确确认**，确认后复检快照才执行写操作
 - Rebase `SOURCE_BRANCH` onto `TARGET_BRANCH` → 处理冲突 → 在目标工作树 merge → 用 `git log <target>..<source>` 验证目标包含全部来源提交
-- 验证通过后退出：Claude Code 用 `ExitWorktree`，非 Claude Code 用 `git worktree remove`
+- 验证通过后退出：Claude Code 用 `ExitWorktree`，非 Claude Code 用 `git worktree remove`；随后若本地 `SOURCE_BRANCH` 仍存在，则确认已被目标包含并用 `git branch -d` 安全删除，若平台已自动移除则幂等跳过
 
 **注意事项**:
 - 必须在 worktree 内运行，否则报错
@@ -301,6 +301,7 @@ Step 4: 归档
 - 所有 Git 写操作只在显式确认之后执行
 - Rebase 失败时用 `git rebase --abort` 回到安全状态
 - 目标包含验证失败时**不退出/不移除** worktree，保留待恢复
+- 仅在 worktree 成功移除且来源分支仍存在时使用 `git branch -d`；绝不使用 `-D`，也不删除远端分支
 - **绝不使用 --force 标志**
 
 ### 5. check-changes-completed
