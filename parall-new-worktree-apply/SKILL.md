@@ -1,571 +1,260 @@
 ---
 name: parall-new-worktree-apply
-description: 并行执行多个待实施的 OpenSpec changes。自动发现 pending changes，解析依赖图，无依赖的并行在隔离 worktree 中实施（均从同一个已确认目标分支创建），有依赖的按序执行，完成后串行合并回目标分支并验证。所有 Git 写操作只在显式预检确认之后执行。
+description: Use when implementing multiple pending OpenSpec changes in dependency-aware isolated worktrees.
 argument-hint: "[--target <target-branch>]"
 disable-model-invocation: true
 ---
 
-并行执行多个待实施的 OpenSpec changes。
+按依赖 Wave/Batch 并行实施所有待执行 OpenSpec changes。
 
-**Input**: 无位置参数。可选 `--target <target-branch>` 指定所有 change 的目标分支。无参数时自动发现所有待执行 changes。
+## 核心不变量
 
-示例:
-- `/parall-new-worktree-apply`
-- `/parall-new-worktree-apply --target develop`
-
-**BREAKING**: 不再忽略所有参数。仅接受可选 `--target`；任何其他参数（含旧的位置参数）→ 参数错误，零写操作。
-
-**Invariant（确认前只读）**: Step 0–4 为只读，不产生任何 Git 写操作，不 spawn 实施 agent，不调用 apply。`git add`/`commit`/`checkout`/`switch`/`rebase`/`merge`、`git worktree add`/remove、`EnterWorktree`/`ExitWorktree` 及 apply 仅在 Step 5 起执行——即确认（Step 3）与复检（Step 4）之后。
-
----
-
-## Step 0: 前置检查与目标选择（只读）
-
-### 0.1 参数处理
-
-仅接受可选 `--target <target-branch>`（至多一次）。
-
-- 出现任何位置参数、未知选项、`--target` 缺值、重复 `--target` → 报参数错误，零写操作：
+- Step 0–4 只读：确认前不产生 Git 写操作、不 spawn Worker、不调用 apply。
+- 目标分支必须已经由唯一、注册、clean 的 `TARGET_WORKTREE_DIR` 持有；不 checkout/switch 或 auto-commit 任何现有 worktree。
+- 控制器维护 `EXPECTED_TARGET_HEAD`；只有本控制器一次成功且完整验证的 serial merge 才能推进它。
+- 每个 Batch 冻结一个 `BATCH_TARGET_HEAD`；同 Batch 所有 child 从该 commit hash 创建。
+- 每个 change 的规范身份：
+  ```text
+  SOURCE_BRANCH=worktree-<change-name>
+  SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<change-name>
   ```
-  错误: 参数无效
-    parall-new-worktree-apply 只接受可选 --target <target-branch>。
-    示例: /parall-new-worktree-apply --target develop
-    未执行任何 Git 写操作。
-  ```
+- 每个 Worker rebase 后冻结独立 `POST_REBASE_SOURCE_HEAD`；Controller 只 merge 该 commit hash，不 merge 活跃 source branch name。
+- 每个 child 独立计算完整 `CLEANUP_READY`；false/unknown/命令错误时保留该 child worktree 和 branch。
+- 不自动 reset/revert 已完成 merge，不自动重试失败或未验证 merge，不使用强制 cleanup。
 
-### 0.2 Git 仓库检查
+## Step 0：参数、仓库、目标与控制器上下文（只读）
+
+仅接受至多一个 `--target <target-branch>`；任何位置参数、未知选项、缺值或重复选项都报错并零写退出。
+
+读取：
 
 ```bash
 git rev-parse --is-inside-work-tree
-```
-
-若不是 git 仓库，报错退出：`错误: 当前目录不是 git 仓库。`
-
-### 0.3 目标分支选择
-
-按统一优先级选择 `TARGET_BRANCH`，并记录 `TARGET_SOURCE`（用于确认摘要与最终报告）：
-
-1. **显式 `--target`** — 必须存在于本地 `refs/heads/`：
-   ```bash
-   git rev-parse --verify --quiet refs/heads/<target-branch>
-   ```
-   不存在 → `错误: 目标分支 '<name>' 本地不存在。` 不 fetch、不创建、不回退，零写操作。`TARGET_SOURCE="explicit --target"`。
-2. **主工作树当前分支** — 从 `git worktree list --porcelain`（0.4）读取；若是有效本地 ref → `TARGET_SOURCE="primary worktree current branch"`。
-3. **`origin/HEAD` 本地同名分支**：
-   ```bash
-   git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's#^origin/##'
-   ```
-   结果存在于 `refs/heads/` → `TARGET_SOURCE="origin/HEAD local branch"`。
-4. **传统回退** — `main`、`master`、`trunk` 中首个存在的本地分支 → `TARGET_SOURCE="conventional fallback"`。
-
-无可用候选 → `错误: 无法选择目标分支。请使用 --target <branch> 指定。` 零写操作。
-
-后续所有 Step 使用 `<TARGET_BRANCH>` 替代硬编码分支名。
-
-### 0.4 Worktree 拓扑解析
-
-```bash
-git worktree list --porcelain
 git rev-parse --show-toplevel
-git -C <PRIMARY_WORKTREE_DIR> branch --show-current
+git worktree list --porcelain
 ```
 
-记录：
-- `PRIMARY_WORKTREE_DIR`（主工作树）
-- `INVOCATION_WORKTREE_DIR`（调用目录）
-- `TARGET_WORKTREE_DIR`（`TARGET_BRANCH` 已检出的 worktree；可能等于主工作树）
+按显式 `--target`、主工作树当前有效本地分支、`origin/HEAD` 本地同名分支、`main/master/trunk` 的顺序选择 `TARGET_BRANCH`；显式目标不存在时不回退。
 
-**拓扑规则**：
-- 若 `TARGET_BRANCH` 已在某 worktree 检出 → 记为 `TARGET_WORKTREE_DIR`，不计划重复 checkout。
-- 若未检出 → 记录"需在确认后将干净主工作树 checkout 到 `TARGET_BRANCH`"，并将计划中的 `TARGET_WORKTREE_DIR=<PRIMARY_WORKTREE_DIR>`；若主工作树不干净或不能安全切换 → 报错，确认前停止。
-- 若主工作树处于 detached HEAD 且未显式指定 `--target` → `错误: 主工作树为 detached HEAD。请使用 --target <branch>。` 零写操作。
-- 状态快照、确认后复检和 Auto-commit MUST 始终针对同一个 `TARGET_WORKTREE_DIR`；不能因为命令从主工作树或其他 worktree 调用，就改查 `PRIMARY_WORKTREE_DIR` 或调用 CWD。
-- 记录控制器是否需要从 `INVOCATION_WORKTREE_DIR` 持久切换到 `TARGET_WORKTREE_DIR`。若平台无法让后续 Agent spawn 与主控命令保持该执行上下文，则在只读预检阶段停止并要求用户从目标工作树重新运行；单条 `git -C` 不算切换控制器上下文。
+从注册表解析唯一 `TARGET_WORKTREE_DIR`。要求：
 
-解析出实际或计划中的 `TARGET_WORKTREE_DIR` 后，再读取目标状态：
-```bash
-git -C <TARGET_WORKTREE_DIR> status --porcelain
+- 目标分支已经由该 worktree 持有；未持有时停止并要求用户自行准备。
+- target current branch 是 `TARGET_BRANCH`，非 detached HEAD。
+- `TARGET_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)`。
+- target worktree HEAD 等于 `TARGET_HEAD`。
+- `git -C <TARGET_WORKTREE_DIR> status --porcelain --untracked-files=all` 严格为空。
+
+定义 `REPO_ROOT=<PRIMARY_WORKTREE_DIR>`。记录控制器能否把后续 spawn、merge 和 cleanup 的真实 CWD 持久绑定到 `TARGET_WORKTREE_DIR`；如果不能，在预检停止。不得用一条 `git -C` 假装控制器上下文已切换，也不得用 checkout 修复错误分支。
+
+## Step 1：Discovery 与 artifact manifest（只读）
+
+枚举 `openspec/changes/*/`（排除 archive），对每个 change：
+
+1. 读取 `tasks.md`；存在未完成任务时才是候选。
+2. 要求 `openspec status --change "<change-name>" --json` 的全部 artifacts done 且 `isComplete=true`。
+3. 要求 `change-name` 是小写 kebab-case；计算规范 `SOURCE_BRANCH=worktree-<change-name>` 和绝对 `SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<change-name>`，要求最终 branch 长度不超过 64 且通过 `git check-ref-format --branch`。
+4. 要求 source branch 不存在、source path 不存在且未注册；不复用、不接管、不追加后缀。
+5. 针对当前确认的 `TARGET_HEAD` 构建该 change 的 `ARTIFACT_MANIFEST`：固定包含 `.openspec.yaml`、proposal/design/tasks，递归包含 `specs/` 全部文件且至少一个 `spec.md`。
+6. 当前工作区或 `TARGET_HEAD` 任一侧存在 `dependencies.yaml` 时必须加入 manifest；两侧均缺省才记录无依赖。
+7. 用当前 `find ... -type f | LC_ALL=C sort` 与 `git ls-tree -r --name-only <TARGET_HEAD>` 比较路径集合；逐项以 `git hash-object` 对 frozen commit blob 比较字节内容。
+8. 记录每个 `ARTIFACT_MANIFEST_DIGEST`。未提交、ignored、新增、删除、内容不同、空 specs、读取错误或 dependency 单侧缺失均跳过该 change，并显示精确原因。
+
+待执行列表为空则零写退出。
+
+## Step 2：依赖图与 Batch 计划（只读）
+
+只使用已经通过 manifest 验证的 `dependencies.yaml` 构图。缺失引用、引用未通过 artifact 验证或循环依赖都停止整个计划。
+
+Kahn 算法生成 Wave；每 Wave 按 change 名字母序分 Batch，每 Batch 最多 3 个。即使只有一个 change，也使用一个规范隔离 worktree，不直接在目标调用 apply。
+
+后续 Wave 必须等待依赖 Wave 的每个所需 change 完成 merge、post-merge 验证并按策略可供目标使用；依赖 change 未交付时，不调度依赖者。
+
+## Step 3：确认摘要（只读）
+
+摘要必须显示：
+
+- `TARGET_BRANCH`、选择来源、`TARGET_WORKTREE_DIR`、`TARGET_HEAD`、clean/HEAD-ref 结果。
+- `EXPECTED_TARGET_HEAD` 初值等于确认的 `TARGET_HEAD`。
+- 每个 Wave/Batch、canonical source branch/path 和 `ARTIFACT_MANIFEST_DIGEST`。
+- 每个 Batch 共享冻结 hash、每个 Worker apply/commit、来源内 rebase、冻结 source hash、目标内 exact-hash merge、验证和条件式普通 cleanup。
+- 确认后不会 checkout/switch 或 auto-commit 目标；漂移和 cleanup 失败的 child 会保留。
+- 确定的 `PROJECT_VERIFY_COMMANDS`；至少含 change strict validation、任务完成度、artifacts、目标 identity/clean、containment、source-only commits 和 `git diff --check`。
+- merge 每个 child 最多一次，失败不换参数重试；成功后验证失败不自动回滚。
+
+使用交互工具请求无默认值、无超时同意的明确确认。拒绝、取消、缺失、模糊或无交互能力时不写、不 spawn、不 apply。
+
+## Step 4：确认后完整复检（只读）
+
+重跑 Step 0–2，并要求参数、目标注册/ref/HEAD/clean、控制器上下文能力、change 集合、manifest、依赖图、Wave/Batch、canonical collision 和验证命令全部与摘要一致。
+
+任一变化使确认失效，返回 Step 3。全部一致后设置：
+
+```text
+EXPECTED_TARGET_HEAD=<TARGET_HEAD>
 ```
 
----
+## Step 5：持久进入目标控制器上下文
 
-## Step 1: Discovery — 扫描待执行 Changes（只读）
-
-### 1.1 列出所有 change 目录
-
-```bash
-ls -d openspec/changes/*/ 2>/dev/null | grep -v '/archive/'
-```
-
-对每个目录，提取 change 名称（目录名）。
-
-### 1.2 检测未完成任务
-
-```bash
-grep -c '^\- \[ \]' openspec/changes/<name>/tasks.md 2>/dev/null
-```
-
-- 返回值 > 0：列入待执行列表
-- 返回值 = 0 或文件不存在：跳过
-
-### 1.2.1 Artifact 完整性校验
-
-```bash
-openspec status --change "<name>" --json
-test -f openspec/changes/<name>/proposal.md
-test -f openspec/changes/<name>/design.md
-test -f openspec/changes/<name>/tasks.md
-ls openspec/changes/<name>/specs/*.md 2>/dev/null
-```
-
-所有 artifacts done 且文件齐全 → 列入待执行列表；否则标记"跳过: artifacts 未完成"，不列入。
-
-### 1.3 待执行列表为空
-
-输出并退出（零写操作）：
-```
-## 无可执行的 Changes
-
-所有 changes 的任务均已完成，或没有找到 changes 目录。
-运行 /opsx:propose 创建新的 change。
-```
-
----
-
-## Step 2: 依赖解析与图构建（只读）
-
-### 2.1 解析依赖声明
+将主控后续命令和 Worker 创建的父上下文绑定到 `TARGET_WORKTREE_DIR`，验证：
 
 ```bash
-test -f openspec/changes/<name>/dependencies.yaml
-```
-
-解析规则: 不存在或空列表 → 无依赖；存在 → 读取 dependencies 列表。
-
-### 2.2 校验依赖引用
-
-```bash
-ls openspec/changes/<dep-name>/ 2>/dev/null
-```
-
-引用不存在的 change → 报错退出：`错误: 依赖引用无效`。
-
-### 2.3 循环依赖检测
-
-DFS 检测有向图中的环；发现环 → 报错退出，列出环中 changes。
-
-### 2.4 拓扑排序生成 Wave 列表
-
-Kahn 算法（BFS 拓扑排序）生成分层执行计划。同一 Wave 内的 changes 互相无依赖，可并行执行。
-
-### 2.5 展示执行计划
-
-输出执行计划（标注每 Wave 的 Batch 划分）：
-```
-## 执行计划（待确认）
-
-目标分支: <TARGET_BRANCH>（选择依据: <TARGET_SOURCE>）
-目标工作树: <TARGET_WORKTREE_DIR 或 "确认后 checkout 到主工作树">
-
-发现 <N> 个待执行的 Changes，分为 <W> 个 Wave，每 Wave 最多 3 个并行：
-
-Wave 1:
-  Batch 1 (并行: 3)
-    ├─ <change-a>
-    ├─ <change-b>
-    └─ <change-c>
-  Batch 2 (并行: 2, Batch 1 合并后执行)
-    ├─ <change-d>
-    └─ <change-e>
-
-Wave 2 (依赖 Wave 1):
-  Batch 1 (并行: 1)
-    └─ <change-f>
-
-### 已跳过
-  ├─ <change-g> — 跳过: artifacts 未完成
-
-### 将执行的写操作（确认后）
-  - Auto-commit 目标工作树待提交改动（若有）并刷新目标 HEAD
-  - 每个 change 从 <TARGET_BRANCH> 创建隔离 worktree、apply、提交
-  - 每个 Batch 后将成功分支串行 rebase + merge 进 <TARGET_BRANCH>
-  - 失败/冲突分支保留 worktree 待人工处理
-```
-
----
-
-## Step 3: 只读预检摘要与强制确认（只读；无写操作）
-
-在 Step 2.5 计划基础上，使用 **AskUserQuestion 工具** 请求**明确**确认，**无默认值、无超时自动同意**。
-
-确认摘要 MUST 包含：
-- 命令范围: `parall-new-worktree-apply`
-- 目标分支、`TARGET_SOURCE`、`TARGET_HEAD`、`TARGET_WORKTREE_DIR`（或计划中的 checkout）
-- Wave/Batch 结构与每 Batch 串行合并说明
-- 目标工作树待提交改动清单（若有），或"无待提交改动"
-- 计划写操作: Auto-commit、每个 change 的隔离 worktree 创建/apply/提交、每 Batch 串行 rebase+merge 到 `TARGET_BRANCH`、失败保留策略
-- 风险警告: 主工作树是否需要 checkout 目标；控制器是否需要持久切换到 `TARGET_WORKTREE_DIR`；单 change 也将走隔离 worktree；冲突分支不阻塞其他分支
-
-**确认处理**：
-- **确认** → 进入 Step 4（复检）。
-- **拒绝/取消** → 不创建任何 worktree、不 spawn 任何 agent、不调用 apply、不 commit，零写操作。
-- **缺失/模糊** → 暂停等待明确输入，零写操作。
-- **无交互工具** → 在响应中输出问题，结束当前执行，等待下一条消息。零写操作。
-
----
-
-## Step 4: 确认后快照复检（只读，首次写操作前）
-
-重新验证: 参数、`TARGET_BRANCH` ref 与 `TARGET_HEAD`、worktree 映射、`git -C <TARGET_WORKTREE_DIR> status --porcelain` 的目标状态、所需 checkout、控制器上下文切换能力、展示过的风险警告。
-
-**任一实质事实变化** → 使确认失效，展示更新摘要并重新请求确认（回到 Step 3）。零写操作直到重新确认。
-
-**全部一致** → 进入 Step 5。
-
----
-
-## Step 5: 执行写操作（Auto-commit + Wave/Batch）
-
-### 5.1 Auto-commit（确认后）
-
-**仅此时**处理目标工作树待提交改动（之前在 Step 0.4 记录）：
-
-若主工作树需 checkout 到 `TARGET_BRANCH`（目标未检出且主工作树已确认干净）：
-```bash
-git -C <PRIMARY_WORKTREE_DIR> checkout <TARGET_BRANCH>
-```
-checkout 成功后设置 `TARGET_WORKTREE_DIR=<PRIMARY_WORKTREE_DIR>`，并验证该目录位于 `TARGET_BRANCH`。
-
-若 `TARGET_WORKTREE_DIR` 有待提交改动（按已确认计划）：
-```bash
-git -C <TARGET_WORKTREE_DIR> add -A
-git -C <TARGET_WORKTREE_DIR> commit -m "chore: auto-commit before parallel worktree apply"
-```
-
-**刷新批量创建所用的目标 HEAD**：
-```bash
-TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
-```
-
-将控制器的**持久执行上下文**切换到已确认目标工作树；单条 `git -C` 不能替代此步骤：
-```bash
-cd <TARGET_WORKTREE_DIR>
 test "$(pwd -P)" = "<TARGET_WORKTREE_DIR>"
 test "$(git rev-parse --show-toplevel)" = "<TARGET_WORKTREE_DIR>"
 test "$(git branch --show-current)" = "<TARGET_BRANCH>"
-test "$(git rev-parse HEAD)" = "<TARGET_HEAD>"
+test "$(git rev-parse HEAD)" = "<EXPECTED_TARGET_HEAD>"
+test "$(git rev-parse refs/heads/<TARGET_BRANCH>)" = "<EXPECTED_TARGET_HEAD>"
+test -z "$(git status --porcelain --untracked-files=all)"
 ```
 
-只有四项检查都通过，才可 spawn 第一个 Agent。若后续 Agent 工具调用不能继承该目标上下文，停止且不 spawn；不得从 `INVOCATION_WORKTREE_DIR` 的 HEAD 创建隔离 worktree。
+失败时不 spawn。禁止执行恢复性 checkout/switch。
 
-若无待提交改动 → 跳过 commit，仍记录 `TARGET_HEAD`。
+## Step 6：Wave/Batch 创建与 apply
 
-### 5.2 单 Change 也走隔离 worktree（无简化路径）
+按 Wave、Batch 顺序执行。每个 Batch spawn 前验证 target ref 和 target worktree HEAD 都等于 `EXPECTED_TARGET_HEAD`，target clean、真实 CWD 正确。外部或无法归因的推进使流程停止，不接受新 HEAD、不重新确认后偷偷继续。
 
-**即使只发现 1 个 change**，也必须走下方 Wave/Batch 流程（隔离 worktree 创建、apply、提交、串行合并），**禁止**直接在目标工作树调用 apply。1 个 change 等价于 1 Wave / 1 Batch / 1 agent。
+然后冻结：
 
-### 5.3 Wave 执行循环
-
-对每个 Wave 按顺序执行：
-
-在当前 Wave 开始时，从目标工作树读取合并完上一 Wave 后的最新 HEAD：
 ```bash
-TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
-WAVE_TARGET_HEAD=$TARGET_HEAD
+BATCH_TARGET_HEAD=<EXPECTED_TARGET_HEAD>
 ```
 
-`WAVE_TARGET_HEAD` 用于记录该 Wave 的进入基线；禁止复用首次确认时的旧 HEAD 作为后续 Wave 基线。
+重新验证 Batch 内每个 change 的 manifest 对 `BATCH_TARGET_HEAD` 完全一致。后续 Wave 因 `EXPECTED_TARGET_HEAD` 已由本控制器的验证 merge 推进，可以在新 commit 上重新得到一致 manifest；若 change artifacts 不在该 commit 或内容变化则不 spawn。
 
-#### 5.3.1 批次划分
+### 6.1 显式创建每个规范 child
 
-当前 Wave 的 changes 按目录名字母序，每批最多 3 个切分为多个 Batch（满足 `batch-concurrency-control` 规格的并发上限 3）。
+对每个 change 同时并行创建/执行，但每个创建命令必须是：
 
-#### 5.3.2 Batch 执行循环
-
-对当前 Wave 的每个 Batch 按顺序执行：
-
-每个 Batch spawn 前再次读取当前目标 HEAD，使前一 Batch 已合并的结果也可见；同一 Batch 的所有 Agent 共享该快照：
 ```bash
-BATCH_TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
-test "$(pwd -P)" = "<TARGET_WORKTREE_DIR>"
-test "$(git branch --show-current)" = "<TARGET_BRANCH>"
-test "$(git rev-parse HEAD)" = "<BATCH_TARGET_HEAD>"
+git worktree add <SOURCE_WORKTREE_DIR> -b worktree-<change-name> <BATCH_TARGET_HEAD>
 ```
 
-任一控制器上下文检查失败 → 本 Batch 不 spawn Agent，报告目标上下文漂移并停止；不能让隔离机制从调用 worktree 的 HEAD 创建。
+不得使用 ambient HEAD、`TARGET_BRANCH` 或平台隐式 isolation 代替 start-point。创建后验证注册路径、branch、branch ref、worktree HEAD 均等于期望，且 Worker 真实 CWD 是该 source path；失败时保留已创建现场，不换名字或机制重试。
 
-##### 5.3.2.1 并行 Spawn Agent（同一消息内并行）
+### 6.2 Worker apply 与来源提交
 
-为 Batch 内每个 change spawn 一个 Agent，**在同一消息中并行 spawn**。每个 Agent **从当前 Batch 的同一个 `BATCH_TARGET_HEAD` 创建**。
+每个 Worker 在自己的 verified source CWD 调用 `openspec-apply-change <change-name>`，执行任务回填并提交。返回必须包含 source path、`SOURCE_BRANCH`、source HEAD、clean 状态、DONE/TOTAL、错误。
 
-Agent 配置：
-- `subagent_type`: "general-purpose"
-- `isolation`: "worktree"
-- `mode`: "auto"
-- `name`: "<change-name>"
-- `description`: "apply <change-name>"
-- `prompt`（必须在提示中传递目标与 CWD/HEAD 验证要求）:
-  ```
-  你正在一个隔离的 git worktree 中实施 OpenSpec change "<change-name>"。
-  目标分支（基线）: <TARGET_BRANCH>
-  当前 Wave 进入基线: <WAVE_TARGET_HEAD>
-  当前 Batch 预期基线 HEAD: <BATCH_TARGET_HEAD>
+Worker 失败不清理且不合并。Batch 内其他 Worker 可完成；Controller 等待全部返回后才串行处理成功者。
 
-  **平台适配（必须遵守）**:
-  判断 EnterWorktree 工具是否可用：
-  - 可用（Claude Code，isolation: "worktree" 已生效）: worktree 已从 <TARGET_BRANCH> HEAD 创建并切换 CWD，直接开始。
-  - 不可用（Codex 等，isolation 未生效）: 手动创建，**必须使用显式 start-point**:
-    git worktree add .claude/worktrees/<change-name> -b <change-name> <BATCH_TARGET_HEAD>
-    cd .claude/worktrees/<change-name>
-    必须在后续所有操作前显式 cd 到该 worktree。
+## Step 7：每个成功 child 的 rebase 与冻结
 
-  **基线验证（必须执行，不可跳过）**:
-    WORKTREE_HEAD=$(git rev-parse HEAD)
-    若 WORKTREE_HEAD != <BATCH_TARGET_HEAD> → 停止，报告基线错误，不进入 apply。
+按 change 名字母序串行处理。对一个 child，在其规范 source worktree 中验证：注册 path/branch、worktree HEAD 与 branch ref 相等、source clean、tasks/artifacts 状态可读；target ref 和 target worktree HEAD 等于当前 `EXPECTED_TARGET_HEAD`。
 
-  **CWD 验证（必须执行）**:
-    pwd; git branch --show-current
-    确认目录包含 "<change-name>" 且分支正确，否则停止并报告。
+从来源真实 CWD执行一次：
 
-  请严格按以下步骤执行:
-  1. Skill 工具执行 opsx:apply，参数 "<change-name>"（读取 proposal/specs/design/tasks 逐个实施）
-  2. Post-apply 后处理:
-     Step A — Task Backfill: 读取 tasks.md 的 "- [ ]" 行，按四规则（反引号路径 test -f / 目录创建 test -d / frontmatter / 实现关键词）检测，通过则改 "- [x]"，输出报告。
-     Step B — CWD 复验: pwd; git branch --show-current，不符则先 cd 回 worktree。
-     Step C — Force-add + Commit:
-       git add -A
-       git add -f openspec/changes/<change-name>/tasks.md
-       DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<change-name>/tasks.md)
-       TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<change-name>/tasks.md)
-       有变更时: DONE==TOTAL → "feat: implement <change-name> (DONE/TOTAL tasks)"; 否则 partial。
-       无变更: 跳过 commit。
-  3. apply 遇到问题: 仍执行步骤 2 后处理，并在返回中说明失败原因。
-
-  返回: 实施状态、DONE/TOTAL、补标记详情、错误信息。
-  ```
-
-##### 5.3.2.2 等待 Agent 完成
-
-耐心等待当前 Batch 内所有 Agent 完成。记录每个 Agent 的状态、分支名、错误信息。
-
-##### 5.3.2.3 记录失败
-
-失败 Agent 记录到结果列表，后续跳过其分支合并。失败不阻塞同 Batch 其他 Agent 的等待。
-
-##### 5.3.2.4 合并当前 Batch
-
-当前 Batch 所有 Agent 完成后，**立即执行 Step 6 合并流程**，将成功分支逐个合并进 `TARGET_BRANCH`。
-
-合并后 `TARGET_BRANCH` HEAD 推进；下一个 Batch 的 worktree 虽基于更早 HEAD 创建，但 rebase 时同步到最新 `TARGET_BRANCH`，合并基线准确。
-
-### 5.4 Wave 完成
-
-当前 Wave 所有 Batch 执行并合并完毕后，立即刷新供下一 Wave 使用的目标基线：
 ```bash
-TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
+git rebase <EXPECTED_TARGET_HEAD>
 ```
 
-下一 Wave 必须从此最新 `TARGET_HEAD` 开始，并在其首个 Batch 记录新的 `BATCH_TARGET_HEAD`；依赖 change 因而能在实施期间看到上一 Wave 的代码，而不是只在事后 rebase。
+无法解决的冲突允许 abort 这次未完成 rebase，然后保留 child 并跳过；不得换目标重试。
 
----
+成功立即记录：
 
-## Step 6: 串行合并（`TARGET_BRANCH`）
-
-由 Step 5.3.2.4 调用。**每个 Batch 完成后**，按目录名字母序逐个合并成功分支。
-
-### 6.1 合并前控制器验证
-
-**对每个成功分支，合并前验证主控状态**：
 ```bash
-pwd -P
-git rev-parse --show-toplevel
-git branch --show-current
-```
-- `pwd -P` 和 `git rev-parse --show-toplevel` 都必须是 `TARGET_WORKTREE_DIR`（不包含 worktree 子目录）
-- `git branch --show-current` 必须等于 `<TARGET_BRANCH>`
-
-**CWD 验证失败** → 报告并**跳过该分支合并**：
-```
-错误: 主控 CWD 验证失败
-  当前目录: <pwd>
-  期望目标工作树: <TARGET_WORKTREE_DIR>
-  当前分支: <branch>
-  期望分支: <TARGET_BRANCH>
-  合并已中止。
+POST_REBASE_SOURCE_HEAD=$(git rev-parse HEAD)
 ```
 
-**分支验证失败** → 尝试恢复：
+要求 source worktree HEAD 和 branch ref 都等于该 hash、source clean，且 `git rev-list <EXPECTED_TARGET_HEAD>..<POST_REBASE_SOURCE_HEAD>` 是非空 delivery commits。再次验证 target ref/HEAD/clean 仍等于 `EXPECTED_TARGET_HEAD`。
+
+## Step 8：目标内 exact-hash merge
+
+返回 `TARGET_WORKTREE_DIR` 的真实控制器 CWD，验证 top-level/current branch/ref/HEAD/clean 全部仍等于 `EXPECTED_TARGET_HEAD`。通过 `git -C <SOURCE_WORKTREE_DIR>` 重新验证 source registration、branch、HEAD/ref、clean、delivery commits 仍对应 `POST_REBASE_SOURCE_HEAD`。
+
+只执行一次：
+
 ```bash
-git checkout <TARGET_BRANCH>
-```
-恢复后仍失败 → 报告并**跳过该分支合并**。
-
-### 6.2 合并单个分支（绑定 `TARGET_BRANCH`）
-
-```
-Step A: Rebase 到最新 <TARGET_BRANCH>
-  git rebase <TARGET_BRANCH> <branch>
-
-Step B: 冲突 → 转 Step 7（冲突解决）
-
-Step C: 切换到 <TARGET_BRANCH> 并合并
-  git checkout <TARGET_BRANCH>
-  git merge <branch>
-
-Step D: 验证目标包含全部来源提交
-  git log <TARGET_BRANCH>..<branch>
-  输出必须为空。
-
-  不为空 → 合并验证失败:
-    警告: 合并验证失败 — 分支 <branch> 仍有未合并提交
-    该分支标记为未合并，保留 worktree/恢复状态，按失败策略处理，跳过该分支。
-
-Step E: 验证合并后主控仍在 <TARGET_BRANCH>
-  git branch --show-current
-  不符则 git checkout <TARGET_BRANCH>，重新验证；仍失败则报告并停止串行合并。
-
-Step F: 验证/回填 tasks.md 标记状态（在 <TARGET_BRANCH> 上）
-  DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<name>/tasks.md)
-  TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<name>/tasks.md)
-  DONE < TOTAL → post-merge 补标记 + git add -f + commit "fix: backfill task markers for <name> (DONE/TOTAL tasks)"
+PRE_MERGE_TARGET_HEAD=<EXPECTED_TARGET_HEAD>
+git merge <POST_REBASE_SOURCE_HEAD>
 ```
 
-### 6.3 合并顺序
+失败时可中止未完成冲突并保留 child；不换参数、不使用 source branch 新 tip、不自动重试。成功后记录：
 
-按分支对应 change 的目录名字母序逐个合并。每合并一个，`<TARGET_BRANCH>` HEAD 推进，下一个分支 rebase 基于此新 HEAD。
+```text
+MERGE_SUCCEEDED_ONCE=true
+POST_MERGE_TARGET_HEAD=<git rev-parse HEAD>
+```
 
----
+成功 merge 后不自动 reset/revert。
 
-## Step 7: 冲突智能解决
+## Step 9：每 child 的 post-merge 验证与 cleanup
 
-当 `git rebase <TARGET_BRANCH> <branch>` 产生冲突时执行。
+逐项验证且每条命令最多一次：
 
-### 7.1 检测冲突
+- 控制器真实 CWD/top-level/current branch 是目标。
+- target ref、target worktree HEAD 和 `POST_MERGE_TARGET_HEAD` 相等，target clean。
+- target 包含精确 `POST_REBASE_SOURCE_HEAD`。
+- source canonical mapping 仍精确，source clean，source HEAD/ref 仍等于冻结 hash。
+- source 有 delivery commits，且 `git rev-list target..source` 为空。
+- change strict validation、artifacts 与 tasks 全部完成。
+- `git diff <PRE_MERGE_TARGET_HEAD>..<POST_MERGE_TARGET_HEAD> --check` 和确认的项目命令全部成功。
+
+只有全部显式成功：
+
+```text
+CLEANUP_READY =
+  REAL_CWD_IS_TARGET_WORKTREE
+  AND SOURCE_MAPPING_EXACT
+  AND SOURCE_CLEAN
+  AND SOURCE_HAS_DELIVERY_COMMITS
+  AND SOURCE_HEAD_REF_EQUAL_POST_REBASE_SOURCE_HEAD
+  AND MERGE_SUCCEEDED_ONCE
+  AND TARGET_REF_EQUALS_TARGET_WORKTREE_HEAD
+  AND TARGET_CONTAINS_POST_REBASE_SOURCE_HEAD
+  AND NO_SOURCE_ONLY_COMMITS
+  AND POST_MERGE_VERIFICATION_PASSED
+```
+
+才立即重复关键 checks，并执行：
+
 ```bash
-git status --porcelain | grep "^UU"
+git worktree remove <SOURCE_WORKTREE_DIR>
+git branch -d -- <SOURCE_BRANCH>
 ```
 
-### 7.2 分析冲突标记
-对每个冲突文件：读取内容，解析 `<<<<<<< HEAD`、`=======`、`>>>>>>> <branch>` 标记，提取两方改动。
+普通 worktree 删除失败时保留 branch；安全 branch deletion 拒绝时保留 branch。branch 在授权删除前意外消失视为 drift。任何失败都不升级为强制 cleanup。
 
-### 7.3 智能合并策略
+若 post-merge/cleanup 任一 gate 失败，target 上已成功 merge 保留，child source 现场保留，不自动回滚或重试 merge。
 
-**策略 1: 非重叠改动（自动解决）** — 两方修改不同区域（行号不重叠）→ 保留双方改动。
+只有 child merge 与 post-merge verification 全部通过，才更新：
 
-**策略 2: 语义可合并（智能解决）** — 两方修改同一区域但语义可合并（如两方都添加列表项）→ 合并。
-
-**策略 3: 无法自动解决（放弃并报告）** — 同区域且语义冲突 → `git rebase --abort`，记录冲突详情，跳过该分支。
-
-### 7.4 应用解决方案
-```bash
-git add <resolved-files>
-git rebase --continue
-```
-若仍有冲突，重复 7.1–7.4。
-
----
-
-## Step 8: 验证与最终报告
-
-### 8.1 重新扫描 tasks.md（含文件存在性检测）
-
-全部 Wave 完成后，重新扫描所有待执行 change。对每个:
-```bash
-DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<name>/tasks.md)
-TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<name>/tasks.md)
-```
-仍有 `[ ]` 的执行文件存在性检测，存在的自动标记 `[x]`，有变更则 `git add -f` + commit。
-
-### 8.2 生成最终报告
-
-```
-## Parallel Worktree Apply 报告
-
-**目标分支:** <TARGET_BRANCH>（选择依据: <TARGET_SOURCE>）
-**待执行 Changes:** <total>
-**执行 Waves:** <waves>
-**成功:** <success_count>  **失败:** <fail_count>
-
-### Wave 执行结果
-
-Wave 1:
-| Change | Agent 状态 | 合并状态 | CWD 验证 | 目标包含验证 | 备注 |
-|--------|-----------|---------|---------|-------------|------|
-| <name> | ✓ 成功    | ✓ 已合并 | ✓       | ✓           |      |
-| <name> | ✓ 成功    | ✗ 跳过  | ✗ 失败  | —           | CWD 验证失败: <详情> |
-| <name> | ✓ 成功    | ✗ 未验证| —       | ✗ 失败      | 目标仍有 <n> 个未合并提交 |
-| <name> | ✗ 失败    | — 跳过  | —       | —           | Agent 执行失败: <原因> |
-| <name> | ✓ 成功    | ✗ 冲突  | —       | —           | 冲突文件: <files> |
-
-说明:
-- "✗ 跳过 (CWD 验证失败)": 目标工作树或分支异常，合并未执行
-- "✗ 未验证 (目标包含失败)": merge 已执行但 git log <TARGET_BRANCH>..<branch> 非空
-- "— 跳过 (Agent 失败)": Agent 失败，分支不可合并
-- "✗ 冲突": rebase 冲突且无法自动解决
-
-### 验证结果
-
-| Change | 任务完成 | 状态 |
-|--------|---------|------|
-| <name> | 7/7     | ✓    |
-| <name> | 3/5     | ✗ 剩余 2 个任务 |
-
-### 总结
-
-全部 Changes 已成功实施并合并进 <TARGET_BRANCH>! ✓
-（或: <fail_count> 个 Changes 存在问题，请查看上方详情。）
-
-### 下一步
-
-> 全部成功: 运行 `/check-changes-completed` 验证完整性，然后逐个 `/opsx:archive <name>` 归档。
-> 部分失败: 对失败 change 运行 `/new-worktree-apply <name> --target <TARGET_BRANCH>` 重试，成功后 `/merge-worktree-return <name> --target <TARGET_BRANCH>` 合并。
+```text
+EXPECTED_TARGET_HEAD=<POST_MERGE_TARGET_HEAD>
 ```
 
-### 8.3 失败项详情
+cleanup 因锁失败不否认代码已经验证进入目标，但报告为“已交付、未清理”；依赖调度可基于已验证 target 继续。post-merge verification 失败则不得推进依赖 Wave。
 
-对每个失败 change 输出: 失败阶段、原因、建议。
+## Step 10：Batch/Wave 推进规则
 
----
+- 同 Batch children 都基于相同 `BATCH_TARGET_HEAD`；串行 rebase 到每个前序已验证 merge 后的最新 `EXPECTED_TARGET_HEAD`。
+- 下个 Batch spawn 前重新执行目标 equality/clean/CWD 和每个 manifest 检查。
+- Wave 的依赖 change 必须已成功 merge 且 post-merge verification 通过；cleanup 是否因普通路径锁失败单独报告，不阻止已经验证的依赖代码可见性。
+- 外部 target 漂移、target dirty 或控制器上下文漂移停止后续 Batch/Wave，不执行修复性 checkout。
 
-## 错误处理
+## Step 11：最终报告
 
-### 通用错误格式
-```
-错误: <简要描述>
-**上下文**: <步骤与参数>
-**原因**: <具体原因>
-**建议**:
-  1. <恢复建议 1>
-  2. <恢复建议 2>
-```
+逐 change 输出：
 
-### 各步骤错误处理
+| 字段 | 内容 |
+|---|---|
+| Proposal | `<change-name>` |
+| Source identity | `worktree-<change-name>` + exact path |
+| Artifact manifest | digest / failure |
+| Batch target | `BATCH_TARGET_HEAD` |
+| Post-rebase source | `POST_REBASE_SOURCE_HEAD` |
+| Post-merge target | `POST_MERGE_TARGET_HEAD` |
+| Merge count | 0 或 1 |
+| Verification | 每个 gate 的 true/false/unknown |
+| CLEANUP_READY | true/false |
+| Preserved recovery objects | exact worktree/branch |
 
-| 步骤 | 错误 | 处理 |
-|------|------|------|
-| 0.1 | 参数无效（非 --target） | 直接退出，零写操作 |
-| 0.2 | 非 git 仓库 | 直接退出 |
-| 0.3 | 目标无法选择/显式目标不存在 | 直接退出，零写操作，Discovery 前 |
-| 2.2 | 依赖引用不存在 | 直接退出 |
-| 2.3 | 循环依赖 | 直接退出，列出环 |
-| 3 | 用户拒绝/取消 | 零写操作退出 |
-| 5.3.2.1 | Agent 执行失败 | 记录失败，继续其他 |
-| 6.1 | CWD/分支验证失败 | 跳过该分支 |
-| 6.2 | Rebase 冲突 / 目标包含失败 | 智能解决，失败则跳过 |
-
----
+最终摘要显示 `EXPECTED_TARGET_HEAD`、成功/失败/已交付未清理数量、未执行的依赖 changes 和人工恢复上下文。
 
 ## Guardrails
 
-- Step 0–4 为只读：确认前不产生任何 Git 写操作、不 spawn 实施 agent、不调用 apply。
-- 目标状态读取、复检和 Auto-commit 始终绑定同一个 `TARGET_WORKTREE_DIR`；Auto-commit 只在确认与复检之后执行。
-- Agent spawn 前必须将控制器持久切换到 `TARGET_WORKTREE_DIR`；`git -C` 只约束单条命令，不能代替控制器 CWD 切换。
-- 同一 Batch 的 child worktree 基于同一个最新 `BATCH_TARGET_HEAD`；每个 Batch spawn 前刷新，且每个 Wave 合并完成后刷新下一 Wave 的 `TARGET_HEAD`，创建后验证基线。
-- 每 Wave 内并行 Agent 上限为 3，超出按字母序分 Batch 串行执行（满足 `batch-concurrency-control` 规格并发上限 3）。
-- 同一 Batch 内 Agent spawn 必须在同一消息中并行。
-- 合并必须串行绑定到 `TARGET_BRANCH`，每个分支合并后再处理下一个；每个 Batch 完成后立即合并。
-- 失败的 Agent 或冲突分支不阻塞其他 Agent/分支；失败 worktree 保留待人工处理。
-- 单个 change 也必须走隔离 worktree（创建/apply/提交/合并），禁止直接在目标工作树调用 apply。
-- 最终验证必须重新扫描 tasks.md，不信任中间状态；报告显示目标选择依据与每个分支的目标包含验证。
-- 待执行 changes 为 0 → 直接退出，零写操作。
-- 确认无默认值、无超时自动同意；缺失/模糊回答保持 Git 不变。
+- 确认前零写、零 spawn、零 apply。
+- 目标必须由已有 clean worktree 持有，但本流程不切换或自动提交它。
+- 每个 child 使用 canonical branch/path 与显式 commit-hash start-point。
+- 每个 source/target 快照在 rebase、merge 和 cleanup 前重新验证。
+- merge 冻结 hash 且每 child 最多一次；验证失败不自动重试或回滚。
+- cleanup 只使用普通 worktree removal 和安全 local branch deletion。
+- 每 Batch 最多 3 个 Worker；依赖排序和单 change 隔离语义保持不变。

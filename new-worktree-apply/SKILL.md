@@ -1,348 +1,244 @@
 ---
 name: new-worktree-apply
-description: Create a git worktree branch for an OpenSpec proposal and apply it. Use when starting implementation of an OpenSpec change in an isolated worktree. Requires git and openspec CLI. All Git write actions happen only after an explicit preflight confirmation.
+description: Use when starting implementation of an OpenSpec change in a new isolated git worktree.
 argument-hint: <proposal-name> [--target <target-branch>]
 disable-model-invocation: true
-allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(test *) Bash(head *) Bash(sed *) EnterWorktree ExitWorktree Read Write Edit Glob Grep Skill AskUserQuestion
+allowed-tools: Bash(git *) Bash(openspec *) Bash(find *) Bash(sort *) Bash(grep *) Bash(test *) Bash(pwd *) Bash(awk *) Bash(sed *) Read Write Edit Glob Grep Skill AskUserQuestion
 ---
 
-Create a git worktree for an OpenSpec proposal and start applying it.
+为一个 OpenSpec proposal 创建规范化 worktree，并在其中实施。
 
-**Input**: A proposal name (required) and an optional `--target <target-branch>` flag. The proposal branch and worktree are created with the selected target as the explicit start point.
+**输入**：一个 proposal 名称和可选的 `--target <target-branch>`。
 
-Examples:
-- `/new-worktree-apply add-user-auth`
-- `/new-worktree-apply add-user-auth --target develop`
-
-**BREAKING**: The legacy `--branch` option is replaced by `--target`. If `--branch` is supplied, this skill performs **no Git write** and prints the equivalent `--target` invocation. See Step 1.
-
-**Invariant (read-only before confirmation)**: Steps 1–6 perform no Git write and do not invoke any apply skill. `git add`, `git commit`, `git checkout`/`git switch`, `git worktree add`/remove, `git rebase`, `git merge`, and `openspec apply` only run in Step 7 onward — after confirmation and snapshot revalidation.
-
-**Steps**
-
-1. **Parse arguments and validate prerequisites** (read-only)
-
-   Extract the proposal name and optional `--target <target-branch>` from `$ARGUMENTS`.
-
-   **Argument rules:**
-   - Exactly one positional argument is allowed (the proposal name). Zero or more than one positional → argument error, no Git write.
-   - `--target <target-branch>` is the only accepted option. `--target` may appear at most once.
-   - If `--target` is given without a value, or a value is given without `--target`, or any unknown option appears → argument error, no Git write.
-
-   **Legacy `--branch` handling (zero-write migration):**
-   - If `--branch <name>` is detected → stop immediately, perform **no Git write**, and print:
-     ```
-     ## Error: legacy option --branch
-
-     `--branch` has been replaced by `--target`. Use instead:
-
-         /new-worktree-apply <proposal-name> --target <name>
-
-     No Git state was changed.
-     ```
-   - `--branch` is not a silent alias and triggers no fallback.
-
-   If no proposal name is provided and no legacy option was used, use the **AskUserQuestion tool** to ask:
-   > "What proposal do you want to create a worktree for?"
-
-   Then run these checks in parallel:
-   ```bash
-   git rev-parse --is-inside-work-tree
-   which openspec
-   ```
-
-   **If any check fails:**
-   - Not a git repo → error: "Must be inside a git repository."
-   - No openspec CLI → error: "OpenSpec CLI is required. Install it first."
-
-   Validate the proposal exists (read-only):
-   ```bash
-   test -d openspec/changes/<proposal-name>
-   ```
-   If not found → error with list of available proposals from `openspec list --json`.
-
-   Validate the proposal name conforms to worktree naming rules (only lowercase letters, digits, dots, underscores, hyphens; max 64 characters). If invalid → error with the naming constraints. No Git write occurs.
-
-2. **Select the target branch** (read-only)
-
-   Select `TARGET_BRANCH` using this exact order, recording `TARGET_SOURCE` for the confirmation summary and final report:
-
-   1. **Explicit `--target`** — if supplied, it MUST exist as a local branch in `refs/heads/`. Verify:
-      ```bash
-      git rev-parse --verify --quiet refs/heads/<target-branch>
-      ```
-      If it does not exist → error: "Target branch '<name>' does not exist locally." Do **not** fetch, do **not** create it, do **not** fall back. Stop, no Git write.
-      Set `TARGET_SOURCE="explicit --target"`.
-   2. **Primary worktree's checked-out branch** — if no explicit target, read the primary worktree branch from `git worktree list --porcelain` (Step 3) and confirm it is a valid local ref:
-      ```bash
-      git rev-parse --verify --quiet refs/heads/<primary-branch>
-      ```
-      Usable → `TARGET_BRANCH=<primary-branch>`, `TARGET_SOURCE="primary worktree current branch"`.
-   3. **`origin/HEAD` local same-name branch** — if the primary branch is unusable (detached or absent), read the default remote name:
-      ```bash
-      git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's#^origin/##'
-      ```
-      If the resulting name exists in `refs/heads/` → `TARGET_BRANCH=<name>`, `TARGET_SOURCE="origin/HEAD local branch"`.
-   4. **Conventional fallback** — first existing local branch among `main`, `master`, `trunk`:
-      ```bash
-      for b in main master trunk; do git rev-parse --verify --quiet refs/heads/$b && break; done
-      ```
-      Usable → `TARGET_BRANCH=<b>`, `TARGET_SOURCE="conventional fallback"`.
-
-   If no candidate is usable → error: "No target branch could be selected. Provide `--target <branch>`." No Git write.
-
-3. **Resolve worktree topology** (read-only)
-
-   Use `git worktree list --porcelain` to record:
-   - `PRIMARY_WORKTREE_DIR` — the worktree marked `bare` or listed first (the main working tree).
-   - `INVOCATION_WORKTREE_DIR` — the worktree whose path equals the current `git rev-parse --show-toplevel`.
-   - `TARGET_WORKTREE_DIR` — the worktree (if any) where `TARGET_BRANCH` is already checked out.
-
-   ```bash
-   git worktree list --porcelain
-   git rev-parse --show-toplevel
-   ```
-
-   **Topology rules:**
-   - If `TARGET_BRANCH` is checked out in a non-invocation worktree → record it as `TARGET_WORKTREE_DIR`; do not plan a duplicate checkout.
-   - If `TARGET_BRANCH` is not checked out anywhere → record that a post-confirmation `git checkout` of `TARGET_BRANCH` in the clean primary worktree is required (only when the primary worktree is clean and can switch safely), and set the planned `TARGET_WORKTREE_DIR=<PRIMARY_WORKTREE_DIR>`. If the primary worktree cannot switch safely → error with recovery guidance, stop before confirmation.
-   - **Detached HEAD is unsupported** for the required target/source: if the primary worktree that must supply the target is detached (and no explicit target was given) → error: "Primary worktree is in detached HEAD state. Use `--target <branch>`." No Git write.
-   - **Claude Code creation-context gate:** `EnterWorktree` branches from the controller's current checkout and cannot take an explicit start-point. If `TARGET_BRANCH` is already checked out, `INVOCATION_WORKTREE_DIR` MUST equal `TARGET_WORKTREE_DIR`; if a target checkout is planned, `INVOCATION_WORKTREE_DIR` MUST equal `PRIMARY_WORKTREE_DIR`. Otherwise stop during this read-only preflight and ask the user to `cd <TARGET_WORKTREE_DIR>` (or the primary worktree for a planned checkout) and rerun. Do not auto-commit, checkout, or create anything first. Codex/manual creation is not subject to this gate because Step 7c passes an explicit start-point.
-
-4. **Read state for the preflight summary** (read-only)
-
-   Record the true target HEAD and pending state **without writing**:
-   ```bash
-   TARGET_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)
-   git -C <TARGET_WORKTREE_DIR> status --porcelain
-   ```
-
-   The status snapshot is always taken from `TARGET_WORKTREE_DIR`, including when the primary worktree is only the planned target checkout. Do not substitute the invocation or primary worktree merely because the command was launched there.
-
-   Validate the proposal branch does not already exist (read-only):
-   ```bash
-   git branch --list <proposal-name>
-   ```
-   If it already exists → error: "Branch '<proposal-name>' already exists. Choose a different name or delete it with `git branch -D <proposal-name>`." Stop, no Git write.
-
-   Read OpenSpec artifact status (read-only):
-   ```bash
-   openspec status --change "<proposal-name>" --json
-   ```
-   Record whether every artifact is `done` and whether `isComplete` is `true`.
-
-5. **Preflight summary and confirmation** (read-only; no Git write)
-
-   Display a single read-only summary, then request an **explicit** affirmative response with **no default value and no timed approval**. Use the **AskUserQuestion tool**.
-
-   The summary MUST include:
-   - Command scope: `new-worktree-apply <proposal-name>`.
-   - Target branch, `TARGET_SOURCE`, and `TARGET_HEAD`.
-   - `TARGET_WORKTREE_DIR` (or the planned post-confirmation checkout) and `PRIMARY_WORKTREE_DIR`.
-   - Any pending changes in `TARGET_WORKTREE_DIR` that the plan will auto-commit (with file list), or "no pending changes".
-   - The planned write operations: auto-commit (if needed), optional `git checkout <TARGET_BRANCH>` in the clean primary worktree, `git worktree add`/`EnterWorktree` from `TARGET_HEAD`, then `openspec apply`, task backfill, and `git commit`.
-   - Risk warnings: proposal branch does not exist yet (it will be created); whether a checkout of the primary worktree is required.
-
-   **Confirmation handling:**
-   - **User confirms** → proceed to Step 6 (snapshot revalidation).
-   - **User declines or cancels** → stop, no Git write, do not invoke apply.
-   - **Response is missing or ambiguous** → pause for explicit input, no Git write.
-   - **No interaction tool is available** → print the question in the response, end the current execution, and wait for the next user message. No Git write.
-
-6. **Snapshot revalidation** (read-only, immediately before the first write)
-
-   Re-run the read-only checks from Steps 1–4 and compare against the confirmed summary. Revalidate:
-   - Parsed arguments (proposal, target).
-   - `TARGET_BRANCH` ref still resolves and `TARGET_HEAD` is unchanged.
-   - Worktree mapping (`PRIMARY_WORKTREE_DIR`, `TARGET_WORKTREE_DIR`) unchanged.
-   - Pending-change state from `git -C <TARGET_WORKTREE_DIR> status --porcelain`.
-   - Required checkout (still needed / still safe).
-   - Displayed risk warnings.
-
-   **If any material fact changed** while waiting → invalidate the confirmation, display the updated summary, and request a new confirmation (back to Step 5). No Git write until re-confirmed.
-
-   **If everything matches** → proceed to Step 7.
-
-7. **Execute confirmed writes** (writes begin here)
-
-   7a. **Handle pending target worktree changes** — if the confirmed summary said pending changes will be auto-committed, bind both staging and commit to the exact directory that was displayed and revalidated:
-   ```bash
-   git -C <TARGET_WORKTREE_DIR> add -A
-   git -C <TARGET_WORKTREE_DIR> commit -m "chore: auto-commit before worktree for <proposal-name>"
-   ```
-   If the commit advanced `TARGET_BRANCH` (e.g. the target worktree had changes on `TARGET_BRANCH`), **refresh** `TARGET_HEAD`:
-   ```bash
-   TARGET_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse refs/heads/<TARGET_BRANCH>)
-   ```
-   All later creation steps use this refreshed snapshot.
-
-   If there were no pending changes → announce "Working directory clean, proceeding."
-
-   7b. **Make the target available** — only if `TARGET_BRANCH` is not checked out anywhere:
-   - The clean primary worktree (confirmed clean in Step 4/6) checks out the target:
-     ```bash
-     git -C <PRIMARY_WORKTREE_DIR> checkout <TARGET_BRANCH>
-     ```
-   - After checkout, set `TARGET_WORKTREE_DIR=<PRIMARY_WORKTREE_DIR>` and verify that directory is on `TARGET_BRANCH` at `TARGET_HEAD`.
-   - This is a confirmed, displayed write. If the primary worktree is not clean or cannot switch, do not proceed — report and stop.
-
-   7c. **Create the worktree from `TARGET_HEAD`** — choose by environment:
-
-   **Claude Code (EnterWorktree available):**
-   - `EnterWorktree` branches from the controller's **current HEAD**. Enter the target worktree as the controller's persistent execution context; a one-off `git -C` command does not satisfy this requirement:
-     ```bash
-     cd <TARGET_WORKTREE_DIR>
-     test "$(pwd -P)" = "<TARGET_WORKTREE_DIR>"
-     test "$(git branch --show-current)" = "<TARGET_BRANCH>"
-     test "$(git rev-parse HEAD)" = "<TARGET_HEAD>"
-     ```
-   - Only after all three checks pass may the controller call `EnterWorktree` with `name: <proposal-name>`.
-   - If the platform cannot keep subsequent tool calls bound to that target checkout context, or any check fails → **stop safely** instead of silently using another HEAD. Do not call `EnterWorktree` and do not fall back.
-
-   **Other environments (Codex CLI, EnterWorktree unavailable):**
-   - Create with an **explicit start point**:
-     ```bash
-     git worktree add .claude/worktrees/<proposal-name> -b <proposal-name> <TARGET_BRANCH>
-     cd .claude/worktrees/<proposal-name>
-     ```
-   - The explicit `<TARGET_BRANCH>` start point guarantees the base is `TARGET_HEAD`.
-
-   If creation fails → report the failure. Do not attempt a manual fallback in Claude Code.
-
-   7d. **CWD verification (mandatory):**
-   ```bash
-   pwd
-   git branch --show-current
-   ```
-   Expected:
-   - `pwd` shows the worktree path containing `<proposal-name>`.
-   - `git branch --show-current` shows `<proposal-name>`.
-
-   If verification fails → stop:
-   > "CWD 验证失败：当前目录 <pwd> 或分支 <branch> 不符合预期。"
-   >
-   > **Recovery:** manually `cd .claude/worktrees/<proposal-name>`, or re-run `git worktree add .claude/worktrees/<proposal-name> -b <proposal-name> <TARGET_BRANCH>`.
-
-8. **Verify HEAD consistency** (read)
-
-   ```bash
-   WORKTREE_HEAD=$(git rev-parse HEAD)
-   ```
-   Compare `$WORKTREE_HEAD` with `$TARGET_HEAD` (recorded in Step 4, refreshed in 7a).
-
-   - **Match** → announce: "HEAD verified: worktree starts exactly from <TARGET_BRANCH>."
-   - **Differ** → **stop**. Do **not** hide the mismatch with `git merge <TARGET_BRANCH>`. Report:
-     > "Base mismatch: worktree HEAD <WORKTREE_HEAD> != target HEAD <TARGET_HEAD>. Aborting apply.
-     > Recovery: remove the worktree (`ExitWorktree` action `remove`, or `git worktree remove .claude/worktrees/<proposal-name>` from a non-source dir), verify `TARGET_BRANCH`, and retry."
-
-9. **Pre-apply OpenSpec artifact validation** (read)
-
-   ```bash
-   openspec status --change "<proposal-name>" --json
-   ```
-   Verify:
-   - All artifacts in `artifacts` have `status: "done"`.
-   - `isComplete` is `true`.
-
-   Also verify key files exist:
-   ```bash
-   test -f openspec/changes/<proposal-name>/proposal.md
-   test -f openspec/changes/<proposal-name>/design.md
-   test -f openspec/changes/<proposal-name>/tasks.md
-   ls openspec/changes/<proposal-name>/specs/*.md 2>/dev/null
-   ```
-
-   **If any check fails:** list missing/incomplete artifacts, error: "Artifacts not ready for apply: <list>.", and stop — do not invoke apply.
-
-10. **Execute OpenSpec apply** (in the proposal worktree)
-
-    Use the **Skill tool** to invoke `openspec-apply-change` with the proposal name:
-    ```
-    Skill("openspec-apply-change", args="<proposal-name>")
-    ```
-    Alternatively: `Skill("opsx:apply", args="<proposal-name>")`.
-
-    This runs inside the correct proposal worktree (verified in Step 7d).
-
-11. **Post-apply task verification and backfill**
-
-    ```bash
-    TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<proposal-name>/tasks.md)
-    DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<proposal-name>/tasks.md)
-    ```
-
-    If `DONE < TOTAL`, perform automatic backfill:
-
-    a. Read `openspec/changes/<proposal-name>/tasks.md` and collect all lines with `- [ ]`.
-    b. For each unmarked task, parse its description to extract file path patterns:
-       - Text inside backticks (e.g. `` `SKILL.md` ``, `` `src/auth.py` ``) → check if file exists
-       - "创建 `xxx/` 目录" → check if directory exists
-       - "编写 frontmatter" → check if referenced file contains `---` frontmatter
-       - "实现 xxx" → check if related code files exist (keyword matching)
-    c. If the referenced file/directory exists, change `- [ ]` to `- [x]`.
-    d. Output a backfill report.
-    e. If tasks remain `[ ]`, list them but do not stop.
-
-12. **Force-add tasks.md and commit**
-
-    Since `openspec/` is in `.gitignore`, force-add `tasks.md`:
-    ```bash
-    git add -A
-    git add -f openspec/changes/<proposal-name>/tasks.md
-    ```
-    Count final completion:
-    ```bash
-    DONE=$(grep -cE '^\s*- \[x\]' openspec/changes/<proposal-name>/tasks.md)
-    TOTAL=$(grep -cE '^\s*- \[[ x]\]' openspec/changes/<proposal-name>/tasks.md)
-    ```
-    Commit with completion-aware message:
-    - `DONE == TOTAL`: `git commit -m "feat: implement <proposal-name> (DONE/TOTAL tasks)"`
-    - `DONE < TOTAL`: `git commit -m "feat: implement <proposal-name> (DONE/TOTAL tasks, partial)"`
-
-    If no changes to commit, skip.
-
-**Output On Success**
-
+```text
+/new-worktree-apply add-user-auth
+/new-worktree-apply add-user-auth --target develop
 ```
+
+## 核心不变量
+
+- Step 1–6 只读：确认和快照复检完成前，不执行 Git 写操作、不创建 worktree、不调用 apply。
+- 不 checkout/switch、stage、commit、stash、reset 或以其他方式修改主工作树或任何现有目标 worktree。
+- 目标分支必须已经由一个注册 worktree 精确持有，且该 worktree clean、HEAD 与 branch ref 一致。
+- 规范身份固定为：
+  ```text
+  PROPOSAL=<proposal-name>
+  SOURCE_BRANCH=worktree-<proposal-name>
+  SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>
+  ```
+- 创建只使用用户确认的不可变 commit hash：
+  ```bash
+  git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>
+  ```
+- 不能接受明确 branch、path 和 commit hash 的平台 worktree 创建能力不得替代上面的 Git 命令。
+- 任一检查失败或结果 unknown 时失败关闭；已创建的现场保留，不自动删除、改名、换参数或换机制重试。
+
+## Step 1：解析参数与检查前置条件（只读）
+
+仅接受一个 proposal 位置参数及至多一个 `--target <target-branch>`。缺少 proposal、多余位置参数、`--target` 缺值/重复或未知选项均报错并停止。
+
+旧 `--branch` 不是别名。检测到后只显示等价 `--target` 用法并停止，不产生 Git 写操作。
+
+检查：
+
+```bash
+git rev-parse --is-inside-work-tree
+git rev-parse --show-toplevel
+git worktree list --porcelain
+which openspec
+test -d openspec/changes/<proposal-name>
+```
+
+proposal 名称必须是小写 kebab-case（只含小写字母、数字和单个连字符分隔）。最终 `SOURCE_BRANCH=worktree-<proposal-name>` 长度不超过 64，且必须通过 `git check-ref-format --branch <SOURCE_BRANCH>`；不得包含 `/`、`..`、空白或连续连字符。
+
+## Step 2：选择目标分支（只读）
+
+按以下顺序选择 `TARGET_BRANCH` 并记录 `TARGET_SOURCE`：
+
+1. 显式 `--target`，必须精确存在于 `refs/heads/`；不存在时不 fetch、不创建、不回退。
+2. 主工作树当前检出的有效本地分支。
+3. `origin/HEAD` 指向的本地同名分支。
+4. `main`、`master`、`trunk` 中首个存在的本地分支。
+
+所有 ref 检查都使用完整本地 ref，例如：
+
+```bash
+git rev-parse --verify --quiet refs/heads/<TARGET_BRANCH>
+```
+
+无可用候选时停止并要求显式指定目标。
+
+## Step 3：解析 worktree 拓扑和规范身份（只读）
+
+从 `git worktree list --porcelain` 精确记录：
+
+- `PRIMARY_WORKTREE_DIR`：列表中的主工作树；同时定义 `REPO_ROOT=<PRIMARY_WORKTREE_DIR>`。
+- `INVOCATION_WORKTREE_DIR`：当前 `git rev-parse --show-toplevel`。
+- `TARGET_WORKTREE_DIR`：注册为持有 `refs/heads/<TARGET_BRANCH>` 的唯一 worktree。
+- `SOURCE_BRANCH=worktree-<proposal-name>`。
+- `SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>`，转换为绝对规范路径。
+
+硬失败条件：
+
+- 没有注册 worktree 持有目标分支，或出现多个/无法解析的持有者；提示用户自行准备目标 worktree后重试。
+- `TARGET_WORKTREE_DIR` 的当前分支不是 `TARGET_BRANCH`，或处于 detached HEAD。
+- `refs/heads/<SOURCE_BRANCH>` 已存在。
+- `SOURCE_WORKTREE_DIR` 已存在（文件、空目录、非空目录或符号链接均算冲突）。
+- `SOURCE_WORKTREE_DIR` 已出现在 worktree 注册表中，或任何已注册 worktree 解析到该规范路径。
+
+禁止复用现有 branch/path/worktree、按目录近似推断 proposal、自动重命名或追加数字/随机后缀。
+
+## Step 4：冻结目标与验证状态（只读）
+
+```bash
+TARGET_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)
+TARGET_WORKTREE_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse HEAD)
+git -C <TARGET_WORKTREE_DIR> status --porcelain --untracked-files=all
+```
+
+要求：
+
+- `TARGET_WORKTREE_HEAD == TARGET_HEAD`。
+- 目标状态输出严格为空；staged、unstaged、untracked、冲突或状态命令失败均阻止创建。
+- 不对目标执行 auto-commit、stash、reset 或 checkout/switch。
+
+读取 `openspec status --change "<proposal-name>" --json`，要求所有 artifacts 为 `done` 且 `isComplete=true`。
+
+## Step 5：构建 `ARTIFACT_MANIFEST`（只读）
+
+定义：
+
+```text
+CHANGE_PREFIX=openspec/changes/<proposal-name>
+```
+
+manifest 必须包含：
+
+- `<CHANGE_PREFIX>/.openspec.yaml`
+- `<CHANGE_PREFIX>/proposal.md`
+- `<CHANGE_PREFIX>/design.md`
+- `<CHANGE_PREFIX>/tasks.md`
+- 递归枚举 `<CHANGE_PREFIX>/specs/` 下的全部文件；至少存在一个 `spec.md`
+- 当前工作区或 `TARGET_HEAD` 任一侧存在 `dependencies.yaml` 时包含该文件
+
+验证算法必须按以下顺序执行：
+
+1. 在当前确认工作区检查四个固定文件和 `specs/` 目录。
+2. 用 `find <CHANGE_PREFIX>/specs -type f | LC_ALL=C sort` 枚举当前 spec 路径集合；禁止使用单层 `specs/*.md` glob。
+3. 用 `git ls-tree -r --name-only <TARGET_HEAD> -- <CHANGE_PREFIX>/specs` 独立枚举 commit tree 路径集合。
+4. 两侧路径集合必须完全相等且非空。
+5. 对四个固定文件和可选 `dependencies.yaml`，两侧存在性必须完全一致；固定文件必须两侧都存在。
+6. 对 manifest 每个路径比较当前内容 blob 与冻结提交 blob：
+   ```bash
+   CURRENT_BLOB=$(git hash-object -- <path>)
+   TARGET_BLOB=$(git rev-parse <TARGET_HEAD>:<path>)
+   test "$CURRENT_BLOB" = "$TARGET_BLOB"
+   ```
+7. 将排序后的 `<path> <blob>` 行记录为 `ARTIFACT_MANIFEST`，并用 `git hash-object --stdin` 生成 `ARTIFACT_MANIFEST_DIGEST`。
+
+untracked、ignored、新增、删除、重命名、内容差异、路径读取错误、空 delta spec 集合或 `dependencies.yaml` 单侧缺失都阻止创建。不得为通过检查而自动提交 artifacts。
+
+## Step 6：展示摘要并取得明确确认（只读）
+
+摘要必须显示：
+
+- 命令范围与 proposal。
+- `TARGET_BRANCH`、`TARGET_SOURCE`、`TARGET_WORKTREE_DIR`、`TARGET_HEAD`。
+- 目标 clean、HEAD/ref 一致的检查结果。
+- `SOURCE_BRANCH` 和 `SOURCE_WORKTREE_DIR` 的精确映射及无冲突结果。
+- 完整 `ARTIFACT_MANIFEST` 路径列表和 `ARTIFACT_MANIFEST_DIGEST`。
+- 确认后唯一的创建命令、进入新 worktree、apply、任务回填与来源提交。
+- 风险说明：不会修改目标 worktree；任何创建后上下文失败都会保留来源 branch/worktree。
+
+使用交互工具请求无默认值、无超时自动同意的明确确认。拒绝、取消、缺失或模糊回答均保持 Git 不变；没有交互工具时输出问题并结束本次响应等待用户。
+
+## Step 7：确认后快照复检（只读）
+
+在首次写操作前完整重跑 Step 1–5，要求下列值与确认摘要逐字一致：
+
+- 参数、`TARGET_BRANCH`、`TARGET_SOURCE`、`TARGET_WORKTREE_DIR`。
+- `TARGET_HEAD`、目标 worktree HEAD、目标 clean 状态。
+- `SOURCE_BRANCH`、`SOURCE_WORKTREE_DIR` 及 branch/path/注册表无冲突状态。
+- `ARTIFACT_MANIFEST` 和 `ARTIFACT_MANIFEST_DIGEST`。
+- OpenSpec artifact 完成状态和全部风险说明。
+
+任何变化使原确认失效，返回 Step 6 请求新确认。即使 ref 在最后复检后再次推进，实际创建仍使用已确认的 `<TARGET_HEAD>` hash，不能重新解析分支名。
+
+## Step 8：从冻结 hash 创建规范 worktree（写入开始）
+
+执行且只执行：
+
+```bash
+git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>
+```
+
+创建失败立即停止；不得清理已有对象、追加后缀或以 ambient HEAD/`TARGET_BRANCH`/平台隐式创建方式重试。
+
+随后把控制器的后续执行上下文绑定到 `SOURCE_WORKTREE_DIR`，并验证：
+
+```bash
+test "$(pwd -P)" = "<SOURCE_WORKTREE_DIR>"
+test "$(git rev-parse --show-toplevel)" = "<SOURCE_WORKTREE_DIR>"
+test "$(git branch --show-current)" = "<SOURCE_BRANCH>"
+test "$(git rev-parse HEAD)" = "<TARGET_HEAD>"
+test "$(git rev-parse refs/heads/<SOURCE_BRANCH>)" = "<TARGET_HEAD>"
+```
+
+还必须从 `git worktree list --porcelain` 精确确认该路径注册到该 branch 和 HEAD。任一检查失败时停止 apply，并明确报告已保留的 `SOURCE_WORKTREE_DIR` 与 `SOURCE_BRANCH`；不自动删除、切换、重建或 fallback。
+
+## Step 9：在来源 worktree 中再次验证 artifacts
+
+在新 worktree 中重跑 OpenSpec status，并根据 `ARTIFACT_MANIFEST` 逐项确认路径和 blob 与 `TARGET_HEAD` 一致。任何丢失或不同都停止，不进入 apply。
+
+## Step 10：执行 OpenSpec apply
+
+在已验证的 `SOURCE_WORKTREE_DIR` 中调用：
+
+```text
+Skill("openspec-apply-change", args="<proposal-name>")
+```
+
+不得从目标或 invocation worktree 调用 apply。
+
+## Step 11：任务核对、回填和来源提交
+
+读取 `tasks.md`，统计 `- [x]` 与 `- [ ]`。保留现有四类回填规则，但只能在来源 worktree 中按实际交付证据标记；仅有文件名或模糊关键词而没有任务要求的实现证据时不得标记完成。
+
+```bash
+git add -A
+git add -f openspec/changes/<proposal-name>/tasks.md
+```
+
+有变更时提交到 `SOURCE_BRANCH`：
+
+- 全部完成：`feat: implement <proposal-name> (DONE/TOTAL tasks)`
+- 部分完成：`feat: implement <proposal-name> (DONE/TOTAL tasks, partial)`
+
+提交后验证 CWD、规范 branch/path、source HEAD/ref 一致和 source clean。提交或验证失败时保留现场并停止。
+
+## 成功输出
+
+```text
 ## Worktree Created & Apply Complete
 
-**Proposal:** <proposal-name>
-**Branch:** <proposal-name>
-**Target branch:** <TARGET_BRANCH> (selected via <TARGET_SOURCE>)
-**Base verified:** ✓ (worktree starts from <TARGET_BRANCH> HEAD)
-**Artifacts:** ✓ all done
-**Tasks:** N/M complete (or "X/M partial")
+Proposal: <proposal-name>
+Source branch: worktree-<proposal-name>
+Source worktree: <REPO_ROOT>/.claude/worktrees/<proposal-name>
+Target: <TARGET_BRANCH> at <TARGET_HEAD>
+Target worktree: <TARGET_WORKTREE_DIR> (unchanged)
+Artifact manifest: <ARTIFACT_MANIFEST_DIGEST> verified
+Tasks: DONE/TOTAL
 
-### Task Backfill Report
-Auto-marked: X tasks, Still incomplete: Y tasks
-
-OpenSpec apply has completed in the worktree.
-Use `/merge-worktree-return <proposal-name> --target <TARGET_BRANCH>` when ready to merge.
+下一步：从来源 worktree 运行
+/merge-worktree-return <proposal-name> --target <TARGET_BRANCH>
 ```
 
-**Error Output Format**
+## Guardrails
 
-```
-## Error: <error-type>
-
-**Step:** <which step failed>
-**Reason:** <why it failed>
-
-**Recovery:**
-- <suggestion 1>
-- <suggestion 2>
-```
-
-**Guardrails**
-- Steps 1–6 are read-only: no Git write and no apply before explicit confirmation.
-- Verify each step succeeds before proceeding to the next.
-- The worktree MUST start from `TARGET_HEAD` exactly; a mismatch aborts apply and is never hidden by `git merge`.
-- Never delete or overwrite existing branches.
-- Only use `--force` for `git add -f` on tasks.md (to bypass `.gitignore`).
-- Never use `--force` on `git push`, `git merge`, `git rebase`, or `git checkout`.
-- Commit messages include the proposal name for traceability.
-- If `EnterWorktree` cannot branch from `TARGET_HEAD`, stop — do not silently use another HEAD or fall back to manual creation in Claude Code.
-- All git command failures should stop execution immediately.
-- **在 Claude Code 环境下，禁止使用 `git worktree add` 替代 `EnterWorktree`** — 必须使用内置工具以确保 CWD 正确切换。
-- CWD 验证（Step 7d）不可跳过，验证失败必须停止执行。
-- Confirmation has no default and no timed approval; a missing/ambiguous response leaves Git unchanged.
+- 确认前零 Git 写入；确认后也不得修改目标 worktree。
+- 创建 start-point 必须是确认的 commit hash，禁止使用可变 branch name 或 ambient HEAD。
+- canonical branch/path 任一冲突都失败，不覆盖、不复用、不改名。
+- artifacts 必须已经存在于 `TARGET_HEAD` 且与确认内容逐字节一致。
+- 禁止强制 worktree/ref 清理；错误和 recovery 文本也不得建议强制删除。
+- 禁止自动 reset/revert、自动 merge、自动重试创建或切换目标工作树。
+- 所有命令错误、解析失败和 unknown 状态都按失败处理，并报告保留现场。

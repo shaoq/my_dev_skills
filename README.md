@@ -99,14 +99,15 @@ Step 2: 并行实施所有提案
   /parall-new-worktree-apply
 
   → 自动发现所有待执行的 changes
-  → 按 Wave 并行 spawn Agent，在隔离 worktree 中实施
-  → 完成后自动 rebase + merge 回目标分支（默认主工作树当前分支，可用 --target 指定）
+  → 要求确认的目标分支已由 clean worktree 持有，不切换或自动提交它
+  → 按 Wave 并行从冻结 commit hash 创建 `worktree-<proposal>`，在隔离 worktree 中实施
+  → 串行合并冻结的 post-rebase commit；验证或普通清理失败时保留来源现场
 
 Step 3: 检查完成度
 ─────────────────────────────
   /check-changes-completed
 
-  → 四维检查（任务 / artifacts / 代码落地 / 依赖 / 合规）
+  → 五维检查（任务 / artifacts / 代码落地 / 依赖 / 合规）
   → 自动补标记已交付但未勾选的任务
   → 输出"可归档"和"未完成"清单
 
@@ -132,20 +133,22 @@ Step 1: 在 worktree 中实施
 ─────────────────────────────
   /new-worktree-apply add-user-auth
 
-  → 创建以 proposal 名命名的隔离分支
-  → 验证 artifacts 完整性 → 执行实施 → 自动补标记 → 提交
+  → 目标必须已由 clean worktree 持有，并冻结 `TARGET_HEAD`
+  → 验证 commit 中 artifacts 与确认内容完全一致
+  → 从该 hash 创建 `worktree-add-user-auth` → 执行实施 → 补标记 → 提交
 
 Step 2: 合并回目标分支
 ─────────────────────────────
   /merge-worktree-return add-user-auth
 
-  → rebase 到目标分支 → 合并 → 退出并清理 worktree
+  → rebase 后冻结 `POST_REBASE_SOURCE_HEAD` → 目标只合并该 hash
+  → 仅在完整 `CLEANUP_READY` 为 true 时普通清理；否则保留 worktree 和 branch
 
 Step 3: 检查完成度
 ─────────────────────────────
   /check-changes-completed
 
-  → 四维检查 + 自动补标记 + 合规检查
+  → 五维检查 + 自动补标记 + 合规检查
 
 Step 4: 归档
 ─────────────────────────────
@@ -201,10 +204,17 @@ Step 4: 归档
       │     │     │
       ▼     │     ▼
 /new-worktree-apply  /parall-new-worktree-apply
-(单个 worktree 实施)  (并行 worktree 实施)
+(冻结 TARGET_HEAD)   (冻结 BATCH_TARGET_HEAD)
       │     │     │
       ▼     │     ▼
-/merge-worktree-return  自动合并回目标分支
+/merge-worktree-return  并行 Controller
+(source=worktree-<proposal>)  (每个 worktree-<proposal>)
+      │     │     │
+      ▼     │     ▼
+冻结 POST_REBASE_SOURCE_HEAD 并串行 exact-hash merge
+      │     │     │
+      ▼     ▼     ▼
+CLEANUP_READY=true 才普通清理；否则保留来源
       │     │     │
       ▼     ▼     ▼
 /check-changes-completed
@@ -244,15 +254,17 @@ Step 4: 归档
 **做什么**: 自动发现所有待执行 changes，按依赖图分 Wave 并行实施。
 
 **核心机制**:
-- 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择，并记录选择依据
+- 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择，并且必须已由唯一、干净的注册 worktree 持有
 - 自动发现有未完成 `[ ]` 任务的 change
-- 解析 `dependencies.yaml` 构建依赖图
+- 在创建前从冻结 target commit 递归验证 `.openspec.yaml`、proposal/design/tasks、全部 delta specs 和实际使用的 `dependencies.yaml` 路径及内容完全一致
+- 解析已经通过 manifest 验证的 `dependencies.yaml` 构建依赖图
 - 只读预检（Discovery + 依赖图 + 目标/工作树状态）后展示完整计划，**等待用户明确确认**，确认后复检快照才执行写操作
-- 目标状态、复检与 Auto-commit 始终绑定 `TARGET_WORKTREE_DIR`；确认后提交并刷新目标 HEAD
-- Agent spawn 前控制器持久进入目标工作树；同一 Batch 共享最新 `BATCH_TARGET_HEAD`，每个 Wave 合并后刷新下一 Wave 基线
-- 同一 Wave 内的 changes 通过 Agent 在隔离 worktree 中并行 spawn
-- 串行合并回目标分支（按字母序），合并前验证主控 CWD 和分支、合并后用 `git log <target>..<branch>` 验证目标包含全部提交
-- 冲突智能解决（非重叠自动合并、语义可合并、无法解决则跳过）
+- 不 checkout/switch 或 Auto-commit 主工作树和其他现有 worktree；目标 dirty 或映射漂移时失败关闭
+- Agent spawn 前控制器持久进入目标工作树；控制器用 `EXPECTED_TARGET_HEAD` 只接纳自身已验证 merge 的推进
+- 同一 Batch 共享冻结的 `BATCH_TARGET_HEAD`，每个 child 使用规范 branch `worktree-<proposal>` 和 `.claude/worktrees/<proposal>`，从该 commit hash 显式创建
+- 串行合并前在 child 中 rebase 并冻结 `POST_REBASE_SOURCE_HEAD`，目标只 merge 该 hash，不 merge 可继续移动的 source branch ref
+- 每个 child 独立执行 post-merge checks 和 `CLEANUP_READY`；全部为 true 才普通移除 worktree 并安全删除本地 branch
+- 冲突只在当前 rebase 内处理；无法可靠解决时 abort 未完成 rebase 并保留来源
 
 **注意事项**:
 - **所有 Git 写操作只在显式确认之后执行**；拒绝/取消/模糊确认时不创建 worktree、不 spawn Agent、不 commit
@@ -262,7 +274,9 @@ Step 4: 归档
 - Agent spawn 必须在同一消息中并行（同一 Batch 内）
 - 合并必须串行绑定目标分支，每个 Batch 完成后立即合并
 - artifacts 不完整的 change 会被跳过
-- 失败的 Agent/分支不阻塞其他，失败 worktree 保留待人工处理
+- 失败或漂移的 Agent/分支不阻塞其他安全项，失败 worktree 与 branch 保留待人工处理
+- merge 后验证失败不会自动 reset/revert，也不会换参数重试 merge
+- 普通 cleanup 因 Windows 路径锁、进程占用或平台锁失败时保留现场并在报告中列出精确恢复对象
 
 ### 3. new-worktree-apply
 
@@ -270,9 +284,11 @@ Step 4: 归档
 
 **核心机制**:
 - 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择
+- 目标分支必须已被一个注册且 clean 的 worktree 持有；流程不会为了满足目标条件切换或自动提交其他 worktree
 - 只读预检（目标、工作树、artifacts）后展示计划并**等待用户明确确认**，确认后复检快照才执行写操作
-- 从目标 HEAD 精确创建 worktree：Claude Code 用内置 `EnterWorktree`（从目标 checkout 上下文），非 Claude Code（如 Codex CLI）用 `git worktree add <path> -b <proposal> <TARGET_BRANCH>` 显式 start-point
-- 验证 proposal artifacts 完整性
+- 规范映射固定为 proposal `<proposal>`、branch `worktree-<proposal>`、path `.claude/worktrees/<proposal>`；任何现有 ref/path/worktree 冲突都停止，不复用或追加后缀
+- 从确认的不可变 commit hash 精确创建：`git worktree add <path> -b worktree-<proposal> <TARGET_HEAD>`
+- 创建前递归验证完整 artifact manifest 已存在于 `TARGET_HEAD` 且与确认内容逐字节一致
 - 实施任务
 - Post-apply 自动补标记（四规则检测）+ 强制提交 `tasks.md`
 
@@ -280,8 +296,9 @@ Step 4: 归档
 - **BREAKING**：旧 `--branch` 已由 `--target` 替代；传 `--branch` 时不产生任何 Git 写操作，只显示迁移命令
 - 所有 Git 写操作只在显式确认之后执行
 - 分支名必须符合 worktree 命名规则（kebab-case，max 64 chars）
-- 若分支已存在则报错停止，**不覆盖**
-- 创建后验证 `WORKTREE_HEAD == TARGET_HEAD`；**基线不一致时停止 apply，不再用 `git merge` 掩盖错误起点**
+- 若规范 branch/path 已存在则报错停止，**不覆盖、不复用、不自动清理**
+- 即使目标 ref 在最后检查后推进，实际创建仍使用冻结 `TARGET_HEAD`，不会从未经确认的新 tip 创建
+- 创建后验证注册 path、current branch、branch ref 与 worktree HEAD；任一不一致停止 apply 并保留现场
 
 ### 4. merge-worktree-return
 
@@ -289,20 +306,22 @@ Step 4: 归档
 
 **核心机制**:
 - 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择
-- 验证在 worktree 中（检查 `.git` 是否为 `gitdir:` 文件），记录 `SOURCE_BRANCH` 与 `TARGET_WORKTREE_DIR`，验证来源≠目标、目标工作树干净
+- 只接受规范来源映射：当前 branch 必须是 `worktree-<proposal>`，当前 path 必须是 `.claude/worktrees/<proposal>`；返回流程只精确移除一个 `worktree-` 前缀反解 proposal
+- 验证来源≠目标，目标已经由注册且 clean 的 worktree 持有；不会 checkout/switch 或自动提交其他 worktree
 - 只读预检后展示计划（含未完成任务、目标脏状态等风险）并**等待用户明确确认**，确认后复检快照才执行写操作
-- Rebase `SOURCE_BRANCH` onto `TARGET_BRANCH` → 处理冲突 → 在目标工作树 merge → 用 `git log <target>..<source>` 验证目标包含全部来源提交
-- 验证通过后退出：Claude Code 用 `ExitWorktree`，非 Claude Code 用 `git worktree remove`；随后若本地 `SOURCE_BRANCH` 仍存在，则确认已被目标包含并用 `git branch -d` 安全删除，若平台已自动移除则幂等跳过
+- 在来源 worktree rebase 到确认 target hash，随后冻结 `POST_REBASE_SOURCE_HEAD`；进入目标前重新验证 source/target 注册、branch、HEAD/ref 和 clean 状态
+- 目标只执行一次 `git merge <POST_REBASE_SOURCE_HEAD>`，并记录 post-merge target hash
+- 显式计算 `CLEANUP_READY`：目标真实 CWD、来源规范映射与 clean、delivery commits、source HEAD/ref 冻结、merge 成功、target ref/HEAD 一致、精确 containment、无 source-only commits和全部 post-merge 验证必须同时为 true
+- 只有 `CLEANUP_READY=true` 才执行普通 `git worktree remove` 和安全 `git branch -d`
 
 **注意事项**:
 - 必须在 worktree 内运行，否则报错
 - 目标工作树必须干净；来源 detached HEAD 或来源==目标时报错停止
 - 未完成任务、目标脏状态等风险并入**单次预检确认**（不再单独询问）
 - 所有 Git 写操作只在显式确认之后执行
-- Rebase 失败时用 `git rebase --abort` 回到安全状态
-- 目标包含验证失败时**不退出/不移除** worktree，保留待恢复
-- 仅在 worktree 成功移除且来源分支仍存在时使用 `git branch -d`；绝不使用 `-D`，也不删除远端分支
-- **绝不使用 --force 标志**
+- 未完成的 Rebase 无法解决时可 abort；成功 merge 后验证失败不自动 reset/revert
+- 任一 post-merge 或 cleanup gate 失败时**不移除**来源 worktree/branch，也不自动重试 merge
+- 普通 worktree removal 或安全 branch deletion 失败时保留现场；不升级为强制 ref 删除，也不删除远端分支
 
 ### 5. check-changes-completed
 
@@ -390,4 +409,4 @@ my_dev_skills/
 - `Bash(mkdir -p /tmp/my-dev-skills-wt)` — worktree 临时目录
 - `mcp__web-reader__webReader` — Web 读取
 
-> 注意：`git push`, `git checkout`, `git rebase` 等虽有权限白名单，但各 Skill guardrails 明确禁止使用 --force 标志。
+> 注意：权限白名单只表示命令可被调用，不代表任何 Skill 获得了额外授权。worktree lifecycle 流程不得为满足目标条件而 checkout/switch 其他会话持有的 worktree，不得 auto-commit 目标，也不得使用强制清理或自动回滚/重试作为恢复路径。

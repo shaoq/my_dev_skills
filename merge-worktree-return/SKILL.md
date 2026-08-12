@@ -1,323 +1,285 @@
 ---
 name: merge-worktree-return
-description: Commit worktree changes, rebase onto the confirmed target, merge back to the target branch, and exit the worktree. Use when finishing implementation in a worktree. Optional proposal name verifies OpenSpec completion. Requires git. All Git write actions happen only after an explicit preflight confirmation.
+description: Use when finishing an OpenSpec change from its canonical linked worktree and returning it to a confirmed target branch.
 argument-hint: "[proposal-name] [--target <target-branch>]"
 disable-model-invocation: true
-allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(awk *) Bash(sed *) Bash(cat *) Bash(head *) Bash(test *) EnterWorktree ExitWorktree Read Write Edit Glob Grep Skill AskUserQuestion
+allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(awk *) Bash(sed *) Bash(test *) Bash(pwd *) Read Write Edit Glob Grep AskUserQuestion
 ---
 
-Commit worktree changes, merge back to the confirmed target branch, and exit the worktree safely.
+将规范 proposal worktree 安全合并回已确认目标，并只在完整交付证据成立时清理来源。
 
-**Input**: An optional proposal name and an optional `--target <target-branch>` flag.
+## 核心不变量
 
-Examples:
-- `/merge-worktree-return`
-- `/merge-worktree-return add-user-auth`
-- `/merge-worktree-return add-user-auth --target develop`
+- Step 1–6 在明确确认前只读；不得 commit、rebase、merge、remove 或调用其他写流程。
+- 来源身份必须精确满足：
+  ```text
+  SOURCE_BRANCH=worktree-<proposal-name>
+  SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>
+  ```
+- 只从当前分支删除一个开头的 `worktree-` 得到 proposal；不得按目录、相似名称或 artifact 内容猜测。
+- 目标分支必须已由一个注册且 clean 的 worktree 持有；不得切换或自动提交主工作树/其他现有 worktree。
+- rebase 后冻结 `POST_REBASE_SOURCE_HEAD`，merge 只接受该 commit hash：
+  ```bash
+  git merge <POST_REBASE_SOURCE_HEAD>
+  ```
+- `CLEANUP_READY` 的每个条件都必须由刚刚成功的显式检查产生；false、unknown、解析失败或命令错误一律保留来源。
+- merge 成功后任何验证失败都不自动 reset/revert，也不自动重试 merge。
 
-**Invariant (read-only before confirmation)**: Steps 1–6 perform no Git write and do not invoke apply. `git add`, `git commit`, `git checkout`/`git switch`, `git rebase`, `git merge`, `git worktree remove`, conditional `git branch -d`, and `ExitWorktree` only run in Step 7 onward — after confirmation and snapshot revalidation.
+## Step 1：解析参数和来源环境（只读）
 
-**Steps**
+仅接受零或一个 proposal 位置参数及至多一个 `--target <target-branch>`。参数错误立即停止。
 
-1. **Parse arguments and validate prerequisites** (read-only)
+检查当前目录确实是 linked worktree：
 
-   Extract the optional proposal name and optional `--target <target-branch>` from `$ARGUMENTS`.
-
-   **Argument rules:**
-   - Zero or one positional argument (the proposal name). More than one → argument error, no Git write.
-   - `--target <target-branch>` is the only accepted option and may appear at most once.
-   - Missing target value, value without `--target`, duplicate `--target`, or unknown option → argument error, no Git write.
-
-   Run prerequisite checks (read-only):
-   ```bash
-   git rev-parse --is-inside-work-tree
-   git rev-parse --is-inside-work-tree && cat .git | head -1
-   ```
-   If `.git` does not start with `gitdir:` → error: "Not in a worktree. This skill must be run from inside a worktree branch." Stop, no Git write.
-
-2. **Select the target branch** (read-only)
-
-   Select `TARGET_BRANCH` using this exact order, recording `TARGET_SOURCE`:
-
-   1. **Explicit `--target`** — if supplied, it MUST exist locally:
-      ```bash
-      git rev-parse --verify --quiet refs/heads/<target-branch>
-      ```
-      If absent → error: "Target branch '<name>' does not exist locally." Do not fetch/create/fallback. Stop, no Git write. `TARGET_SOURCE="explicit --target"`.
-   2. **Primary worktree's checked-out branch** — read from `git worktree list --porcelain` (Step 3); if it is a valid local ref → `TARGET_SOURCE="primary worktree current branch"`.
-   3. **`origin/HEAD` local same-name branch**:
-      ```bash
-      git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's#^origin/##'
-      ```
-      If the resulting name exists in `refs/heads/` → `TARGET_SOURCE="origin/HEAD local branch"`.
-   4. **Conventional fallback** — first existing local branch among `main`, `master`, `trunk`.
-
-   If no candidate is usable → error: "No target branch could be selected. Provide `--target <branch>`." No Git write.
-
-3. **Resolve worktree topology and source** (read-only)
-
-   ```bash
-   git worktree list --porcelain
-   git rev-parse --show-toplevel
-   git branch --show-current
-   ```
-
-   Record:
-   - `SOURCE_WORKTREE_DIR` = the current worktree path (`git rev-parse --show-toplevel`).
-   - `SOURCE_BRANCH` = `git branch --show-current`. **If the source is in detached HEAD** → error: "Source worktree is in detached HEAD state. A named source branch is required." No Git write.
-   - `PRIMARY_WORKTREE_DIR` = the main working tree.
-   - `TARGET_WORKTREE_DIR` = the worktree where `TARGET_BRANCH` is already checked out (may equal `PRIMARY_WORKTREE_DIR`).
-
-   **Validate source ≠ target:** if `SOURCE_BRANCH == TARGET_BRANCH` → error: "Source and target are the same branch ('<branch>'). Nothing to merge." No Git write.
-
-   **If `TARGET_BRANCH` is not checked out in any worktree:**
-   - If the primary worktree is clean and is not the source worktree → plan a post-confirmation `git -C <PRIMARY_WORKTREE_DIR> checkout <TARGET_BRANCH>`; set `TARGET_WORKTREE_DIR=<PRIMARY_WORKTREE_DIR>`.
-   - Otherwise → error: "Target '<TARGET_BRANCH>' is not checked out and the primary worktree cannot switch safely. Check it out first." Stop before confirmation.
-
-4. **Read state for the preflight summary** (read-only)
-
-   ```bash
-   git status --porcelain                                   # source pending changes
-   git -C <TARGET_WORKTREE_DIR> status --porcelain          # target MUST be clean
-   git rev-parse refs/heads/<TARGET_BRANCH>                 # TARGET_HEAD
-   git rev-parse refs/heads/<SOURCE_BRANCH>                 # SOURCE_HEAD
-   ```
-
-   **Target worktree must be clean:** if the target worktree has uncommitted changes → error: "Target worktree '<TARGET_WORKTREE_DIR>' has uncommitted changes. Commit or stash them first." Stop before confirmation, no merge into that worktree.
-
-   **OpenSpec proposal check (only if proposal name provided):**
-   ```bash
-   openspec status --change "<proposal-name>" --json
-   ```
-   Read `openspec/changes/<proposal-name>/tasks.md` and count `- [x]` vs `- [ ]`. Record incomplete task count and list for the confirmation summary (do not confirm separately — fold into Step 5).
-
-   If no proposal name → skip the proposal check.
-
-5. **Preflight summary and confirmation** (read-only; no Git write)
-
-   Display a single read-only summary, then request an **explicit** affirmative response with **no default and no timed approval** via the **AskUserQuestion tool**.
-
-   The summary MUST include:
-   - Command scope: `merge-worktree-return` + proposal (or "N/A").
-   - `SOURCE_BRANCH` → `TARGET_BRANCH`, with `TARGET_SOURCE` and `TARGET_HEAD`.
-   - `SOURCE_WORKTREE_DIR` and `TARGET_WORKTREE_DIR`.
-   - Pending source changes that the plan will auto-commit (file list), or "no pending changes".
-   - Planned writes: source auto-commit, `git rebase <TARGET_BRANCH>` (with conflict handling), merge `SOURCE_BRANCH` into `TARGET_BRANCH` inside `TARGET_WORKTREE_DIR`, worktree removal, then conditional safe deletion of the local `SOURCE_BRANCH` if that ref still exists.
-   - Risk warnings: incomplete OpenSpec tasks (if any) — explicitly ask whether to merge despite the risk; required target/primary checkout (if any).
-
-   **Confirmation handling:**
-   - **Confirm** → proceed to Step 6.
-   - **Decline/cancel** → stop, no Git write, no apply.
-   - **Missing/ambiguous** → pause for explicit input, no Git write.
-   - **No interaction tool** → print the question, end the current execution, wait for the next message. No Git write.
-
-6. **Snapshot revalidation** (read-only, immediately before the first write)
-
-   Revalidate the parsed arguments, `SOURCE_BRANCH`, `TARGET_BRANCH` ref + `TARGET_HEAD`, `SOURCE_HEAD`, worktree mapping, target cleanliness, source pending state, required checkout, and displayed warnings.
-
-   **If any material fact changed** → invalidate the confirmation, display an updated summary, request a new confirmation. No Git write.
-
-   **If everything matches** → proceed to Step 7.
-
-7. **Execute confirmed writes** (writes begin here)
-
-   7a. **Commit source changes** (if pending):
-   ```bash
-   git add -A
-   git commit -m "chore: auto-commit before merge from worktree"
-   ```
-   If no changes → announce "No uncommitted changes." Record `SOURCE_HEAD=$(git rev-parse refs/heads/<SOURCE_BRANCH>)`.
-
-   7b. **Make the target available** (only if `TARGET_BRANCH` was not checked out and the plan said so):
-   ```bash
-   git -C <PRIMARY_WORKTREE_DIR> checkout <TARGET_BRANCH>
-   ```
-
-   7c. **Rebase source onto target:**
-   ```bash
-   git rebase <TARGET_BRANCH> <SOURCE_BRANCH>
-   ```
-   - **Success** → announce "Rebase onto <TARGET_BRANCH> completed."
-   - **Conflicts** → list `git diff --name-only --diff-filter=U`, read each file, resolve markers (`<<<<<<<`, `=======`, `>>>>>>>`) preferring source changes unless the target version is clearly more appropriate, `git add <resolved>`, `GIT_EDITOR=true git rebase --continue`.
-   - **Unresolvable** → `git rebase --abort`, report conflicting files, and stop. Do not remove the worktree.
-
-8. **Merge into the target worktree and verify containment** (writes)
-
-   ```bash
-   cd <TARGET_WORKTREE_DIR>
-   git merge <SOURCE_BRANCH>
-   ```
-   - **Conflicts** → resolve the same way as Step 7c, stage and commit.
-
-   **Containment verification** — every source commit must now be in target:
-   ```bash
-   git log <TARGET_BRANCH>..<SOURCE_BRANCH>
-   ```
-   This MUST return empty. If it returns commits → merge verification **failed**: report and do **not** proceed to exit/remove. The source worktree is preserved for recovery.
-
-9. **Safely exit the worktree and clean the local source branch** (only after verification succeeds)
-
-   Confirm ALL of:
-   - [x] Step 7a: source files committed
-   - [x] Step 7c: rebase completed
-   - [x] Step 8: merge verified (`git log <TARGET_BRANCH>..<SOURCE_BRANCH>` empty)
-   - [x] Step 4/5: if proposal name given, proposal complete or user confirmed despite incomplete tasks
-
-   Only if ALL pass, choose by environment:
-
-   **Claude Code (ExitWorktree available):**
-   - Use `ExitWorktree` with `action: "remove"`.
-
-   **Other environments (ExitWorktree unavailable):**
-   - Step 8 already `cd`'d into `TARGET_WORKTREE_DIR` (non-source). Remove the source:
-     ```bash
-     git worktree remove <SOURCE_WORKTREE_DIR>
-     ```
-
-   After exit/removal, verify the controller is back in the confirmed target worktree and the source worktree is gone:
-   ```bash
-   if [ "$(pwd -P)" != "$TARGET_WORKTREE_DIR" ]; then
-     echo "Current directory is not the confirmed target worktree" >&2
-     exit 1
-   fi
-   if [ "$(git branch --show-current)" != "$TARGET_BRANCH" ]; then
-     echo "Current branch is not the confirmed target branch" >&2
-     exit 1
-   fi
-   if ! WORKTREE_LIST=$(git worktree list --porcelain); then
-     echo "Failed to verify worktree removal" >&2
-     exit 1
-   fi
-   if ! SOURCE_WORKTREE_MATCH=$(
-     printf '%s\n' "$WORKTREE_LIST" \
-       | awk -v path="$SOURCE_WORKTREE_DIR" \
-         '/^worktree / { candidate = substr($0, 10); if (candidate == path) print candidate }'
-   ); then
-     echo "Failed to parse worktree list" >&2
-     exit 1
-   fi
-   if [ "$SOURCE_WORKTREE_MATCH" = "$SOURCE_WORKTREE_DIR" ]; then
-     echo "Source worktree still exists: $SOURCE_WORKTREE_DIR" >&2
-     exit 1
-   fi
-   ```
-   Confirm:
-   - CWD is `TARGET_WORKTREE_DIR` and the current branch is `TARGET_BRANCH`.
-   - `SOURCE_WORKTREE_DIR` is absent from `git worktree list --porcelain`.
-
-   Then conditionally clean the local source branch. `ExitWorktree` implementations may already remove their temporary branch, while plain `git worktree remove` normally leaves it behind:
-   ```bash
-   SOURCE_BRANCH_CLEANUP="already absent"
-   if git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
-     if ! git merge-base --is-ancestor \
-       "refs/heads/$SOURCE_BRANCH" \
-       "refs/heads/$TARGET_BRANCH"; then
-       echo "Local source branch is not contained in target: $SOURCE_BRANCH" >&2
-       exit 1
-     fi
-     # `git branch -d` checks the configured upstream before HEAD. Remove only
-     # this soon-to-be-deleted branch's local upstream config so the already
-     # verified TARGET_BRANCH/HEAD is the safety reference. Restore it if the
-     # safe deletion is refused.
-     if ! SOURCE_UPSTREAM=$(git for-each-ref \
-       --format='%(upstream:short)' "refs/heads/$SOURCE_BRANCH"); then
-       echo "Failed to inspect source branch upstream" >&2
-       exit 1
-     fi
-     if [ -n "$SOURCE_UPSTREAM" ]; then
-       if ! git branch --unset-upstream "$SOURCE_BRANCH"; then
-         echo "Failed to clear source branch upstream before safe deletion" >&2
-         exit 1
-       fi
-     fi
-     if ! git branch -d -- "$SOURCE_BRANCH"; then
-       if [ -n "$SOURCE_UPSTREAM" ]; then
-         if ! git branch --set-upstream-to="$SOURCE_UPSTREAM" "$SOURCE_BRANCH"; then
-           echo "Safe deletion failed and the original upstream could not be restored: $SOURCE_UPSTREAM" >&2
-           exit 1
-         fi
-       fi
-       echo "Worktree was removed but local source branch remains: $SOURCE_BRANCH" >&2
-       exit 1
-     fi
-     SOURCE_BRANCH_CLEANUP="deleted"
-   else
-     source_ref_status=$?
-     if [ "$source_ref_status" -ne 1 ]; then
-       echo "Failed to inspect local source branch ref: $SOURCE_BRANCH" >&2
-       exit 1
-     fi
-   fi
-   ```
-
-   Finally verify that the local source ref is absent:
-   ```bash
-   if git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
-     echo "Local source branch still exists: $SOURCE_BRANCH" >&2
-     exit 1
-   else
-     source_ref_status=$?
-     if [ "$source_ref_status" -ne 1 ]; then
-       echo "Failed to verify local source branch cleanup: $SOURCE_BRANCH" >&2
-       exit 1
-     fi
-   fi
-   ```
-
-   Report `Local source branch: $SOURCE_BRANCH_CLEANUP`.
-   - If the ref was already absent, `SOURCE_BRANCH_CLEANUP` remains `already absent` and cleanup succeeds idempotently.
-   - If `git branch -d` refuses deletion, restore the original upstream when one existed, stop without escalating to `-D`, and report that the worktree was removed but the local source branch remains. Include `TARGET_WORKTREE_DIR`, `TARGET_BRANCH`, and `SOURCE_BRANCH` so recovery can rerun the displayed ancestry check and safe `git branch -d` from the target worktree without re-entering the removed worktree.
-   - This cleanup never deletes `origin/<SOURCE_BRANCH>` or any other remote ref.
-
-**Output On Success**
-
-```
-## Worktree Merged & Closed
-
-**Proposal:** <proposal-name> (or "N/A")
-**Branch merged:** <SOURCE_BRANCH> → <TARGET_BRANCH>
-**Target source:** <TARGET_SOURCE>
-**Worktree:** removed
-**Local source branch:** <SOURCE_BRANCH_CLEANUP>
-**Containment:** ✓ (<SOURCE_BRANCH> fully contained in <TARGET_BRANCH>)
-**Current branch:** <TARGET_BRANCH>
-
-All worktree changes have been successfully merged to <TARGET_BRANCH>.
-
-下一步: 运行 `/check-changes-completed` 检查整体完成度，或 `/opsx:archive <proposal-name>` 归档此 change。
+```bash
+git rev-parse --is-inside-work-tree
+git rev-parse --git-dir
+git rev-parse --git-common-dir
+git rev-parse --show-toplevel
+git branch --show-current
+git worktree list --porcelain
 ```
 
-**Error Output Format**
+要求 Git dir 与 common dir 不同，且当前分支非空。
 
-```
-## Error: <error-type>
+记录当前真实来源：
 
-**Step:** <which step failed>
-**Source:** <SOURCE_BRANCH>
-**Target:** <TARGET_BRANCH>
-
-**Details:**
-<specific error information>
-
-**Recovery:**
-- <suggestion 1>
-- <suggestion 2>
+```text
+SOURCE_WORKTREE_DIR=<git rev-parse --show-toplevel 的规范绝对路径>
+SOURCE_BRANCH=<git branch --show-current>
 ```
 
-**Guardrails**
-- Steps 1–6 are read-only: no Git write and no apply before explicit confirmation.
-- Source and target MUST differ; detached source HEAD is unsupported.
-- The target worktree MUST be clean before merge; never merge into a dirty target.
-- Never exit the worktree unless rebase succeeded AND `git log <TARGET_BRANCH>..<SOURCE_BRANCH>` is empty.
-- Delete the local `SOURCE_BRANCH` only after containment succeeds, the source worktree is removed, CWD/target branch are verified, and the ref still exists.
-- Use only `git branch -d -- <SOURCE_BRANCH>`; never use `-D`, `--force`, `update-ref -d`, or delete a remote branch.
-- Bind the final ancestry check with an explicit failure branch; never rely on ambient `set -e` to guard `git branch -d`.
-- Treat CWD, target-branch, worktree-list, source-ref, and cleanup checks as explicit failure gates; a command error is never equivalent to an absent worktree or branch.
-- If the platform already removed the local source ref, treat cleanup as an idempotent no-op and report `already absent`.
-- Never use `--force` flags on git commands.
-- If rebase fails, use `git rebase --abort` to return to a safe state.
-- If merge containment verification fails, do **NOT** call `ExitWorktree`, `git worktree remove`, or delete `SOURCE_BRANCH` — preserve the source worktree and branch for recovery.
-- OpenSpec incomplete-task warnings are part of the single preflight confirmation, never a separate gate.
-- All git command failures should stop execution immediately.
-- 非 Claude Code 环境下使用 `git worktree remove` 替代 `ExitWorktree`，Step 8 已确保 CWD 在目标工作树（非来源目录），无需额外 `cd`。
-- Confirmation has no default and no timed approval; a missing/ambiguous response leaves Git unchanged.
+解析规则：
+
+```text
+SOURCE_BRANCH 必须以一个精确的 worktree- 开头
+DERIVED_PROPOSAL = 删除该开头一次后的剩余字符串
+```
+
+`DERIVED_PROPOSAL` 必须是非空的小写 kebab-case，`SOURCE_BRANCH` 长度不超过 64 且通过 `git check-ref-format --branch <SOURCE_BRANCH>`。若显式提供 proposal，它必须与 `DERIVED_PROPOSAL` 完全相等；否则停止，不自动迁移旧的无前缀分支。
+
+## Step 2：验证规范来源映射（只读）
+
+从 `git worktree list --porcelain` 取得 `PRIMARY_WORKTREE_DIR` 并定义 `REPO_ROOT=<PRIMARY_WORKTREE_DIR>`。计算：
+
+```text
+PROPOSAL=<DERIVED_PROPOSAL>
+EXPECTED_SOURCE_BRANCH=worktree-<proposal-name>
+EXPECTED_SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>
+```
+
+要求：
+
+- `SOURCE_BRANCH == EXPECTED_SOURCE_BRANCH`。
+- `SOURCE_WORKTREE_DIR == EXPECTED_SOURCE_WORKTREE_DIR`，使用规范绝对路径比较，不接受前缀/子串匹配。
+- 注册表中该 exact path 的 branch 是 `refs/heads/<SOURCE_BRANCH>`，注册 HEAD 等于 worktree HEAD。
+- `refs/heads/<SOURCE_BRANCH>` 存在且等于 source worktree HEAD。
+- `openspec/changes/<PROPOSAL>`、`.openspec.yaml`、proposal/design/tasks 和递归 delta specs 存在。
+
+任一不一致都禁止 commit、rebase、merge 和 cleanup。
+
+## Step 3：选择并验证目标（只读）
+
+按以下顺序选择 `TARGET_BRANCH`，记录 `TARGET_SOURCE`：显式 `--target`、主工作树当前有效本地分支、`origin/HEAD` 本地同名分支、`main/master/trunk` 首个本地分支。显式目标无效时不回退。
+
+从 worktree 注册表查找持有目标分支的唯一 `TARGET_WORKTREE_DIR`。要求：
+
+- 目标必须已被一个注册 worktree 持有；未持有时要求用户自行准备后重试。
+- `TARGET_BRANCH != SOURCE_BRANCH`。
+- `TARGET_WORKTREE_DIR != SOURCE_WORKTREE_DIR`。
+- 目标当前分支为 `TARGET_BRANCH`，非 detached HEAD。
+- `TARGET_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)`。
+- `git -C <TARGET_WORKTREE_DIR> rev-parse HEAD == TARGET_HEAD`。
+- `git -C <TARGET_WORKTREE_DIR> status --porcelain --untracked-files=all` 严格为空。
+
+禁止通过 checkout/switch、auto-commit、stash 或 reset 使目标满足条件。
+
+## Step 4：读取来源、OpenSpec 和验证计划（只读）
+
+记录：
+
+```bash
+SOURCE_HEAD=$(git rev-parse refs/heads/<SOURCE_BRANCH>)
+git status --porcelain --untracked-files=all
+openspec status --change "<PROPOSAL>" --json
+```
+
+来源 pending changes 可以在确认后提交；摘要必须列出全部文件。若 proposal tasks 未全部完成，摘要明确说明：用户可以授权 merge，但 post-merge completion gate 将保持 false，来源不会被清理。
+
+在确认前确定 `PROJECT_VERIFY_COMMANDS`：
+
+- 读取适用的 AGENTS.md/CLAUDE.md 和项目清单，收集明确要求的测试、lint、build 或一致性命令。
+- 始终包含 OpenSpec strict validation、任务完成度、artifact 状态和 `git diff --check`。
+- 没有项目专用命令时记录 `N/A: no project-specific verification command discovered`，不得虚构命令。
+- 将每条命令原样显示在确认摘要；merge 后每条最多执行一次，不因失败换参数重试。
+
+## Step 5：预检摘要与明确确认（只读）
+
+摘要必须显示：
+
+- `PROPOSAL`、`SOURCE_BRANCH`、`SOURCE_WORKTREE_DIR` 的规范映射结果。
+- `SOURCE_HEAD`、来源 pending 文件、明确 delivery commit 预期。
+- `TARGET_BRANCH`、`TARGET_SOURCE`、`TARGET_WORKTREE_DIR`、`TARGET_HEAD` 和 clean/HEAD-ref 结果。
+- source/target 分支和路径不同。
+- planned writes：来源 commit、在来源 rebase 到确认的 `TARGET_HEAD`、冻结 post-rebase hash、在目标 merge 该 hash、post-merge 验证、条件式普通 cleanup。
+- 全部 `PROJECT_VERIFY_COMMANDS`。
+- incomplete task 风险与“merge 后验证失败时不回滚且不清理”的行为。
+
+请求无默认值、无定时批准的明确确认。拒绝、取消、缺失或模糊回答保持 Git 不变；无交互工具时输出问题并结束响应。
+
+## Step 6：确认后快照复检（只读）
+
+完整重跑 Step 1–4。参数、proposal/source 映射、worktree 注册、source HEAD/status、target branch/path/ref/HEAD/clean、OpenSpec 风险和验证命令必须与摘要一致。
+
+任一实质变化使确认失效并返回 Step 5。只有完全一致才能开始写操作。
+
+## Step 7：提交来源并 rebase 到冻结目标（写入开始）
+
+若确认摘要包含来源 pending changes：
+
+```bash
+git add -A
+git add -f openspec/changes/<PROPOSAL>/tasks.md
+git commit -m "chore: finalize <PROPOSAL> before verified merge"
+```
+
+无 pending changes 时不创建空 commit。记录 `PRE_REBASE_SOURCE_HEAD`。
+
+紧接着再次验证来源规范 path/branch/HEAD/ref/clean，以及目标 ref 和目标 worktree HEAD 仍都等于确认的 `TARGET_HEAD`。然后在来源 worktree执行：
+
+```bash
+git rebase <TARGET_HEAD>
+```
+
+冲突只允许在这一次 rebase 内解决并 continue。无法可靠解决时允许 abort 尚未完成的 rebase，报告并停止；不得删除来源或改用新的目标自动重试。
+
+成功后立即冻结：
+
+```bash
+POST_REBASE_SOURCE_HEAD=$(git rev-parse HEAD)
+```
+
+并验证：
+
+- source 注册 path/branch 未变。
+- source worktree HEAD 和 `refs/heads/<SOURCE_BRANCH>` 都等于 `POST_REBASE_SOURCE_HEAD`。
+- source status 严格为空。
+- `git rev-list <TARGET_HEAD>..<POST_REBASE_SOURCE_HEAD>` 返回非空 delivery commit 集合；记录每个 hash 和 subject。
+- target ref、target worktree HEAD 仍等于 `TARGET_HEAD`，target 仍 clean。
+
+任一失败都停止在来源 worktree，不进入 merge。
+
+## Step 8：进入目标并在 merge 前冻结复检
+
+把控制器真实执行上下文绑定到 `TARGET_WORKTREE_DIR`。以下检查必须全部成功：
+
+```bash
+test "$(pwd -P)" = "<TARGET_WORKTREE_DIR>"
+test "$(git rev-parse --show-toplevel)" = "<TARGET_WORKTREE_DIR>"
+test "$(git branch --show-current)" = "<TARGET_BRANCH>"
+test "$(git rev-parse HEAD)" = "<TARGET_HEAD>"
+test "$(git rev-parse refs/heads/<TARGET_BRANCH>)" = "<TARGET_HEAD>"
+test -z "$(git status --porcelain --untracked-files=all)"
+```
+
+再通过 `git -C <SOURCE_WORKTREE_DIR>` 重跑 source 注册、branch、HEAD/ref、clean、delivery commit 检查，要求仍等于 `POST_REBASE_SOURCE_HEAD`。
+
+这一步禁止恢复性 checkout、二次 rebase 或采用 source branch 的新 tip。任一漂移都停止并保留来源。
+
+## Step 9：只 merge 冻结 commit
+
+记录 `PRE_MERGE_TARGET_HEAD=<TARGET_HEAD>`，然后从目标真实 CWD 执行一次：
+
+```bash
+git merge <POST_REBASE_SOURCE_HEAD>
+```
+
+若 merge 未成功完成，可中止尚未完成的冲突状态并停止；不得用其他参数或新 source/target hash 自动重试。成功后立即记录：
+
+```bash
+MERGE_SUCCEEDED_ONCE=true
+POST_MERGE_TARGET_HEAD=$(git rev-parse HEAD)
+```
+
+merge 成功后禁止自动 reset/revert，即使后续验证失败。
+
+## Step 10：执行 `POST_MERGE_VERIFICATION`
+
+按顺序执行且每项只执行一次：
+
+1. 真实 CWD/top-level/current branch 仍是确认目标。
+2. `refs/heads/<TARGET_BRANCH>` 等于 target worktree HEAD 和 `POST_MERGE_TARGET_HEAD`。
+3. target status 严格为空。
+4. `git merge-base --is-ancestor <POST_REBASE_SOURCE_HEAD> refs/heads/<TARGET_BRANCH>` 成功。
+5. source worktree 仍按规范路径注册、clean，source HEAD/ref 仍等于 `POST_REBASE_SOURCE_HEAD`。
+6. `git rev-list refs/heads/<TARGET_BRANCH>..refs/heads/<SOURCE_BRANCH>` 严格为空。
+7. delivery commit 集合仍非空。
+8. `openspec validate <PROPOSAL> --type change --strict` 成功，artifacts 完成。
+9. `tasks.md` 中 `DONE == TOTAL`；若不完整则 merge 保留但 cleanup 被阻止。
+10. `git diff <PRE_MERGE_TARGET_HEAD>..<POST_MERGE_TARGET_HEAD> --check` 成功。
+11. 逐条执行确认摘要中的项目验证命令，全部成功。
+
+任一项 false、unknown、无法解析或命令失败：报告失败 gate、相关 hashes、已完成 merge 和保留的来源；不回滚、不重试、不 cleanup。
+
+## Step 11：计算 `CLEANUP_READY`
+
+只有以下条件刚刚全部显式为 true：
+
+```text
+CLEANUP_READY =
+  REAL_CWD_IS_TARGET_WORKTREE
+  AND SOURCE_MAPPING_EXACT
+  AND SOURCE_CLEAN
+  AND SOURCE_HAS_DELIVERY_COMMITS
+  AND SOURCE_HEAD_REF_EQUAL_POST_REBASE_SOURCE_HEAD
+  AND MERGE_SUCCEEDED_ONCE
+  AND TARGET_REF_EQUALS_TARGET_WORKTREE_HEAD
+  AND TARGET_CONTAINS_POST_REBASE_SOURCE_HEAD
+  AND NO_SOURCE_ONLY_COMMITS
+  AND POST_MERGE_VERIFICATION_PASSED
+```
+
+才可进入 Step 12。不要从“已经离开来源目录”、历史检查或单个空 log 推导 readiness。
+
+## Step 12：普通清理，失败即保留
+
+仍在目标真实 CWD，立即重复 source mapping/ref/HEAD/clean、target ref/HEAD、精确 containment、无 source-only commits 和 post-merge 结果。全部仍为 true 后执行：
+
+```bash
+git worktree remove <SOURCE_WORKTREE_DIR>
+```
+
+普通删除失败（包括 dirty、路径锁、进程占用、平台锁或解析错误）时停止，来源 worktree 和 branch 均保留，不升级为强制删除。
+
+删除成功后精确确认 `SOURCE_WORKTREE_DIR` 已从 `git worktree list --porcelain` 消失。随后要求 `refs/heads/<SOURCE_BRANCH>` 仍存在且仍指向 `POST_REBASE_SOURCE_HEAD`，再次验证 target 包含该 hash，再执行：
+
+```bash
+git branch -d -- <SOURCE_BRANCH>
+```
+
+安全分支删除拒绝时保留 branch，不使用更强的 ref 删除方式。若 branch 在授权删除前意外消失，视为 identity drift 失败，不当作幂等成功，也不删除任何其他 ref。
+
+## 成功输出
+
+```text
+## Worktree Merged & Safely Cleaned
+
+Proposal: <PROPOSAL>
+Source: <SOURCE_BRANCH> at <POST_REBASE_SOURCE_HEAD>
+Target: <TARGET_BRANCH> at <POST_MERGE_TARGET_HEAD>
+Merge count: 1
+Post-merge verification: passed
+CLEANUP_READY: true (all gates listed)
+Source worktree: removed by ordinary git worktree remove
+Source branch: removed by safe git branch -d
+```
+
+## Guardrails
+
+- source/target branch 与 path 必须不同，且完整 mapping 始终精确。
+- 目标必须预先由 clean worktree 持有；本流程不切换或自动提交其他 worktree。
+- rebase 使用确认的 target hash，merge 使用冻结的 post-rebase source hash。
+- merge 最多执行一次；失败或未验证时不换参数重试。
+- merge 成功后不自动 reset/revert。
+- cleanup 的任何失败或 unknown 都保留所有仍存在的来源对象。
+- 只允许普通 worktree removal 和安全 local branch deletion；不删除远程 ref。
