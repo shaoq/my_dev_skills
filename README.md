@@ -132,9 +132,11 @@ Step 0: 创建 proposal
 Step 1: 在 worktree 中实施
 ─────────────────────────────
   /new-worktree-apply add-user-auth
+  /new-worktree-apply add-user-auth --openspec-root twin-rag
 
   → 目标必须已由 clean worktree 持有，并冻结 `TARGET_HEAD`
-  → 验证 commit 中 artifacts 与确认内容完全一致
+  → `--openspec-root twin-rag` 精确选择 `twin-rag/openspec/changes/add-user-auth`
+  → 验证 commit 中完整仓库相对 artifacts 与确认内容完全一致
   → 从该 hash 创建 `worktree-add-user-auth` → 执行实施 → 补标记 → 提交
 
 Step 2: 合并回目标分支
@@ -165,7 +167,7 @@ Step 4: 归档
 |------------|---------|------|------|
 | **parall-new-proposal** | `/parall-new-proposal` | 并行提案拆分 | 需求描述文本 |
 | **parall-new-worktree-apply** | `/parall-new-worktree-apply` | 并行实施多个 changes | `[--target <target-branch>]` |
-| **new-worktree-apply** | `/new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> [--target <target-branch>]` |
+| **new-worktree-apply** | `/new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> [--target <target-branch>] [--openspec-root <repo-relative-directory>]` |
 | **merge-worktree-return** | `/merge-worktree-return` | worktree 合并回目标分支 | `[proposal-name] [--target <target-branch>]` |
 | **check-changes-completed** | `/check-changes-completed` | 五维完成度检查 | 无 |
 | **verify-impl-consistency** | `/verify-impl-consistency` | 三维语义一致性诊断 | `[change-name]` |
@@ -284,8 +286,10 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 
 **核心机制**:
 - 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择
+- OpenSpec 项目根默认为仓库根 `.`；`--openspec-root twin-rag` 精确表示
+  `twin-rag/openspec/changes/<proposal>`，可与 `--target` 任意排序且不会递归搜索、猜测或回退
 - 目标分支必须已被一个注册且 clean 的 worktree 持有；流程不会为了满足目标条件切换或自动提交其他 worktree
-- 只读预检（目标、工作树、artifacts）后展示计划并**等待用户明确确认**，确认后复检快照才执行写操作
+- 只读预检（目标、工作树、所选 OpenSpec 项目、仓库相对 artifacts）后展示计划并**等待用户明确确认**，确认后复检快照才执行写操作
 - 规范映射固定为 proposal `<proposal>`、branch `worktree-<proposal>`、path `.claude/worktrees/<proposal>`；任何现有 ref/path/worktree 冲突都停止，不复用或追加后缀
 - 从确认的不可变 commit hash 精确创建：`git worktree add <path> -b worktree-<proposal> <TARGET_HEAD>`
 - 创建前递归验证完整 artifact manifest 已存在于 `TARGET_HEAD` 且与确认内容逐字节一致
@@ -294,6 +298,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 
 **注意事项**:
 - **BREAKING**：旧 `--branch` 已由 `--target` 替代；传 `--branch` 时不产生任何 Git 写操作，只显示迁移命令
+- 省略 `--openspec-root` 与显式 `--openspec-root .` 完全等价；非法、越界或符号链接逃逸路径均在确认前失败关闭
 - 所有 Git 写操作只在显式确认之后执行
 - 分支名必须符合 worktree 命名规则（kebab-case，max 64 chars）
 - 若规范 branch/path 已存在则报错停止，**不覆盖、不复用、不自动清理**

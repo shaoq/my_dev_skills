@@ -1,18 +1,23 @@
 ---
 name: new-worktree-apply
-description: Use when starting implementation of an OpenSpec change in a new isolated git worktree.
-argument-hint: <proposal-name> [--target <target-branch>]
+description: Use when starting implementation of an OpenSpec change in a new isolated Git worktree, including repositories with an explicitly selected nested OpenSpec project.
+argument-hint: <proposal-name> [--target <target-branch>] [--openspec-root <repo-relative-directory>]
 disable-model-invocation: true
-allowed-tools: Bash(git *) Bash(openspec *) Bash(find *) Bash(sort *) Bash(grep *) Bash(test *) Bash(pwd *) Bash(awk *) Bash(sed *) Read Write Edit Glob Grep Skill AskUserQuestion
+allowed-tools: Bash(git *) Bash(openspec *) Bash(find *) Bash(sort *) Bash(grep *) Bash(test *) Bash(pwd *) Bash(cd *) Bash(awk *) Bash(sed *) Read Write Edit Glob Grep Skill AskUserQuestion
 ---
 
 为一个 OpenSpec proposal 创建规范化 worktree，并在其中实施。
 
-**输入**：一个 proposal 名称和可选的 `--target <target-branch>`。
+**输入**：一个 proposal 名称、可选的 `--target <target-branch>`，以及可选的
+`--openspec-root <repo-relative-directory>`。两个选项可按任意顺序出现且各自最多一次。
+`--openspec-root` 表示 Git worktree 内直接包含 `openspec/` 的项目目录；省略时等价于
+显式传入 `.`。
 
 ```text
 /new-worktree-apply add-user-auth
 /new-worktree-apply add-user-auth --target develop
+/new-worktree-apply add-user-auth --openspec-root twin-rag
+/new-worktree-apply add-user-auth --openspec-root twin-rag --target develop
 ```
 
 ## 核心不变量
@@ -23,9 +28,12 @@ allowed-tools: Bash(git *) Bash(openspec *) Bash(find *) Bash(sort *) Bash(grep 
 - 规范身份固定为：
   ```text
   PROPOSAL=<proposal-name>
+  OPENSPEC_ROOT_REL=<用户值或 .>
   SOURCE_BRANCH=worktree-<proposal-name>
   SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>
   ```
+- OpenSpec 项目必须由参数唯一确定。禁止递归发现、唯一候选推断、根目录回退、环境变量
+  覆盖或 proposal 近似匹配。
 - 创建只使用用户确认的不可变 commit hash：
   ```bash
   git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>
@@ -35,9 +43,31 @@ allowed-tools: Bash(git *) Bash(openspec *) Bash(find *) Bash(sort *) Bash(grep 
 
 ## Step 1：解析参数与检查前置条件（只读）
 
-仅接受一个 proposal 位置参数及至多一个 `--target <target-branch>`。缺少 proposal、多余位置参数、`--target` 缺值/重复或未知选项均报错并停止。
+仅接受一个 proposal 位置参数、至多一个 `--target <target-branch>` 及至多一个
+`--openspec-root <repo-relative-directory>`。保存原始参数序列供 Step 7 逐字复检；按顺序
+解析全部参数，两个选项可任意排序。缺少 proposal、多余位置参数、任一选项缺值/重复、
+以其他 `-` 开头的未知选项或未知位置参数均报错并停止。
 
 旧 `--branch` 不是别名。检测到后只显示等价 `--target` 用法并停止，不产生 Git 写操作。
+
+始终由本次参数赋值 `OPENSPEC_ROOT_REL`，不得读取同名或其他环境变量作为覆盖。省略
+`--openspec-root` 时设置 `OPENSPEC_ROOT_REL=.` 并记录 `OPENSPEC_ROOT_EXPLICIT=false`；
+显式提供时记录 `OPENSPEC_ROOT_EXPLICIT=true`。
+
+先对 `OPENSPEC_ROOT_REL` 做词法门禁。特殊值 `.` 合法；其他值必须是使用 `/` 的规范
+仓库相对目录，并拒绝以下任一情况：
+
+- 空值、host 平台绝对路径、Windows drive 前缀或 `~` 开头；
+- 反斜杠、空白或控制字符；
+- 开头/结尾 `/`、连续 `/`；
+- 任一空、`.` 或 `..` 路径段。
+
+参数或词法错误必须回显原始 `--openspec-root` 值（省略时显示默认 `.`），不能用一个
+搜索或规范化得到的替代值掩盖用户选择。
+
+proposal 名称必须是小写 kebab-case（只含小写字母、数字和单个连字符分隔）。最终
+`SOURCE_BRANCH=worktree-<proposal-name>` 长度不超过 64，且必须通过
+`git check-ref-format --branch <SOURCE_BRANCH>`；不得包含 `/`、`..`、空白或连续连字符。
 
 检查：
 
@@ -46,10 +76,28 @@ git rev-parse --is-inside-work-tree
 git rev-parse --show-toplevel
 git worktree list --porcelain
 which openspec
-test -d openspec/changes/<proposal-name>
 ```
 
-proposal 名称必须是小写 kebab-case（只含小写字母、数字和单个连字符分隔）。最终 `SOURCE_BRANCH=worktree-<proposal-name>` 长度不超过 64，且必须通过 `git check-ref-format --branch <SOURCE_BRANCH>`；不得包含 `/`、`..`、空白或连续连字符。
+定义并验证当前项目路径：
+
+```text
+INVOCATION_WORKTREE_DIR = 当前 git rev-parse --show-toplevel 的物理路径
+INVOCATION_PROJECT_DIR  = INVOCATION_WORKTREE_DIR                    （根为 .）
+                        | INVOCATION_WORKTREE_DIR/OPENSPEC_ROOT_REL  （嵌套根）
+CHANGE_PREFIX           = openspec/changes/PROPOSAL
+                        | OPENSPEC_ROOT_REL/openspec/changes/PROPOSAL
+```
+
+`CHANGE_PREFIX` 必须是 POSIX 风格、无 `./` 前缀的仓库相对路径。对
+`INVOCATION_WORKTREE_DIR`、`INVOCATION_PROJECT_DIR`、其 `openspec/`、
+`openspec/changes/` 和 proposal 目录分别通过进入目录后执行 `pwd -P` 获取物理路径；
+命令失败、目录不可读或不可进入均停止。
+要求项目物理路径位于 invocation worktree 物理路径内，`openspec/` 位于项目物理路径内，
+proposal 目录位于该物理 `openspec/changes/` 内。相等或以完整目录边界为前缀才算包含，
+纯字符串前缀不算。任何符号链接逃逸均失败关闭。
+
+所有项目或 proposal 错误必须显示用户选择的精确逻辑项目路径
+`INVOCATION_PROJECT_DIR`，不得搜索、猜测或改用其他 OpenSpec 根。
 
 ## Step 2：选择目标分支（只读）
 
@@ -77,6 +125,8 @@ git rev-parse --verify --quiet refs/heads/<TARGET_BRANCH>
 - `TARGET_WORKTREE_DIR`：注册为持有 `refs/heads/<TARGET_BRANCH>` 的唯一 worktree。
 - `SOURCE_BRANCH=worktree-<proposal-name>`。
 - `SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>`，转换为绝对规范路径。
+- `SOURCE_PROJECT_DIR=<SOURCE_WORKTREE_DIR>`（根为 `.`），否则为
+  `<SOURCE_WORKTREE_DIR>/<OPENSPEC_ROOT_REL>`；创建前只记录该预期逻辑路径，不要求存在。
 
 硬失败条件：
 
@@ -102,15 +152,20 @@ git -C <TARGET_WORKTREE_DIR> status --porcelain --untracked-files=all
 - 目标状态输出严格为空；staged、unstaged、untracked、冲突或状态命令失败均阻止创建。
 - 不对目标执行 auto-commit、stash、reset 或 checkout/switch。
 
-读取 `openspec status --change "<proposal-name>" --json`，要求所有 artifacts 为 `done` 且 `isComplete=true`。
+从 `INVOCATION_PROJECT_DIR` 读取：
+
+```bash
+openspec status --change "<proposal-name>" --json
+```
+
+要求所有 artifacts 为 `done` 且 `isComplete=true`。不得从 invocation worktree 根、目标
+worktree 或其他自动发现的目录运行该命令。
 
 ## Step 5：构建 `ARTIFACT_MANIFEST`（只读）
 
-定义：
-
-```text
-CHANGE_PREFIX=openspec/changes/<proposal-name>
-```
+使用 Step 1 已计算的完整仓库相对 `CHANGE_PREFIX`；根项目为
+`openspec/changes/<proposal-name>`，嵌套项目为
+`<OPENSPEC_ROOT_REL>/openspec/changes/<proposal-name>`。
 
 manifest 必须包含：
 
@@ -123,15 +178,20 @@ manifest 必须包含：
 
 验证算法必须按以下顺序执行：
 
-1. 在当前确认工作区检查四个固定文件和 `specs/` 目录。
-2. 用 `find <CHANGE_PREFIX>/specs -type f | LC_ALL=C sort` 枚举当前 spec 路径集合；禁止使用单层 `specs/*.md` glob。
-3. 用 `git ls-tree -r --name-only <TARGET_HEAD> -- <CHANGE_PREFIX>/specs` 独立枚举 commit tree 路径集合。
+1. 从 `INVOCATION_WORKTREE_DIR` 按完整 `CHANGE_PREFIX` 检查四个固定文件和 `specs/`
+   目录；OpenSpec status 的 CWD 与 Git manifest 的仓库相对基准不得混用。
+2. 从 `INVOCATION_WORKTREE_DIR` 用
+   `find <CHANGE_PREFIX>/specs -type f | LC_ALL=C sort` 枚举当前 spec 路径集合；禁止使用
+   单层 `specs/*.md` glob。
+3. 从 Git 仓库根用
+   `git ls-tree -r --name-only <TARGET_HEAD> -- <CHANGE_PREFIX>/specs` 独立枚举 commit tree
+   路径集合。
 4. 两侧路径集合必须完全相等且非空。
 5. 对四个固定文件和可选 `dependencies.yaml`，两侧存在性必须完全一致；固定文件必须两侧都存在。
 6. 对 manifest 每个路径比较当前内容 blob 与冻结提交 blob：
    ```bash
-   CURRENT_BLOB=$(git hash-object -- <path>)
-   TARGET_BLOB=$(git rev-parse <TARGET_HEAD>:<path>)
+   CURRENT_BLOB=$(git -C <INVOCATION_WORKTREE_DIR> hash-object -- <path>)
+   TARGET_BLOB=$(git -C <INVOCATION_WORKTREE_DIR> rev-parse <TARGET_HEAD>:<path>)
    test "$CURRENT_BLOB" = "$TARGET_BLOB"
    ```
 7. 将排序后的 `<path> <blob>` 行记录为 `ARTIFACT_MANIFEST`，并用 `git hash-object --stdin` 生成 `ARTIFACT_MANIFEST_DIGEST`。
@@ -143,10 +203,14 @@ untracked、ignored、新增、删除、重命名、内容差异、路径读取�
 摘要必须显示：
 
 - 命令范围与 proposal。
+- `--openspec-root` 是否显式、规范化 `OPENSPEC_ROOT_REL`。
+- `INVOCATION_PROJECT_DIR`、预期 `SOURCE_PROJECT_DIR` 和完整仓库相对
+  `CHANGE_PREFIX`。
 - `TARGET_BRANCH`、`TARGET_SOURCE`、`TARGET_WORKTREE_DIR`、`TARGET_HEAD`。
 - 目标 clean、HEAD/ref 一致的检查结果。
 - `SOURCE_BRANCH` 和 `SOURCE_WORKTREE_DIR` 的精确映射及无冲突结果。
-- 完整 `ARTIFACT_MANIFEST` 路径列表和 `ARTIFACT_MANIFEST_DIGEST`。
+- 完整仓库相对 `ARTIFACT_MANIFEST` 路径列表、各 blob 和
+  `ARTIFACT_MANIFEST_DIGEST`。
 - 确认后唯一的创建命令、进入新 worktree、apply、任务回填与来源提交。
 - 风险说明：不会修改目标 worktree；任何创建后上下文失败都会保留来源 branch/worktree。
 
@@ -156,11 +220,13 @@ untracked、ignored、新增、删除、重命名、内容差异、路径读取�
 
 在首次写操作前完整重跑 Step 1–5，要求下列值与确认摘要逐字一致：
 
-- 参数、`TARGET_BRANCH`、`TARGET_SOURCE`、`TARGET_WORKTREE_DIR`。
+- 原始参数及重解析结果、`OPENSPEC_ROOT_EXPLICIT`、`OPENSPEC_ROOT_REL`、
+  `INVOCATION_PROJECT_DIR`、`SOURCE_PROJECT_DIR`、`CHANGE_PREFIX` 和全部物理包含结论。
+- `TARGET_BRANCH`、`TARGET_SOURCE`、`TARGET_WORKTREE_DIR`。
 - `TARGET_HEAD`、目标 worktree HEAD、目标 clean 状态。
 - `SOURCE_BRANCH`、`SOURCE_WORKTREE_DIR` 及 branch/path/注册表无冲突状态。
 - `ARTIFACT_MANIFEST` 和 `ARTIFACT_MANIFEST_DIGEST`。
-- OpenSpec artifact 完成状态和全部风险说明。
+- 从相同 `INVOCATION_PROJECT_DIR` 得到的 OpenSpec artifact 完成状态和全部风险说明。
 
 任何变化使原确认失效，返回 Step 6 请求新确认。即使 ref 在最后复检后再次推进，实际创建仍使用已确认的 `<TARGET_HEAD>` hash，不能重新解析分支名。
 
@@ -186,27 +252,41 @@ test "$(git rev-parse refs/heads/<SOURCE_BRANCH>)" = "<TARGET_HEAD>"
 
 还必须从 `git worktree list --porcelain` 精确确认该路径注册到该 branch 和 HEAD。任一检查失败时停止 apply，并明确报告已保留的 `SOURCE_WORKTREE_DIR` 与 `SOURCE_BRANCH`；不自动删除、切换、重建或 fallback。
 
-## Step 9：在来源 worktree 中再次验证 artifacts
+## Step 9：在来源 worktree 中再次验证项目与 artifacts
 
-在新 worktree 中重跑 OpenSpec status，并根据 `ARTIFACT_MANIFEST` 逐项确认路径和 blob 与 `TARGET_HEAD` 一致。任何丢失或不同都停止，不进入 apply。
+创建身份验证通过后，重新建立来源项目上下文：
+
+- 通过进入目录并执行 `pwd -P` 解析 `SOURCE_WORKTREE_DIR`、`SOURCE_PROJECT_DIR`、其
+  `openspec/` 和 proposal 目录；要求来源项目位于来源 worktree 内，`openspec/` 位于
+  来源项目内，proposal 位于其 `openspec/changes/` 内。
+- 从验证后的 `SOURCE_PROJECT_DIR` 重跑 OpenSpec status，要求所有 artifacts 为 `done`
+  且 `isComplete=true`。
+- 从 `SOURCE_WORKTREE_DIR` 按确认的完整仓库相对 `ARTIFACT_MANIFEST` 重新枚举路径并
+  逐项计算 blob，要求路径集合、每个 blob 和 digest 都与 `TARGET_HEAD` 及确认快照一致。
+
+路径缺失、物理越界、status 不完整、manifest/blob 漂移或任何 unknown 都停止，不进入
+apply。保留已经创建的 `SOURCE_BRANCH` 和 `SOURCE_WORKTREE_DIR`；不得清理、换根、重建、
+回退到仓库根或使用其他 OpenSpec 项目重试。
 
 ## Step 10：执行 OpenSpec apply
 
-在已验证的 `SOURCE_WORKTREE_DIR` 中调用：
+仅以已验证的 `SOURCE_PROJECT_DIR` 为当前工作目录调用：
 
 ```text
 Skill("openspec-apply-change", args="<proposal-name>")
 ```
 
-不得从目标或 invocation worktree 调用 apply。
+不得从来源 worktree 根、目标 worktree、invocation worktree 或其他项目目录调用 apply。
 
 ## Step 11：任务核对、回填和来源提交
 
-读取 `tasks.md`，统计 `- [x]` 与 `- [ ]`。保留现有四类回填规则，但只能在来源 worktree 中按实际交付证据标记；仅有文件名或模糊关键词而没有任务要求的实现证据时不得标记完成。
+从 `<SOURCE_PROJECT_DIR>/openspec/changes/<proposal-name>/tasks.md` 读取任务，统计
+`- [x]` 与 `- [ ]`。保留现有四类回填规则，但只能在来源 worktree 中按实际交付证据
+标记；仅有文件名或模糊关键词而没有任务要求的实现证据时不得标记完成。
 
 ```bash
-git add -A
-git add -f openspec/changes/<proposal-name>/tasks.md
+git -C <SOURCE_WORKTREE_DIR> add -A
+git -C <SOURCE_WORKTREE_DIR> add -f <CHANGE_PREFIX>/tasks.md
 ```
 
 有变更时提交到 `SOURCE_BRANCH`：
@@ -224,6 +304,10 @@ git add -f openspec/changes/<proposal-name>/tasks.md
 Proposal: <proposal-name>
 Source branch: worktree-<proposal-name>
 Source worktree: <REPO_ROOT>/.claude/worktrees/<proposal-name>
+OpenSpec root: <OPENSPEC_ROOT_REL> (<explicit-or-default>)
+Invocation project: <INVOCATION_PROJECT_DIR>
+Source project: <SOURCE_PROJECT_DIR>
+Change prefix: <CHANGE_PREFIX>
 Target: <TARGET_BRANCH> at <TARGET_HEAD>
 Target worktree: <TARGET_WORKTREE_DIR> (unchanged)
 Artifact manifest: <ARTIFACT_MANIFEST_DIGEST> verified
@@ -239,6 +323,9 @@ Tasks: DONE/TOTAL
 - 创建 start-point 必须是确认的 commit hash，禁止使用可变 branch name 或 ambient HEAD。
 - canonical branch/path 任一冲突都失败，不覆盖、不复用、不改名。
 - artifacts 必须已经存在于 `TARGET_HEAD` 且与确认内容逐字节一致。
+- OpenSpec 根只能来自显式参数或默认 `.`；禁止搜索、猜测、回退或环境变量覆盖。
+- OpenSpec status/apply 只从验证后的项目目录运行；Git manifest/stage 只使用完整仓库相对
+  `CHANGE_PREFIX`。
 - 禁止强制 worktree/ref 清理；错误和 recovery 文本也不得建议强制删除。
 - 禁止自动 reset/revert、自动 merge、自动重试创建或切换目标工作树。
 - 所有命令错误、解析失败和 unknown 状态都按失败处理，并报告保留现场。
