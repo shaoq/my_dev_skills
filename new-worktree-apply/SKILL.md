@@ -280,9 +280,21 @@ Skill("openspec-apply-change", args="<proposal-name>")
 
 ## Step 11：任务核对、回填和来源提交
 
-从 `<SOURCE_PROJECT_DIR>/openspec/changes/<proposal-name>/tasks.md` 读取任务，统计
-`- [x]` 与 `- [ ]`。保留现有四类回填规则，但只能在来源 worktree 中按实际交付证据
-标记；仅有文件名或模糊关键词而没有任务要求的实现证据时不得标记完成。
+从 `<SOURCE_PROJECT_DIR>/openspec/changes/<proposal-name>/tasks.md` 读取最终任务状态，按
+Markdown checkbox 统计：`- [x]` 为 `DONE`，`- [ ]` 为未完成，二者之和为 `TOTAL`，并
+计算 `REMAINING=TOTAL-DONE`。保留现有四类回填规则，但只能在来源 worktree 中按实际
+交付证据标记；仅有文件名或模糊关键词而没有任务要求的实现证据时不得标记完成。
+
+任务进度和未完成原因必须遵守以下契约：
+
+- `TOTAL > 0` 且 `DONE == TOTAL` 时进度为 `complete`；`DONE < TOTAL` 时为 `partial`。
+- `tasks.md` 缺失、不可读或 `TOTAL == 0` 时进度为 `unknown`，不得把 `0/0` 报告为完成。
+- 每个未完成 task 必须且只能归入一个类别：`尚未进入实施阶段`、`实现未完成`、
+  `测试或验证失败`、`依赖未满足`、`执行异常`、`原因未知`。
+- 分类只能依据本次 workflow 的直接证据，包括 apply 返回、测试或验证输出、依赖状态和
+  已执行阶段。不得根据 task 编号、task 正文、文件名或关键词猜测原因；证据不足时计入
+  `原因未知`。
+- 各原因类别的数量之和必须等于 `REMAINING`。未完成原因概要只输出数量和一句归类说明；不得输出 task 编号、task 正文或逐项清单。数量为 0 的类别省略。
 
 ```bash
 git -C <SOURCE_WORKTREE_DIR> add -A
@@ -311,11 +323,19 @@ Change prefix: <CHANGE_PREFIX>
 Target: <TARGET_BRANCH> at <TARGET_HEAD>
 Target worktree: <TARGET_WORKTREE_DIR> (unchanged)
 Artifact manifest: <ARTIFACT_MANIFEST_DIGEST> verified
-Tasks: DONE/TOTAL
+Proposal progress: <complete|partial|unknown>
+Tasks: <DONE>/<TOTAL> | unknown
+Remaining: <REMAINING> | unknown
+Unfinished reason summary: <category=count; ... | none | unknown: reason>
 
 下一步：从来源 worktree 运行
 /merge-worktree-return <proposal-name> --target <TARGET_BRANCH>
 ```
+
+当进度为 `complete` 时，`Unfinished reason summary` 输出 `none`；当进度为 `partial` 时，
+输出计数之和等于 `Remaining` 的原因类别及一句概要；当进度为 `unknown` 时，输出导致无法
+读取或计算进度的概要原因，并使用 `Tasks: unknown` 和 `Remaining: unknown`。Step 10 或 Step 11 失败后的终态报告只要能够读取最终
+`tasks.md`，也必须包含同一组数量字段和原因概要；无法读取时按 `unknown` 输出。
 
 ## Guardrails
 

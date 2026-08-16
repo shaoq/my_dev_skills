@@ -258,7 +258,16 @@ Wave 1                    Wave 2
    ```
 2. 等待 Skill 调用完成
 3. 验证 `openspec/changes/<name>/` 目录已创建
-4. 记录创建状态（成功/失败）
+4. 从 `openspec/changes/<name>/tasks.md` 读取最终任务状态：`- [x]` 计入 `DONE`，
+   `- [ ]` 计入未完成，计算 `TOTAL` 和 `REMAINING=TOTAL-DONE`
+5. 记录创建状态（成功/失败）与任务进度；`tasks.md` 缺失、不可读或 `TOTAL == 0` 时
+   任务进度记为 `unknown`，不得把 `0/0` 报告为完成
+
+本 skill 只创建 proposal artifacts，不进入 apply。成功创建提案中的未勾选 task 有直接
+阶段证据时统一归为 `尚未进入实施阶段`。未完成原因分类沿用：`尚未进入实施阶段`、
+`实现未完成`、`测试或验证失败`、`依赖未满足`、`执行异常`、`原因未知`；每个未完成
+task 必须且只能归入一类，各类别计数之和必须等于 `REMAINING`。不得根据 task 编号、
+task 正文、文件名或关键词猜测原因；证据不足时计入 `原因未知`。
 
 ### 5.3 错误处理
 
@@ -307,13 +316,21 @@ dependencies:
 
 ### 创建的提案
 
-| # | 名称 | 位置 | 依赖 | Wave | Batch |
-|---|------|------|------|------|-------|
-| 1 | auth-acl | openspec/changes/auth-acl/ | (无) | 1 | 1 |
-| 2 | auth-user-model | openspec/changes/auth-user-model/ | (无) | 1 | 1 |
-| 3 | auth-jwt-service | openspec/changes/auth-jwt-service/ | (无) | 1 | 1 |
-| 4 | auth-session | openspec/changes/auth-session/ | (无) | 1 | 2 |
-| 5 | auth-http-layer | openspec/changes/auth-http-layer/ | auth-user-model, auth-jwt-service | 2 | 1 |
+| # | 名称 | 位置 | 依赖 | Wave | Batch | Tasks | Remaining |
+|---|------|------|------|------|-------|-------|-----------|
+| 1 | auth-acl | openspec/changes/auth-acl/ | (无) | 1 | 1 | 0/4 | 4 |
+| 2 | auth-user-model | openspec/changes/auth-user-model/ | (无) | 1 | 1 | 0/6 | 6 |
+| 3 | auth-jwt-service | openspec/changes/auth-jwt-service/ | (无) | 1 | 1 | 0/5 | 5 |
+| 4 | auth-session | openspec/changes/auth-session/ | (无) | 1 | 2 | 0/3 | 3 |
+| 5 | auth-http-layer | openspec/changes/auth-http-layer/ | auth-user-model, auth-jwt-service | 2 | 1 | 0/7 | 7 |
+
+### 提案完成进度
+
+Proposals created: 5/5
+已知进度覆盖: 5/5 个成功提案
+Tasks: 0/25
+Remaining: 25
+未完成原因概要: 尚未进入实施阶段=25 — proposal artifacts 已完成，尚未进入 apply 实施
 
 ### 执行计划
 
@@ -350,6 +367,15 @@ Wave 2 (依赖 Wave 1, 1 个子方案):
 - 失败提案创建成功后，检查其 `dependencies.yaml` 文件是否正确
 ```
 
+部分失败报告仍必须在失败部分之前输出成功提案的同一组“提案完成进度”字段。创建失败的
+提案不计入已知任务总数；额外输出创建失败数量和概要原因。成功提案的进度为 `unknown`
+时，在表格中将 `Tasks` 与 `Remaining` 都标为 `unknown`，从聚合 `DONE/TOTAL` 中排除，
+并在 `已知进度覆盖` 中反映实际覆盖数量。
+
+聚合任务进度只对进度已知的成功提案求和：聚合 `DONE`、`TOTAL`、`REMAINING` 必须分别
+等于逐提案对应值之和。进度全部完成时未完成原因概要输出 `none`；存在未完成任务时只
+输出原因类别数量和一句整体说明。不得输出 task 编号、task 正文或逐项清单。
+
 ---
 
 ## Guardrails
@@ -364,3 +390,4 @@ Wave 2 (依赖 Wave 1, 1 个子方案):
 - 每 Wave 并行上限为 3（由 `parall-new-worktree-apply` 执行时控制）
 - 每个批次完成后立即合并回主干，再执行下一个批次
 - 失败的子方案不阻塞其他子方案的创建
+- 总结只报告逐提案及聚合任务数量、已知进度覆盖和未完成原因概要，不展示 task 明细
