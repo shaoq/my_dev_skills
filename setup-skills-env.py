@@ -3,7 +3,7 @@
 Skills 全局环境配置脚本
 
 功能：
-  - 在 ~/.claude/skills/ 创建符号链接，指向本仓库的 SKILL.md（全局安装）
+  - 在 ~/.claude/skills/ 和 ~/.codex/skills/ 创建符号链接（全局安装）
   - 合并权限白名单到 ~/.claude/settings.json（全局配置）
   - 交叉校验 SKILL.md 的 allowed-tools 与标准权限列表的一致性
   - 支持 --uninstall 卸载全局安装的符号链接和权限
@@ -22,6 +22,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import NamedTuple, Optional
 
 # ─── 配置 ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 # 用户全局 .claude 目录
 HOME_CLAUDE_DIR = Path.home() / ".claude"
+
+# 用户全局 .codex 目录（仅管理 skills 链接，不写 Codex 配置）
+HOME_CODEX_DIR = Path.home() / ".codex"
 
 # 全局 settings.json 路径
 GLOBAL_SETTINGS_PATH = HOME_CLAUDE_DIR / "settings.json"
@@ -41,6 +45,7 @@ STANDARD_PERMISSIONS: list[str] = [
     "Bash(openspec new:*)",
     "Bash(openspec status:*)",
     "Bash(openspec instructions:*)",
+    "Bash(openspec validate:*)",
     "Bash(git init:*)",
     "Bash(git remote:*)",
     "Bash(git add:*)",
@@ -89,36 +94,71 @@ def scan_custom_skills() -> list[tuple[str, Path]]:
 # ─── 2. 全局符号链接安装/卸载 ────────────────────────────────────────────────
 
 
+class LinkInstallResult(NamedTuple):
+    created: int
+    skipped: int
+    replaced: int
+    warnings: int
+
+
+class LinkUninstallResult(NamedTuple):
+    removed: int
+    not_found: int
+    warnings: int
+
+
+def runtime_skill_dirs() -> tuple[tuple[str, Path], ...]:
+    """返回受管运行时及其 skill 目录。"""
+    return (
+        ("Claude Code", HOME_CLAUDE_DIR / "skills"),
+        ("Codex", HOME_CODEX_DIR / "skills"),
+    )
+
+
+def _link_resolves_to(link_path: Path, target: Path) -> bool:
+    """判断符号链接解析后是否精确指向目标目录。"""
+    try:
+        return link_path.resolve(strict=False) == target.resolve(strict=False)
+    except OSError:
+        return False
+
+
 def install_skill_symlinks(
     skills: list[tuple[str, Path]],
-) -> tuple[int, int, int]:
-    """在 ~/.claude/skills/ 为每个 skill 创建目录级符号链接（绝对路径）。
+    skills_dir: Path,
+) -> LinkInstallResult:
+    """在指定运行时目录为每个 skill 创建目录级符号链接（绝对路径）。
 
-    ~/.claude/skills/<name> → /abs/path/to/my_dev_skills/<name>
+    <skills_dir>/<name> → /abs/path/to/my_dev_skills/<name>
 
     Args:
         skills: [(skill_name, source_path), ...]
 
     Returns:
-        (created_count, skipped_count, warning_count)
+        LinkInstallResult
     """
     created = 0
     skipped = 0
+    replaced = 0
     warnings = 0
-
-    skills_dir = HOME_CLAUDE_DIR / "skills"
 
     for name, source_path in skills:
         link_path = skills_dir / name
-        absolute_target = str(source_path.parent)
+        source_dir = source_path.parent.resolve()
+        absolute_target = str(source_dir)
+        was_replaced = False
 
         if link_path.is_symlink():
-            current_target = os.readlink(str(link_path))
-            if current_target == absolute_target:
+            if _link_resolves_to(link_path, source_dir):
                 skipped += 1
                 continue
-            else:
+            try:
                 link_path.unlink()
+                was_replaced = True
+            except OSError as exc:
+                print(f"  Warning: cannot replace {link_path}: {exc}")
+                warnings += 1
+                continue
         elif link_path.exists():
             print(
                 f"  Warning: {link_path} exists as a regular directory/file, "
@@ -127,34 +167,40 @@ def install_skill_symlinks(
             warnings += 1
             continue
 
-        skills_dir.mkdir(parents=True, exist_ok=True)
-        os.symlink(absolute_target, str(link_path))
-        created += 1
+        try:
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            os.symlink(absolute_target, str(link_path))
+            if was_replaced:
+                replaced += 1
+            else:
+                created += 1
+        except OSError as exc:
+            print(f"  Warning: cannot create {link_path}: {exc}")
+            warnings += 1
 
-    return created, skipped, warnings
+    return LinkInstallResult(created, skipped, replaced, warnings)
 
 
 def uninstall_skill_symlinks(
     skills: list[tuple[str, Path]],
-) -> tuple[int, int, int]:
-    """移除 ~/.claude/skills/ 中由本脚本创建的目录级符号链接。
+    skills_dir: Path,
+) -> LinkUninstallResult:
+    """移除指定运行时目录中由本脚本管理的目录级符号链接。
 
     Returns:
-        (removed_count, not_found_count, warning_count)
+        LinkUninstallResult
     """
     removed = 0
     not_found = 0
     warnings = 0
 
-    skills_dir = HOME_CLAUDE_DIR / "skills"
-
     for name, source_path in skills:
         link_path = skills_dir / name
-        absolute_target = str(source_path.parent)
+        source_dir = source_path.parent.resolve()
 
         if link_path.is_symlink():
             current_target = os.readlink(str(link_path))
-            if current_target == absolute_target:
+            if _link_resolves_to(link_path, source_dir):
                 link_path.unlink()
                 removed += 1
             else:
@@ -172,7 +218,37 @@ def uninstall_skill_symlinks(
         else:
             not_found += 1
 
-    return removed, not_found, warnings
+    return LinkUninstallResult(removed, not_found, warnings)
+
+
+def install_runtime_skill_links(
+    skills: list[tuple[str, Path]],
+    runtime_dirs: Optional[tuple[tuple[str, Path], ...]] = None,
+) -> dict[str, LinkInstallResult]:
+    """独立安装所有运行时链接，使单端冲突不阻断其他运行时。"""
+    results: dict[str, LinkInstallResult] = {}
+    for runtime_name, skills_dir in runtime_dirs or runtime_skill_dirs():
+        try:
+            results[runtime_name] = install_skill_symlinks(skills, skills_dir)
+        except OSError as exc:
+            print(f"  Warning: {runtime_name} skill installation failed: {exc}")
+            results[runtime_name] = LinkInstallResult(0, 0, 0, 1)
+    return results
+
+
+def uninstall_runtime_skill_links(
+    skills: list[tuple[str, Path]],
+    runtime_dirs: Optional[tuple[tuple[str, Path], ...]] = None,
+) -> dict[str, LinkUninstallResult]:
+    """独立卸载所有运行时中精确归属于本仓库的链接。"""
+    results: dict[str, LinkUninstallResult] = {}
+    for runtime_name, skills_dir in runtime_dirs or runtime_skill_dirs():
+        try:
+            results[runtime_name] = uninstall_skill_symlinks(skills, skills_dir)
+        except OSError as exc:
+            print(f"  Warning: {runtime_name} skill uninstallation failed: {exc}")
+            results[runtime_name] = LinkUninstallResult(0, 0, 1)
+    return results
 
 
 # ─── 3. 全局权限配置 ─────────────────────────────────────────────────────────
@@ -272,7 +348,7 @@ def parse_skill_frontmatter(
     tools_line = tools_match.group(1)
 
     bash_prefixes: list[str] = []
-    for m in re.finditer(r"Bash\((\S+?)\s*\*?\)", tools_line):
+    for m in re.finditer(r"Bash\(\s*([^\s:)]+)", tools_line):
         bash_prefixes.append(m.group(1))
 
     return bash_prefixes, is_disabled
@@ -335,13 +411,15 @@ def install() -> None:
     skills = scan_custom_skills()
     print(f"   发现 {len(skills)} 个自定义 skill: {[s[0] for s in skills]}")
 
-    # Step 2: 安装符号链接到 ~/.claude/skills/
-    print("🔗 安装符号链接到 ~/.claude/skills/...")
-    created, skipped, link_warnings = install_skill_symlinks(skills)
-    print(
-        f"   Skills installed: {created} created, {skipped} already linked"
-        + (f", {link_warnings} warning(s)" if link_warnings else "")
-    )
+    # Step 2: 独立安装 Claude Code 与 Codex 符号链接
+    print("🔗 安装 Claude Code 与 Codex skill 符号链接...")
+    link_results = install_runtime_skill_links(skills)
+    for runtime_name, result in link_results.items():
+        print(
+            f"   {runtime_name}: {result.created} created, "
+            f"{result.skipped} skipped, {result.replaced} replaced, "
+            f"{result.warnings} warning(s)"
+        )
 
     # Step 3: 一致性校验
     print()
@@ -362,14 +440,19 @@ def install() -> None:
     print("=" * 60)
     print("  执行摘要")
     print("=" * 60)
-    print(f"  符号链接: {created} created, {skipped} linked, {link_warnings} warning(s)")
+    for runtime_name, result in link_results.items():
+        print(
+            f"  {runtime_name} 符号链接: {result.created} created, "
+            f"{result.skipped} skipped, {result.replaced} replaced, "
+            f"{result.warnings} warning(s)"
+        )
     print(f"  权限配置: {configured} standard, {custom_preserved} custom preserved")
-    total_warnings = link_warnings + check_warnings
+    total_warnings = sum(result.warnings for result in link_results.values()) + check_warnings
     print(f"  校验警告: {total_warnings}")
     if total_warnings == 0:
         print("  ✓ 一切正常")
     print()
-    print("  ⚠️  注意: Skills 通过符号链接安装在 ~/.claude/skills/")
+    print("  ⚠️  注意: Skills 通过符号链接安装在 ~/.claude/skills/ 与 ~/.codex/skills/")
     print("      指向本仓库的实际文件。请勿删除或移动本仓库目录，")
     print("      否则所有项目中已安装的 Skills 将失效。")
     print(f"      仓库路径: {PROJECT_ROOT}")
@@ -388,12 +471,14 @@ def uninstall() -> None:
     skills = scan_custom_skills()
     print(f"   发现 {len(skills)} 个 skill: {[s[0] for s in skills]}")
 
-    # Step 2: 移除符号链接
-    print("🔗 移除 ~/.claude/skills/ 中的符号链接...")
-    removed, not_found, link_warnings = uninstall_skill_symlinks(skills)
-    print(f"   Removed: {removed}, Not found: {not_found}")
-    if link_warnings:
-        print(f"   Warnings: {link_warnings}")
+    # Step 2: 独立移除两个运行时中的受管符号链接
+    print("🔗 移除 Claude Code 与 Codex 中的受管 skill 符号链接...")
+    link_results = uninstall_runtime_skill_links(skills)
+    for runtime_name, result in link_results.items():
+        print(
+            f"   {runtime_name}: {result.removed} removed, "
+            f"{result.not_found} not found, {result.warnings} warning(s)"
+        )
 
     # Step 3: 移除权限
     print()
@@ -406,7 +491,11 @@ def uninstall() -> None:
     print("=" * 60)
     print("  卸载摘要")
     print("=" * 60)
-    print(f"  符号链接: {removed} removed, {not_found} not found")
+    for runtime_name, result in link_results.items():
+        print(
+            f"  {runtime_name} 符号链接: {result.removed} removed, "
+            f"{result.not_found} not found, {result.warnings} warning(s)"
+        )
     print(f"  权限: {perms_removed} removed, {perms_remaining} remaining")
     print()
     print("  ✓ 卸载完成。本仓库目录未受影响，可随时重新安装。")

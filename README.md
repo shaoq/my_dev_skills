@@ -1,6 +1,6 @@
 # my_dev_skills - 使用指南
 
-基于 OpenSpec 工作流的 Claude Code Skills 集合，提供从需求分析到并行实施、归档的完整开发流水线。
+基于 OpenSpec 工作流的 Claude Code + Codex Skills 集合，提供从需求分析、提案审查到并行实施和归档的完整开发流水线。
 
 ## 安装
 
@@ -9,14 +9,14 @@
 git clone git@github.com:shaoq/my_dev_skills.git
 cd my_dev_skills
 
-# 2. 全局安装（符号链接 + 权限合并，一次安装所有项目通用）
+# 2. 全局安装（双端符号链接 + Claude Code 权限合并）
 python3 setup-skills-env.py
 
 # 卸载（移除全局符号链接和权限，不影响本仓库）
 python3 setup-skills-env.py --uninstall
 ```
 
-> **重要**：Skills 通过符号链接安装在 `~/.claude/skills/`，指向本仓库的实际文件。
+> **重要**：Skills 通过符号链接同时安装在 `~/.claude/skills/` 和 `~/.codex/skills/`，指向同一份仓库源文件。安装器只合并 `~/.claude/settings.json` 权限，不创建或覆盖 Codex 配置。
 > **不要删除或移动本仓库目录**，否则所有项目中已安装的 Skills 将失效。
 
 ### 依赖项
@@ -25,8 +25,8 @@ python3 setup-skills-env.py --uninstall
 |------|------|---------|
 | **git** | 版本控制 | `git --version` |
 | **OpenSpec CLI** | 工作流引擎，管理 change/artifact 生命周期 | `openspec --version` |
-| **Claude Code** | 运行环境（CLI / Desktop / IDE） | 内置 |
-| **Python 3.6+** | 仅 `setup-skills-env.py` 需要 | `python3 --version` |
+| **Claude Code 或 Codex** | Skill 运行环境 | 对应产品内置 |
+| **Python 3.9+** | `setup-skills-env.py` 和测试需要 | `python3 --version` |
 | **iTerm2** (可选) | `setup-iterm2-claude-notify.py` 需要 | macOS only |
 
 ### iTerm2 通知（可选）
@@ -72,7 +72,7 @@ python3 setup-iterm2-claude-notify.py --remove # 卸载受管配置
 
 ## 快速开始
 
-> Skills 以符号链接形式安装到 `~/.claude/skills/`，一次安装后所有项目通用。
+> Skills 以符号链接形式安装到 `~/.claude/skills/` 和 `~/.codex/skills/`，一次安装后两个运行时的所有项目通用。
 > 前提：本仓库目录需保留在原地，不可删除或移动。
 
 ### 场景 A：综合需求（拆分 → 并行实施）
@@ -94,7 +94,15 @@ Step 1: 拆分需求为多个提案
   → 自动拆解为多个子方案，展示依赖图和 Wave 分组
   → 确认后批量创建 proposals + 注入 dependencies.yaml
 
-Step 2: 并行实施所有提案
+Step 2: 逐个审查待实施提案
+─────────────────────────────
+  /openspec-review-change <change-name>     # Claude Code
+  $openspec-review-change <change-name>     # Codex
+
+  → 只读审查目标、设计、Specs、追踪性和任务就绪度
+  → BLOCKED / NEEDS_REVISION 时先修订，READY 后再实施
+
+Step 3: 并行实施所有提案
 ─────────────────────────────
   /parall-new-worktree-apply
 
@@ -103,7 +111,7 @@ Step 2: 并行实施所有提案
   → 按 Wave 并行从冻结 commit hash 创建 `worktree-<proposal>`，在隔离 worktree 中实施
   → 串行合并冻结的 post-rebase commit；验证或普通清理失败时保留来源现场
 
-Step 3: 检查完成度
+Step 4: 检查完成度
 ─────────────────────────────
   /check-changes-completed
 
@@ -111,7 +119,7 @@ Step 3: 检查完成度
   → 自动补标记已交付但未勾选的任务
   → 输出"可归档"和"未完成"清单
 
-Step 4: 归档已完成的 change
+Step 5: 归档已完成的 change
 ─────────────────────────────
   /opsx:archive <change-name>
 
@@ -129,7 +137,16 @@ Step 0: 创建 proposal
 
   → 生成 proposal.md / design.md / tasks.md 等 artifacts
 
-Step 1: 在 worktree 中实施
+Step 1: 实施前只读审查
+─────────────────────────────
+  /openspec-review-change add-user-auth                    # Claude Code
+  $openspec-review-change add-user-auth                    # Codex
+  /openspec-review-change add-user-auth --openspec-root twin-rag
+
+  → 严格校验 OpenSpec artifacts 并执行语义、事实和任务就绪度审查
+  → 首版完整支持 spec-driven；非支持 Schema 失败关闭
+
+Step 2: 在 worktree 中实施
 ─────────────────────────────
   /new-worktree-apply add-user-auth
   /new-worktree-apply add-user-auth --openspec-root twin-rag
@@ -139,20 +156,20 @@ Step 1: 在 worktree 中实施
   → 验证 commit 中完整仓库相对 artifacts 与确认内容完全一致
   → 从该 hash 创建 `worktree-add-user-auth` → 执行实施 → 补标记 → 提交
 
-Step 2: 合并回目标分支
+Step 3: 合并回目标分支
 ─────────────────────────────
   /merge-worktree-return add-user-auth
 
   → rebase 后冻结 `POST_REBASE_SOURCE_HEAD` → 目标只合并该 hash
   → 仅在完整 `CLEANUP_READY` 为 true 时普通清理；否则保留 worktree 和 branch
 
-Step 3: 检查完成度
+Step 4: 检查完成度
 ─────────────────────────────
   /check-changes-completed
 
   → 五维检查 + 自动补标记 + 合规检查
 
-Step 4: 归档
+Step 5: 归档
 ─────────────────────────────
   /opsx:archive add-user-auth
 ```
@@ -166,6 +183,7 @@ Step 4: 归档
 | Skill 名称 | 调用方式 | 用途 | 参数 |
 |------------|---------|------|------|
 | **parall-new-proposal** | `/parall-new-proposal` | 并行提案拆分 | 需求描述文本 |
+| **openspec-review-change** | Claude Code: `/openspec-review-change`<br>Codex: `$openspec-review-change` | 实施前只读提案审查 | `[change-name] [--openspec-root <repo-relative-path>]` |
 | **parall-new-worktree-apply** | `/parall-new-worktree-apply` | 并行实施多个 changes | `[--target <target-branch>]` |
 | **new-worktree-apply** | `/new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> [--target <target-branch>] [--openspec-root <repo-relative-directory>]` |
 | **merge-worktree-return** | `/merge-worktree-return` | worktree 合并回目标分支 | `[proposal-name] [--target <target-branch>]` |
@@ -198,6 +216,11 @@ Step 4: 归档
  │  proposals 已创建         │
  │  dependencies.yaml 已注入 │
  └──────────┬───────────────┘
+            │
+            ▼
+ /openspec-review-change <change>
+ (只读门禁：BLOCKED / NEEDS_REVISION /
+  READY_WITH_WARNINGS / READY)
             │
       ┌─────┴─────┐
       │ changes 数量│
@@ -251,7 +274,24 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - 循环依赖会直接报错，需调整拆分方案
 - **必须用户确认**后才会创建提案
 
-### 2. parall-new-worktree-apply
+### 2. openspec-review-change
+
+**做什么**: 在 change 进入 apply 前，只读审查 OpenSpec 提案质量与实施就绪度。
+
+**核心机制**:
+- 读取当前 `spec-driven` Schema 的 `status`、artifact `instructions` 和安全展开后的实际文件
+- 运行 `openspec validate --strict`，并继续检查目标范围、项目事实、设计、Spec 可测试性、跨 artifact 一致性、追踪链和任务颗粒度
+- 输出 `BLOCKED`、`NEEDS_REVISION`、`READY_WITH_WARNINGS` 或 `READY`，每个 finding 包含证据、实施影响和修改建议
+- 支持仓库根或显式 `--openspec-root <repo-relative-path>` 嵌套项目
+- Codex 使用 `$openspec-review-change`，Claude Code 使用 `/openspec-review-change`；两端复用同一份 `SKILL.md`
+
+**注意事项**:
+- 默认严格只读；即使同一请求要求“review 并修复”，也先返回稳定证据快照并要求独立修订流程
+- 首版只完整支持 `spec-driven`，其他 Schema 返回 `BLOCKED`
+- 部分实施或 tasks 全部完成的 active change 仍可审查，但会声明当前工作树不是实施前基线
+- 不替代 `verify-impl-consistency` 的实现一致性诊断，也不替代归档完成度检查
+
+### 3. parall-new-worktree-apply
 
 **做什么**: 自动发现所有待执行 changes，按依赖图分 Wave 并行实施。
 
@@ -280,7 +320,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - merge 后验证失败不会自动 reset/revert，也不会换参数重试 merge
 - 普通 cleanup 因 Windows 路径锁、进程占用或平台锁失败时保留现场并在报告中列出精确恢复对象
 
-### 3. new-worktree-apply
+### 4. new-worktree-apply
 
 **做什么**: 为单个 proposal 创建 git worktree 并在其中实施。
 
@@ -305,7 +345,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - 即使目标 ref 在最后检查后推进，实际创建仍使用冻结 `TARGET_HEAD`，不会从未经确认的新 tip 创建
 - 创建后验证注册 path、current branch、branch ref 与 worktree HEAD；任一不一致停止 apply 并保留现场
 
-### 4. merge-worktree-return
+### 5. merge-worktree-return
 
 **做什么**: 将 worktree 的改动 rebase + merge 回目标分支，然后退出 worktree。
 
@@ -328,7 +368,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - 任一 post-merge 或 cleanup gate 失败时**不移除**来源 worktree/branch，也不自动重试 merge
 - 普通 worktree removal 或安全 branch deletion 失败时保留现场；不升级为强制 ref 删除，也不删除远端分支
 
-### 5. check-changes-completed
+### 6. check-changes-completed
 
 **做什么**: 五维完成度检查 + 智能补标记 + 项目合规检查。
 
@@ -360,7 +400,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - 检测循环依赖，防止无限递归
 - 输出结果包含 "可归档" 和 "未完成" 的分类建议
 
-### 6. verify-impl-consistency
+### 7. verify-impl-consistency
 
 **做什么**: 三维语义一致性诊断 — 深度验证文档/API Schema/集成测试与代码实现的一致性。
 
@@ -395,6 +435,10 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 ```
 my_dev_skills/
 ├── parall-new-proposal/SKILL.md
+├── openspec-review-change/
+│   ├── SKILL.md
+│   ├── agents/openai.yaml
+│   └── references/
 ├── parall-new-worktree-apply/SKILL.md
 ├── new-worktree-apply/SKILL.md
 ├── merge-worktree-return/SKILL.md
@@ -406,7 +450,7 @@ my_dev_skills/
 
 ## 权限模型
 
-所有 skill 的 `allowed-tools` 都遵循 `.claude/settings.local.json` 中定义的标准权限列表。`setup-skills-env.py` 负责生成和维护该列表。
+所有 skill 的 `allowed-tools` 都与 `setup-skills-env.py` 的标准权限列表交叉校验。安装器把该列表合并到 `~/.claude/settings.json`；Codex 侧仅安装 skill 链接，不写入 Codex 配置。
 
 关键权限包括：
 - `Bash(openspec *)` — OpenSpec CLI 操作

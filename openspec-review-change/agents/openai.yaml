@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review OpenSpec Change"
+  short_description: "Review OpenSpec proposal readiness before implementation"
+  default_prompt: "Use $openspec-review-change to audit an active OpenSpec proposal before implementation."
