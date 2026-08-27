@@ -103,12 +103,22 @@ git status --porcelain --untracked-files=all
 openspec status --change "<PROPOSAL>" --json
 ```
 
-来源 pending changes 可以在确认后提交；摘要必须列出全部文件。若 proposal tasks 未全部完成，摘要明确说明：用户可以授权 merge，但 post-merge completion gate 将保持 false，来源不会被清理。
+来源 pending changes 可以在确认后提交；摘要必须列出全部文件。读取 `tasks.md` 后只按标准 checkbox 行分类：
+
+```text
+TOTAL=<所有 - [ ] / - [x] 行数>
+DEFERRED_REMAINING=<未勾选且同一行含精确标签 [post-merge-verification] 的任务>
+BLOCKING_REMAINING=<其余未勾选任务>
+```
+
+`tasks.md` 缺失、不可读、`TOTAL == 0` 或任一未勾选行无法确定分类时，设置 `TASK_CLEANUP_POLICY_PASSED=unknown`。只要 `BLOCKING_REMAINING` 非空就设置 false；没有普通未完成任务时设置 true，即使 `DEFERRED_REMAINING` 非空。不得依据近似标签、任务语义或模型推断延期状态。
+
+精确标签 `[post-merge-verification]` 表示任务由用户后续在 target worktree 执行。Skill 必须保留这些 checkbox，且不得执行、勾选、stage 或 commit 对应任务。它们不会阻止来源清理，但 proposal 仍是 `incomplete / non-archivable`，直到用户自行完成并更新任务。
 
 在确认前确定 `PROJECT_VERIFY_COMMANDS`：
 
 - 读取适用的 AGENTS.md/CLAUDE.md 和项目清单，收集明确要求的测试、lint、build 或一致性命令。
-- 始终包含 OpenSpec strict validation、任务完成度、artifact 状态和 `git diff --check`。
+- 始终包含 OpenSpec strict validation、上述任务清理分类、artifact 状态和 `git diff --check`。不得把 `DEFERRED_REMAINING` 中描述的测试加入由 Skill 执行的命令。
 - 没有项目专用命令时记录 `N/A: no project-specific verification command discovered`，不得虚构命令。
 - 将每条命令原样显示在确认摘要；merge 后每条最多执行一次，不因失败换参数重试。
 
@@ -124,7 +134,8 @@ openspec status --change "<PROPOSAL>" --json
 - source/target 分支和路径不同。
 - planned writes：来源 commit、在来源 rebase 到确认的 `TARGET_HEAD`、冻结 post-rebase hash、在目标 merge 该 hash、post-merge 验证、条件式普通 cleanup。
 - 全部 `PROJECT_VERIFY_COMMANDS`。
-- incomplete task 风险与“merge 后验证失败时不回滚且不清理”的行为。
+- `TASK_CLEANUP_POLICY_PASSED`、完整 `BLOCKING_REMAINING` 与 `DEFERRED_REMAINING`；若只有延期任务，明确显示“将 merge + cleanup，但 proposal 保持 incomplete / non-archivable，由用户后续在 target worktree 执行”。
+- 普通 incomplete task 风险与“merge 后验证失败时不回滚且不清理”的行为。
 
 请求无默认值、无定时批准的明确确认。拒绝、取消、缺失或模糊回答保持 Git 不变；无交互工具时输出问题并结束响应。
 
@@ -218,7 +229,7 @@ merge 成功后禁止自动 reset/revert，即使后续验证失败。
 6. `git rev-list refs/heads/<TARGET_BRANCH>..refs/heads/<SOURCE_BRANCH>` 严格为空。
 7. delivery commit 集合仍非空。
 8. `openspec validate <PROPOSAL> --type change --strict` 成功，artifacts 完成。
-9. `tasks.md` 中 `DONE == TOTAL`；若不完整则 merge 保留但 cleanup 被阻止。
+9. 从 target 中的 `tasks.md` 重新执行 Step 4 的精确分类，要求结果与确认摘要一致且 `TASK_CLEANUP_POLICY_PASSED=true`。普通未完成任务、unknown 或分类漂移阻止 cleanup；只有精确标签 `[post-merge-verification]` 的未完成任务不阻止 cleanup，也不得由 Skill 执行或修改。
 10. `git diff <PRE_MERGE_TARGET_HEAD>..<POST_MERGE_TARGET_HEAD> --check` 成功。
 11. 逐条执行确认摘要中的项目验证命令，全部成功。
 
@@ -239,6 +250,7 @@ CLEANUP_READY =
   AND TARGET_REF_EQUALS_TARGET_WORKTREE_HEAD
   AND TARGET_CONTAINS_POST_REBASE_SOURCE_HEAD
   AND NO_SOURCE_ONLY_COMMITS
+  AND TASK_CLEANUP_POLICY_PASSED
   AND POST_MERGE_VERIFICATION_PASSED
 ```
 
@@ -246,7 +258,7 @@ CLEANUP_READY =
 
 ## Step 12：普通清理，失败即保留
 
-仍在目标真实 CWD，立即重复 source mapping/ref/HEAD/clean、target ref/HEAD、精确 containment、无 source-only commits 和 post-merge 结果。全部仍为 true 后执行：
+仍在目标真实 CWD，立即重复 source mapping/ref/HEAD/clean、target ref/HEAD、精确 containment、无 source-only commits、任务清理分类和 post-merge 结果。全部仍为 true 后执行：
 
 ```bash
 git worktree remove <SOURCE_WORKTREE_DIR>
@@ -272,6 +284,9 @@ Source: <SOURCE_BRANCH> at <POST_REBASE_SOURCE_HEAD>
 Target: <TARGET_BRANCH> at <POST_MERGE_TARGET_HEAD>
 Merge count: 1
 Post-merge verification: passed
+Task cleanup policy: passed
+Deferred post-merge tasks: <none | exact unchecked task lines>
+Proposal status: <complete | incomplete / non-archivable; user-owned verification remains in target worktree>
 CLEANUP_READY: true (all gates listed)
 Source worktree: removed by ordinary git worktree remove
 Source branch: removed by safe git branch -d
@@ -284,5 +299,6 @@ Source branch: removed by safe git branch -d
 - rebase 使用确认的 target hash，merge 使用冻结的 post-rebase source hash。
 - merge 最多执行一次；失败或未验证时不换参数重试。
 - merge 成功后不自动 reset/revert。
+- 普通未完成任务阻止 cleanup；只有精确标记 `[post-merge-verification]` 的延期任务可在报告后由用户自行处理，Skill 不执行或修改它们。
 - cleanup 的任何失败或 unknown 都保留所有仍存在的来源对象。
 - 只允许普通 worktree removal 和安全 local branch deletion；不删除远程 ref。

@@ -208,7 +208,7 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 - **THEN** the workflow stops before apply and does not hide the mismatch by merging, switching, deleting, or recreating with another name
 
 ### Requirement: Worktree return merges only to the confirmed target
-`merge-worktree-return` SHALL validate canonical source identity, require source and target branches and worktree paths to be distinct, commit authorized source changes, rebase inside the source worktree onto the confirmed target snapshot, freeze and revalidate `POST_REBASE_SOURCE_HEAD`, enter and verify the confirmed clean target worktree, and merge exactly the frozen commit. It SHALL preserve the source until the complete `CLEANUP_READY` gate passes. An optional proposal argument MUST equal the proposal derived from exactly one `worktree-` prefix removal.
+`merge-worktree-return` SHALL validate canonical source identity, require source and target branches and worktree paths to be distinct, commit authorized source changes, rebase inside the source worktree onto the confirmed target snapshot, freeze and revalidate `POST_REBASE_SOURCE_HEAD`, enter and verify the confirmed clean target worktree, and merge exactly the frozen commit. It SHALL preserve the source until the complete `CLEANUP_READY` gate passes. For this single-return workflow, ordinary unchecked tasks MUST block cleanup, while unchecked task lines containing the exact `[post-merge-verification]` tag SHALL be reported as user-owned deferred work and MUST NOT block cleanup when every other gate passes. The Skill MUST NOT execute, mark, stage, or commit those deferred tasks. An optional proposal argument MUST equal the proposal derived from exactly one `worktree-` prefix removal.
 
 #### Scenario: Source and target resolve to the same identity
 - **WHEN** the selected target branch equals the canonical source branch or `TARGET_WORKTREE_DIR` equals `SOURCE_WORKTREE_DIR`
@@ -222,9 +222,17 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 - **WHEN** the return workflow finds uncommitted or unreadable state in the target worktree
 - **THEN** it stops without merging into, staging, committing, stashing, resetting, or switching that worktree
 
-#### Scenario: Proposal tasks are incomplete
-- **WHEN** the proposal check finds incomplete tasks
-- **THEN** the preflight lists them and return MUST NOT declare post-merge verification passed until the applicable completion policy is explicitly satisfied
+#### Scenario: Ordinary proposal tasks are incomplete
+- **WHEN** at least one unchecked task line lacks the exact `[post-merge-verification]` tag
+- **THEN** the preflight lists it, `TASK_CLEANUP_POLICY_PASSED=false`, and the source worktree and branch are preserved after any completed merge
+
+#### Scenario: Only deferred post-merge tasks remain
+- **WHEN** every unchecked task line contains the exact `[post-merge-verification]` tag and every structural merge and cleanup gate passes
+- **THEN** `merge-worktree-return` lists those tasks, leaves them unchecked for the user, reports the change as incomplete and non-archivable, and may ordinarily remove the source worktree and safely delete its branch
+
+#### Scenario: Deferred task state is unknown
+- **WHEN** `tasks.md` is missing, unreadable, has zero recognized checkbox tasks, or any unchecked task cannot be classified deterministically
+- **THEN** task cleanup policy is unknown and cleanup is blocked
 
 #### Scenario: Merge verification fails
 - **WHEN** target does not contain `POST_REBASE_SOURCE_HEAD`, target ref/HEAD disagree, source has additional target-external commits, or another required check fails

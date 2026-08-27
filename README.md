@@ -364,13 +364,15 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - 只读预检后展示计划（含未完成任务、目标脏状态等风险）并**等待用户明确确认**，确认后复检快照才执行写操作
 - 在来源 worktree rebase 到确认 target hash，随后冻结 `POST_REBASE_SOURCE_HEAD`；进入目标前重新验证 source/target 注册、branch、HEAD/ref 和 clean 状态
 - 目标只执行一次 `git merge <POST_REBASE_SOURCE_HEAD>`，并记录 post-merge target hash
+- 将未勾选任务分为普通任务与同一行带精确 `[post-merge-verification]` 标签的延期任务；普通任务阻止 cleanup，只有延期任务时允许在其他安全门通过后清理
+- 延期任务由用户后续在 target worktree 执行；Skill 不执行、不勾选、不 stage、不 commit，并报告 proposal 仍为 incomplete / non-archivable
 - 显式计算 `CLEANUP_READY`：目标真实 CWD、来源规范映射与 clean、delivery commits、source HEAD/ref 冻结、merge 成功、target ref/HEAD 一致、精确 containment、无 source-only commits和全部 post-merge 验证必须同时为 true
 - 只有 `CLEANUP_READY=true` 才执行普通 `git worktree remove` 和安全 `git branch -d`
 
 **注意事项**:
 - 必须在 worktree 内运行，否则报错
 - 目标工作树必须干净；来源 detached HEAD 或来源==目标时报错停止
-- 未完成任务、目标脏状态等风险并入**单次预检确认**（不再单独询问）
+- 普通未完成任务、延期任务清单、目标脏状态等风险并入**单次预检确认**（不再单独询问）
 - 所有 Git 写操作只在显式确认之后执行
 - 未完成的 Rebase 无法解决时可 abort；成功 merge 后验证失败不自动 reset/revert
 - 任一 post-merge 或 cleanup gate 失败时**不移除**来源 worktree/branch，也不自动重试 merge
