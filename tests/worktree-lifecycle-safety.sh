@@ -159,6 +159,8 @@ PARALLEL_SKILL="$PROJECT_ROOT/parall-new-worktree-apply/SKILL.md"
 PROPOSAL_SKILL="$PROJECT_ROOT/parall-new-proposal/SKILL.md"
 COMPLETION_SKILL="$PROJECT_ROOT/check-changes-completed/SKILL.md"
 README_FILE="$PROJECT_ROOT/README.md"
+WORKTREE_SPEC="$PROJECT_ROOT/openspec/specs/worktree-targeting/spec.md"
+RETURN_DELTA="$PROJECT_ROOT/openspec/changes/allow-deferred-post-merge-cleanup/specs/worktree-targeting/spec.md"
 
 require_text "$NEW_SKILL" 'SOURCE_BRANCH=worktree-<proposal-name>' 'single-create declares canonical source branch'
 require_text "$NEW_SKILL" 'SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>' 'single-create declares canonical source path'
@@ -203,7 +205,7 @@ forbid_text "$NEW_SKILL" 'assigned_team_id' 'single-create removes Team authoriz
 forbid_text "$NEW_SKILL" 'issuer' 'single-create removes issuer authorization fields'
 forbid_text "$NEW_SKILL" '默认交互模式' 'single-create removes interactive mode switching'
 forbid_text "$NEW_SKILL" '自治模式' 'single-create removes autonomous mode switching'
-require_text "$RETURN_SKILL" 'AskUserQuestion' 'return flow retains mandatory confirmation capability'
+require_text "$RETURN_SKILL" 'AskUserQuestion' 'return flow retains interactive compatibility confirmation capability'
 require_text "$PARALLEL_SKILL" '使用交互工具请求无默认值' 'parallel flow retains mandatory confirmation'
 require_occurrences "$PROPOSAL_SKILL" 'WRITE_AUTHORIZATION_GATE=open' 1 'proposal creation has exactly one material-write authorization gate'
 require_occurrences "$PARALLEL_SKILL" 'WRITE_AUTHORIZATION_GATE=open' 1 'parallel apply has exactly one material-write authorization gate'
@@ -219,6 +221,23 @@ require_text "$RETURN_SKILL" '精确标签 `[post-merge-verification]`' 'return 
 require_text "$RETURN_SKILL" '由用户后续在 target worktree 执行' 'return assigns deferred verification to the user'
 require_text "$RETURN_SKILL" 'incomplete / non-archivable' 'return reports deferred proposals as incomplete and non-archivable'
 require_text "$RETURN_SKILL" '不得执行、勾选、stage 或 commit' 'return does not mutate user-owned deferred tasks'
+require_text "$RETURN_SKILL" 'LIMITED_RETURN_AUTHORIZED' 'return records clear bounded execution intent independently of caller identity'
+require_text "$RETURN_SKILL" 'TARGET_SOURCE == explicit' 'return deterministic path requires an explicit target'
+require_text "$RETURN_SKILL" 'SOURCE_CLEAN' 'return distinguishes clean deterministic sources from confirmed pending plans'
+require_text "$RETURN_SKILL" 'DETERMINISTIC_RETURN_READY' 'return computes the no-second-confirmation path from observable facts'
+require_text "$RETURN_SKILL" 'AUTHORIZATION_PATH=deterministic' 'return reports the deterministic authorization path'
+require_text "$RETURN_SKILL" 'AUTHORIZATION_PATH=interactive' 'return preserves and reports the interactive compatibility path'
+require_text "$RETURN_SKILL" '不请求第二次确认' 'explicit-target clean-source return does not repeat confirmation'
+require_text "$RETURN_SKILL" 'fresh invocation' 'deterministic return drift requires a fresh invocation'
+require_text "$RETURN_SKILL" '不得自动转入 interactive path' 'deterministic drift or conflict cannot silently widen authorization'
+require_text "$RETURN_SKILL" 'status、review、discussion' 'read-only requests do not authorize return writes'
+require_text "$RETURN_SKILL" '全部 pending 文件' 'dirty-source interactive plan displays the complete pending set'
+require_text "$RETURN_SKILL" 'TARGET_SOURCE=inferred' 'inferred target remains behind interactive confirmation'
+forbid_text "$RETURN_SKILL" 'issue-authorization/v1' 'return does not introduce Issue authorization envelopes'
+forbid_text "$RETURN_SKILL" 'authorization_id' 'return does not introduce task-platform authorization ids'
+forbid_text "$RETURN_SKILL" '--authorized' 'return does not introduce generic approval flags'
+forbid_text "$RETURN_SKILL" '--yes' 'return does not introduce generic yes flags'
+forbid_text "$RETURN_SKILL" 'CALLER_RUNTIME' 'return authorization does not depend on caller runtime'
 forbid_text "$RETURN_SKILL" '`DONE == TOTAL`；若不完整则 merge 保留但 cleanup 被阻止' 'return no longer blocks cleanup solely because deferred tasks remain'
 require_text "$RETURN_SKILL" 'SOURCE_BRANCH=worktree-<proposal-name>' 'return validates canonical source identity'
 forbid_text "$RETURN_SKILL" 'git -C <PRIMARY_WORKTREE_DIR> checkout <TARGET_BRANCH>' 'return never switches the primary worktree'
@@ -242,6 +261,13 @@ forbid_text "$PARALLEL_SKILL" 'git checkout <TARGET_BRANCH>' 'parallel merge nev
 require_text "$README_FILE" 'worktree-<proposal>' 'README documents canonical branch naming'
 require_text "$README_FILE" 'CLEANUP_READY' 'README documents cleanup readiness'
 require_text "$README_FILE" 'POST_REBASE_SOURCE_HEAD' 'README documents frozen source merge'
+require_text "$README_FILE" '显式 `--target` + clean source' 'README documents deterministic return without a second confirmation'
+require_text "$README_FILE" 'inferred target 或 dirty source' 'README documents the interactive return compatibility path'
+require_text "$WORKTREE_SPEC" 'A clear return request with an explicit target, a strictly clean canonical source, and a complete stable preflight SHALL proceed' 'canonical spec requires deterministic return behavior'
+require_text "$WORKTREE_SPEC" '`parall-new-worktree-apply` MUST retain one explicit affirmative response' 'canonical spec preserves the parallel confirmation boundary'
+forbid_text "$WORKTREE_SPEC" '`merge-worktree-return` and `parall-new-worktree-apply` MUST obtain one explicit affirmative response' 'canonical spec no longer applies unconditional confirmation to deterministic returns'
+require_text "$RETURN_DELTA" '### Requirement: Preflight authorization and integration confirmation' 'delta updates the shared authorization requirement for archive consistency'
+require_text "$RETURN_DELTA" '### Requirement: Pre-write snapshot revalidation' 'delta updates shared revalidation semantics for both return paths'
 
 require_text "$NEW_SKILL" '目标分支必须已经由一个注册 worktree' 'single-create requires an already-held target branch'
 require_text "$NEW_SKILL" 'status --porcelain --untracked-files=all' 'single-create rejects every dirty target state'

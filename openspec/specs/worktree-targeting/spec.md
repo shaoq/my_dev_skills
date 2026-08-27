@@ -131,22 +131,30 @@ Each worktree skill SHALL derive repository root, primary worktree, invocation w
 - **THEN** `new-worktree-apply` creates no branch or worktree, invokes no apply action, and preserves the target state
 
 ### Requirement: Preflight authorization and integration confirmation
-Each worktree skill SHALL finish its read-only preflight and display the command scope, target branch and source, relevant worktree paths, pending file changes, planned writes, and risk warnings. `merge-worktree-return` and `parall-new-worktree-apply` MUST obtain one explicit affirmative response with no default or timed approval before any Git write or OpenSpec apply action, regardless of whether routing was explicit, model-selected, Team/subagent-driven, or nested. `new-worktree-apply` MUST NOT request a second confirmation after a concrete user implementation request; it proceeds only after stable final pre-write revalidation. In `--dry-run` mode it MUST stop after reporting the snapshot.
+Each worktree skill SHALL finish its read-only preflight and display the command scope, target branch and source, relevant worktree paths, pending file changes, planned writes, and risk warnings. `parall-new-worktree-apply` MUST retain one explicit affirmative response with no default or timed approval before any Git write or OpenSpec apply action. `merge-worktree-return` SHALL proceed after stable independent revalidation without a second confirmation when a clear return request supplies an explicit target and the canonical source is strictly clean; an inferred target or pending source changes MUST instead receive one explicit affirmative response for the complete interactive plan. Discussion, review, status, or feasibility requests MUST NOT authorize return writes. `new-worktree-apply` MUST NOT request a second confirmation after a concrete user implementation request; it proceeds only after stable final pre-write revalidation. In `--dry-run` mode it MUST stop after reporting the snapshot.
 
-#### Scenario: Integration user confirms
-- **WHEN** the complete merge or parallel preflight summary is displayed and the user explicitly continues
-- **THEN** the integration skill proceeds to snapshot revalidation
+#### Scenario: Deterministic return preflight is stable
+- **WHEN** a clear return request uses an explicit target, the canonical source is strictly clean, and independent final revalidation matches every material preflight fact
+- **THEN** `merge-worktree-return` begins the bounded return writes without asking a second confirmation
 
-#### Scenario: Integration user rejects or cancels
-- **WHEN** the user declines or cancels the displayed merge or parallel plan
+#### Scenario: Interactive return user confirms
+- **WHEN** the complete return plan shows an inferred target or exact pending-source commit plan and the user explicitly continues
+- **THEN** `merge-worktree-return` proceeds to independent snapshot revalidation
+
+#### Scenario: Parallel integration user confirms
+- **WHEN** the complete parallel preflight summary is displayed and the user explicitly continues
+- **THEN** `parall-new-worktree-apply` proceeds to snapshot revalidation
+
+#### Scenario: Interactive integration user rejects or cancels
+- **WHEN** the user declines or cancels a displayed interactive return or parallel plan
 - **THEN** the integration skill stops with no Git state changes and without invoking apply
 
-#### Scenario: Integration response is missing or ambiguous
-- **WHEN** merge or parallel integration cannot collect a clear affirmative response
+#### Scenario: Interactive integration response is missing or ambiguous
+- **WHEN** an interactive return or parallel integration cannot collect a clear affirmative response
 - **THEN** it pauses for explicit user input and performs no Git write
 
-#### Scenario: No interaction tool is available for integration
-- **WHEN** no platform interaction tool is available to merge or parallel apply
+#### Scenario: No interaction tool is available for interactive integration
+- **WHEN** no platform interaction tool is available for an interactive return or parallel apply
 - **THEN** the integration skill asks in its response, ends the current execution, and waits for the next user message
 
 #### Scenario: New worktree preflight is stable
@@ -162,7 +170,7 @@ Each worktree skill SHALL finish its read-only preflight and display the command
 - **THEN** the skill reports the snapshot and exits before final write authorization or any repository mutation
 
 ### Requirement: Pre-write snapshot revalidation
-Before the first write, each worktree skill SHALL revalidate the parsed arguments, selected target ref and HEAD, worktree mapping, cleanliness or pending-change state, required checkout, source-parent physical containment, artifact manifest, planned writes, and displayed warnings. Merge and parallel skills SHALL compare those facts with their interactively confirmed snapshot. `new-worktree-apply` SHALL create its immutable `PREFLIGHT_SNAPSHOT` exactly once, collect final read-only facts in a separate immutable `REVALIDATION_SNAPSHOT`, and compare the snapshots field-by-field without rerunning the freeze operation or replacing the baseline. Any material change MUST invalidate the snapshot.
+Before the first write, each worktree skill SHALL revalidate the parsed arguments, selected target ref and HEAD, worktree mapping, cleanliness or pending-change state, required checkout, source-parent physical containment, artifact manifest, planned writes, and displayed warnings. Parallel apply and the interactive return path SHALL compare those facts with their interactively confirmed snapshot. The deterministic return path and `new-worktree-apply` SHALL create their immutable `PREFLIGHT_SNAPSHOT` exactly once, collect final read-only facts in a separate immutable `REVALIDATION_SNAPSHOT`, and compare the snapshots field-by-field without rerunning the freeze operation or replacing the baseline. Any material change MUST invalidate the applicable authorization.
 
 #### Scenario: New worktree snapshot remains stable
 - **WHEN** every field in the independent final revalidation snapshot matches the immutable preflight baseline
@@ -172,12 +180,20 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 - **WHEN** final revalidation finds changed arguments, target ref, HEAD, worktree path, status, source parent, manifest, planned writes, or warnings
 - **THEN** it performs no write and requires a fresh preflight invocation rather than refreshing the snapshot or asking for confirmation
 
+#### Scenario: Deterministic return snapshot remains stable
+- **WHEN** every return argument, identity, ref, HEAD, clean state, task classification, verification command, and planned write matches the immutable deterministic preflight baseline
+- **THEN** `merge-worktree-return` may begin the bounded return writes without another confirmation
+
+#### Scenario: Deterministic return snapshot changes before writing
+- **WHEN** final revalidation differs from any material deterministic return preflight fact
+- **THEN** the workflow performs no write, requires a fresh invocation, and does not replace the baseline or enter the interactive path
+
 #### Scenario: Confirmed integration snapshot remains stable
-- **WHEN** merge or parallel revalidation matches every material fact in the confirmed summary
+- **WHEN** an interactive return or parallel revalidation matches every material fact in the confirmed summary
 - **THEN** the integration skill may begin its planned write operations
 
 #### Scenario: Confirmed integration snapshot changes
-- **WHEN** merge or parallel revalidation differs from the interactively confirmed snapshot
+- **WHEN** an interactive return or parallel revalidation differs from the interactively confirmed snapshot
 - **THEN** the skill invalidates the confirmation and obtains a new confirmation before writing
 
 ### Requirement: New worktree starts from the explicit frozen target
@@ -208,14 +224,52 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 - **THEN** the workflow stops before apply and does not hide the mismatch by merging, switching, deleting, or recreating with another name
 
 ### Requirement: Worktree return merges only to the confirmed target
-`merge-worktree-return` SHALL validate canonical source identity, require source and target branches and worktree paths to be distinct, commit authorized source changes, rebase inside the source worktree onto the confirmed target snapshot, freeze and revalidate `POST_REBASE_SOURCE_HEAD`, enter and verify the confirmed clean target worktree, and merge exactly the frozen commit. It SHALL preserve the source until the complete `CLEANUP_READY` gate passes. For this single-return workflow, ordinary unchecked tasks MUST block cleanup, while unchecked task lines containing the exact `[post-merge-verification]` tag SHALL be reported as user-owned deferred work and MUST NOT block cleanup when every other gate passes. The Skill MUST NOT execute, mark, stage, or commit those deferred tasks. An optional proposal argument MUST equal the proposal derived from exactly one `worktree-` prefix removal.
+`merge-worktree-return` SHALL validate canonical source identity, require source and target branches and worktree paths to be distinct, rebase inside the source worktree onto the authorized target snapshot, freeze and revalidate `POST_REBASE_SOURCE_HEAD`, enter and verify the authorized clean target worktree, and merge exactly the frozen commit. An optional proposal argument MUST equal the proposal derived from exactly one `worktree-` prefix removal. An optional target MAY retain the documented fallback order, but an inferred target MUST be confirmed before writes.
+
+The workflow SHALL choose its single-return authorization path from observable facts rather than caller runtime. A clear return request with an explicit target, a strictly clean canonical source, and a complete stable preflight SHALL proceed after an independent final read-only revalidation without a second confirmation. A clear return request with an inferred target or pending source changes MUST display one complete interactive plan and receive affirmative confirmation before it commits, rebases, merges, or cleans. Discussion, review, or status requests MUST NOT authorize either path. The workflow MUST NOT require runtime/task-platform identities or generic approval flags.
+
+The interactive path MAY commit the exact pending source plan presented to and confirmed by the user. The deterministic path MUST NOT auto-commit pending changes; source dirtiness selects the interactive path. Any pre-write drift invalidates the applicable authorization. A rebase or merge conflict in the deterministic path MUST stop without an unconfirmed resolution and preserve the canonical source for a fresh decision.
+
+The workflow SHALL preserve the source until the complete `CLEANUP_READY` gate passes. Ordinary unchecked tasks MUST block cleanup, while unchecked task lines containing the exact `[post-merge-verification]` tag SHALL be reported as user-owned deferred work and MUST NOT block cleanup when every other gate passes. The Skill MUST NOT execute, mark, stage, or commit those deferred tasks.
+
+#### Scenario: Explicit clean return uses the deterministic path
+- **WHEN** a direct user or Team/Skill handoff clearly requests return, the target is explicitly `develop`, the canonical source is clean, and every frozen preflight and final revalidation result is stable
+- **THEN** the workflow reports the complete audit plan and performs its bounded rebase, exact-hash merge, verification, and conditional cleanup without asking a second confirmation
+
+#### Scenario: Proposal is deterministically derived
+- **WHEN** the proposal argument is omitted, the current canonical branch is exactly `worktree-add-user-auth`, `--target develop` is explicit, and every deterministic-path predicate passes
+- **THEN** the workflow derives `add-user-auth`, validates its exact canonical mapping, and does not require confirmation solely because the redundant proposal argument was omitted
+
+#### Scenario: Target is inferred for a manual return
+- **WHEN** a user clearly invokes the return workflow without `--target` and the workflow resolves a target through the documented fallback order
+- **THEN** it reports the inferred target, `TARGET_SOURCE`, immutable target snapshot, and complete write plan and requires one affirmative confirmation before any write
+
+#### Scenario: Manual return includes pending source changes
+- **WHEN** the source contains pending changes and the user clearly requests return
+- **THEN** the deterministic path is unavailable and the workflow lists every pending file and proposed source commit in one interactive plan before any stage, commit, rebase, merge, or cleanup
+
+#### Scenario: Confirmed pending plan remains stable
+- **WHEN** the user affirms an interactive pending-source plan and final revalidation proves the target, source, pending-file set, task policy, and planned writes are unchanged
+- **THEN** the workflow may commit the confirmed pending source changes and continue the bounded return
+
+#### Scenario: Request does not authorize return
+- **WHEN** the request asks only for discussion, review, status, or feasibility and does not clearly ask to execute the return
+- **THEN** the workflow performs no commit, rebase, merge, or cleanup even if target and worktree state could otherwise be resolved
+
+#### Scenario: Deterministic path drifts before writes
+- **WHEN** any argument, source/target identity, ref, HEAD, cleanliness, task classification, verification command, or planned write differs between the deterministic preflight and final revalidation
+- **THEN** the workflow performs zero writes, reports that a fresh invocation is required, and does not refresh its baseline or request a confirmation to bypass the drift
+
+#### Scenario: Deterministic path encounters a conflict
+- **WHEN** a no-second-confirmation return encounters a rebase or merge conflict
+- **THEN** the workflow does not invent or commit a conflict resolution, safely aborts the incomplete operation when possible, preserves the canonical source, and stops for a fresh decision
 
 #### Scenario: Source and target resolve to the same identity
 - **WHEN** the selected target branch equals the canonical source branch or `TARGET_WORKTREE_DIR` equals `SOURCE_WORKTREE_DIR`
 - **THEN** return stops before confirmation and performs no Git write, merge, or cleanup
 
 #### Scenario: Return succeeds to a non-main target
-- **WHEN** the user confirms `develop`, rebase and exact-hash merge succeed, post-merge verification passes, and every cleanup condition remains true
+- **WHEN** `develop` is explicitly authorized by the deterministic path or affirmatively confirmed by the interactive path, rebase and exact-hash merge succeed, post-merge verification passes, and every cleanup condition remains true
 - **THEN** the canonical source is safely removed only after `develop` contains the exact `POST_REBASE_SOURCE_HEAD`
 
 #### Scenario: Target worktree is dirty

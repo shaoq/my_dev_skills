@@ -162,8 +162,11 @@ Step 2: 在 worktree 中实施
 
 Step 3: 合并回目标分支
 ─────────────────────────────
-  /merge-worktree-return add-user-auth
+  /merge-worktree-return add-user-auth --target develop  # 显式 target + clean source：不二次确认
+  /merge-worktree-return add-user-auth                   # inferred target：展示完整计划并确认
 
+  → 明确 return 请求 + 显式 `--target` + clean source 经独立最终复检后直接执行
+  → inferred target 或 dirty source 保留一次 interactive compatibility plan；dirty source 逐项展示待提交文件
   → rebase 后冻结 `POST_REBASE_SOURCE_HEAD` → 目标只合并该 hash
   → 仅在完整 `CLEANUP_READY` 为 true 时普通清理；否则保留 worktree 和 branch
 
@@ -364,8 +367,10 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择
 - 只接受规范来源映射：当前 branch 必须是 `worktree-<proposal>`，当前 path 必须是 `.claude/worktrees/<proposal>`；返回流程只精确移除一个 `worktree-` 前缀反解 proposal
 - 验证来源≠目标，目标已经由注册且 clean 的 worktree 持有；不会 checkout/switch 或自动提交其他 worktree
-- 只读预检后展示计划（含未完成任务、目标脏状态等风险）并**等待用户明确确认**，确认后复检快照才执行写操作
-- 在来源 worktree rebase 到确认 target hash，随后冻结 `POST_REBASE_SOURCE_HEAD`；进入目标前重新验证 source/target 注册、branch、HEAD/ref 和 clean 状态
+- 明确 return 请求使用显式 `--target` + clean source 时选择 deterministic path：展示完整计划，独立复检稳定后不请求第二次确认
+- inferred target 或 dirty source 时选择 interactive path：展示目标来源、全部 pending 文件、commit/merge/cleanup 计划并等待一次明确确认
+- 两个路径都使用不可覆盖的 `PREFLIGHT_SNAPSHOT` 与独立 `REVALIDATION_SNAPSHOT`；deterministic 漂移或冲突要求 fresh invocation，不能偷偷转为 interactive
+- 在来源 worktree rebase 到授权并冻结的 target hash，随后冻结 `POST_REBASE_SOURCE_HEAD`；进入目标前重新验证 source/target 注册、branch、HEAD/ref 和 clean 状态
 - 目标只执行一次 `git merge <POST_REBASE_SOURCE_HEAD>`，并记录 post-merge target hash
 - 将未勾选任务分为普通任务与同一行带精确 `[post-merge-verification]` 标签的延期任务；普通任务阻止 cleanup，只有延期任务时允许在其他安全门通过后清理
 - 延期任务由用户后续在 target worktree 执行；Skill 不执行、不勾选、不 stage、不 commit，并报告 proposal 仍为 incomplete / non-archivable
@@ -375,8 +380,8 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 **注意事项**:
 - 必须在 worktree 内运行，否则报错
 - 目标工作树必须干净；来源 detached HEAD 或来源==目标时报错停止
-- 普通未完成任务、延期任务清单、目标脏状态等风险并入**单次预检确认**（不再单独询问）
-- 所有 Git 写操作只在显式确认之后执行
+- 普通未完成任务、延期任务清单、目标脏状态等风险并入同一 audit plan，不为单项风险追加确认
+- deterministic path 仅授权 clean source；interactive path 才能在完整 pending-file plan 获确认后提交来源改动
 - 未完成的 Rebase 无法解决时可 abort；成功 merge 后验证失败不自动 reset/revert
 - 任一 post-merge 或 cleanup gate 失败时**不移除**来源 worktree/branch，也不自动重试 merge
 - 普通 worktree removal 或安全 branch deletion 失败时保留现场；不升级为强制 ref 删除，也不删除远端分支

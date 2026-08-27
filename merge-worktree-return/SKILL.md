@@ -1,15 +1,15 @@
 ---
 name: merge-worktree-return
-description: Commit and return one completed OpenSpec change from its canonical linked worktree to an explicit target branch after one confirmed return plan.
+description: Use when returning one OpenSpec change from its canonical linked worktree to a selected target branch.
 argument-hint: "[proposal-name] [--target <target-branch>]"
 allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(awk *) Bash(sed *) Bash(test *) Bash(pwd *) Read Write Edit Glob Grep AskUserQuestion
 ---
 
-将规范 proposal worktree 安全合并回已确认目标，并只在完整交付证据成立时清理来源。
+将规范 proposal worktree 安全合并回已授权目标，并只在完整交付证据成立时清理来源。
 
 ## 核心不变量
 
-- Step 1–6 在明确确认前只读；不得 commit、rebase、merge、remove 或调用其他写流程。
+- Step 0–6 只读；在适用授权路径完成且最终复检稳定前，不得 commit、rebase、merge、remove 或调用其他写流程。
 - 来源身份必须精确满足：
   ```text
   SOURCE_BRANCH=worktree-<proposal-name>
@@ -23,6 +23,16 @@ allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(awk *) Bash(sed *)
   ```
 - `CLEANUP_READY` 的每个条件都必须由刚刚成功的显式检查产生；false、unknown、解析失败或命令错误一律保留来源。
 - merge 成功后任何验证失败都不自动 reset/revert，也不自动重试 merge。
+
+## Step 0：确认当前请求确实要求执行 return（只读）
+
+只从当前请求的明确意图设置 `LIMITED_RETURN_AUTHORIZED`：
+
+- 用户直接调用本 Skill、明确说要执行合并返回，或提供精确的 Team/subagent/其他 Skill return handoff 时为 true。
+- 只要求 `status、review、discussion`、可行性分析或其他只读工作时为 false；立即保持只读并停止，不通过追问把它升级成 return。
+- 调用方身份、模型、Runtime、任务平台或工具权限都不是授权证据。授权只覆盖本 Skill 展示并复检稳定的 commit/rebase/exact-hash merge/verification/conditional cleanup 计划。
+
+请求意图不清楚时保持 false 并结束当前执行。不得由 Skill 自行补出 return 意图。
 
 ## Step 1：解析参数和来源环境（只读）
 
@@ -79,7 +89,15 @@ EXPECTED_SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>
 
 ## Step 3：选择并验证目标（只读）
 
-按以下顺序选择 `TARGET_BRANCH`，记录 `TARGET_SOURCE`：显式 `--target`、主工作树当前有效本地分支、`origin/HEAD` 本地同名分支、`main/master/trunk` 首个本地分支。显式目标无效时不回退。
+按以下顺序选择 `TARGET_BRANCH`：显式 `--target`、主工作树当前有效本地分支、`origin/HEAD` 本地同名分支、`main/master/trunk` 首个本地分支。显式目标无效时不回退。记录：
+
+```text
+TARGET_SOURCE=explicit
+# 或
+TARGET_SOURCE=inferred:<primary-worktree|origin-head|fallback-name>
+```
+
+`TARGET_SOURCE=inferred` 表示 target 仍需进入 interactive path；proposal 参数是否省略不影响这个分类。
 
 从 worktree 注册表查找持有目标分支的唯一 `TARGET_WORKTREE_DIR`。要求：
 
@@ -103,7 +121,7 @@ git status --porcelain --untracked-files=all
 openspec status --change "<PROPOSAL>" --json
 ```
 
-来源 pending changes 可以在确认后提交；摘要必须列出全部文件。读取 `tasks.md` 后只按标准 checkbox 行分类：
+读取 source status，命令成功且输出严格为空时记录 `SOURCE_CLEAN=true`；命令失败则预检失败；其余情况记录 `SOURCE_CLEAN=false`，并冻结、逐项显示全部 pending 文件。pending changes 只能在 interactive plan 明确确认并稳定复检后提交。读取 `tasks.md` 后只按标准 checkbox 行分类：
 
 ```text
 TOTAL=<所有 - [ ] / - [x] 行数>
@@ -115,41 +133,61 @@ BLOCKING_REMAINING=<其余未勾选任务>
 
 精确标签 `[post-merge-verification]` 表示任务由用户后续在 target worktree 执行。Skill 必须保留这些 checkbox，且不得执行、勾选、stage 或 commit 对应任务。它们不会阻止来源清理，但 proposal 仍是 `incomplete / non-archivable`，直到用户自行完成并更新任务。
 
-在确认前确定 `PROJECT_VERIFY_COMMANDS`：
+在冻结 audit plan 前确定 `PROJECT_VERIFY_COMMANDS`：
 
 - 读取适用的 AGENTS.md/CLAUDE.md 和项目清单，收集明确要求的测试、lint、build 或一致性命令。
 - 始终包含 OpenSpec strict validation、上述任务清理分类、artifact 状态和 `git diff --check`。不得把 `DEFERRED_REMAINING` 中描述的测试加入由 Skill 执行的命令。
 - 没有项目专用命令时记录 `N/A: no project-specific verification command discovered`，不得虚构命令。
-- 将每条命令原样显示在确认摘要；merge 后每条最多执行一次，不因失败换参数重试。
+- 将每条命令原样显示在 audit plan；merge 后每条最多执行一次，不因失败换参数重试。
 
-## Step 5：预检摘要与明确确认（只读）
+## Step 5：冻结计划并选择授权路径（只读）
 
-进入本步时设置 `WRITE_AUTHORIZATION_GATE=closed`；自动路由和预检不授权 commit、rebase、merge 或 cleanup。
+进入本步时设置 `WRITE_AUTHORIZATION_GATE=closed`。只有 Step 0–4 全部可读、无 blocker 且当前请求满足 `LIMITED_RETURN_AUTHORIZED=true`，才设置 `PREFLIGHT_PASSED=true` 并展示完整 audit plan；否则零写停止。
 
-摘要必须显示：
+完整计划必须显示并冻结到不可覆盖的 `PREFLIGHT_SNAPSHOT`：
 
-- `PROPOSAL`、`SOURCE_BRANCH`、`SOURCE_WORKTREE_DIR` 的规范映射结果。
-- `SOURCE_HEAD`、来源 pending 文件、明确 delivery commit 预期。
+- 当前请求的 limited return 判定、`PROPOSAL` 的 explicit/derived 来源，以及 `SOURCE_BRANCH`、`SOURCE_WORKTREE_DIR` 的规范映射。
+- `SOURCE_HEAD`、`SOURCE_CLEAN` 和全部 pending 文件；clean 时明确写 `pending-file policy=none`，dirty 时显示逐文件 commit plan。
 - `TARGET_BRANCH`、`TARGET_SOURCE`、`TARGET_WORKTREE_DIR`、`TARGET_HEAD` 和 clean/HEAD-ref 结果。
 - source/target 分支和路径不同。
-- planned writes：来源 commit、在来源 rebase 到确认的 `TARGET_HEAD`、冻结 post-rebase hash、在目标 merge 该 hash、post-merge 验证、条件式普通 cleanup。
+- planned writes：仅 interactive dirty-source path 包含来源 commit；随后在来源 rebase 到冻结 `TARGET_HEAD`、冻结 post-rebase hash、在目标 merge 该 hash、post-merge 验证、条件式普通 cleanup。
 - 全部 `PROJECT_VERIFY_COMMANDS`。
 - `TASK_CLEANUP_POLICY_PASSED`、完整 `BLOCKING_REMAINING` 与 `DEFERRED_REMAINING`；若只有延期任务，明确显示“将 merge + cleanup，但 proposal 保持 incomplete / non-archivable，由用户后续在 target worktree 执行”。
-- 普通 incomplete task 风险与“merge 后验证失败时不回滚且不清理”的行为。
+- 普通 incomplete task 风险、冲突策略，以及“merge 后验证失败时不回滚且不清理”的行为。
 
-请求无默认值、无定时批准的明确确认。拒绝、取消、缺失或模糊回答保持 Git 不变；无交互工具时输出问题并结束响应。
+计算：
 
-只有完整 return plan 获得明确肯定后设置 `WRITE_AUTHORIZATION_GATE=open`。Step 6 的任一实质变化都会使授权失效并返回本步，不得沿用旧确认。
+```text
+DETERMINISTIC_RETURN_READY =
+  LIMITED_RETURN_AUTHORIZED
+  AND TARGET_SOURCE == explicit
+  AND SOURCE_CLEAN
+  AND PREFLIGHT_PASSED
+```
 
-## Step 6：确认后快照复检（只读）
+### Deterministic path
 
-完整重跑 Step 1–4。参数、proposal/source 映射、worktree 注册、source HEAD/status、target branch/path/ref/HEAD/clean、OpenSpec 风险和验证命令必须与摘要一致。
+`DETERMINISTIC_RETURN_READY=true` 时记录 `AUTHORIZATION_PATH=deterministic`。完整 audit plan 本身就是当前明确 return 请求的受限执行计划；展示后不请求第二次确认。该路径的 pending-file policy 固定为 none，后续不得 stage 或 commit source 文件。
 
-任一实质变化使确认失效并返回 Step 5。只有完全一致才能开始写操作。
+### Interactive compatibility path
 
-## Step 7：提交来源并 rebase 到冻结目标（写入开始）
+当 `LIMITED_RETURN_AUTHORIZED=true` 且 `TARGET_SOURCE=inferred`、`SOURCE_CLEAN=false` 或两者同时成立时，记录 `AUTHORIZATION_PATH=interactive`。展示同一完整计划；dirty source 必须列出全部 pending 文件、精确 source commit 计划和其他 planned writes，inferred target 必须显示 fallback 来源及冻结 hash。
 
-若确认摘要包含来源 pending changes：
+使用交互工具请求无默认值、无超时同意的明确确认。拒绝、取消、缺失、模糊或无交互能力时保持 Git 不变。只有肯定答复才冻结该 interactive `PREFLIGHT_SNAPSHOT` 并进入 Step 6。
+
+proposal 省略但能从唯一规范 branch 精确派生，不单独触发 interactive path。任何参数、映射、任务分类或命令不确定都属于 blocker，不得用确认绕过。
+
+## Step 6：独立最终复检（只读）
+
+完整重跑 Step 0–4，把结果写入独立 `REVALIDATION_SNAPSHOT`，不得覆盖、刷新或就地修改 `PREFLIGHT_SNAPSHOT`。逐字段比较请求意图、原始参数、proposal 来源、source/target 映射和身份、refs/HEAD、`SOURCE_CLEAN`、全部 pending 文件、OpenSpec/task 分类、验证命令、planned writes 与冲突/cleanup 策略。
+
+- deterministic path 任一变化都关闭 gate、执行零写、报告 `fresh invocation`，且不得自动转入 interactive path 或请求确认绕过漂移。
+- interactive path 任一变化都使旧确认失效；保持零写并回到 Step 5 展示新计划，不能沿用旧确认。
+- 两个快照逐字段完全一致时，才统一设置一次 `WRITE_AUTHORIZATION_GATE=open` 并开始 Step 7。
+
+## Step 7：按授权路径处理来源并 rebase 到冻结目标（写入开始）
+
+仅当 `AUTHORIZATION_PATH=interactive`、确认计划包含来源 pending changes，且 Step 6 证明 pending 集合与完整计划不变时执行：
 
 ```bash
 git add -A
@@ -157,15 +195,15 @@ git add -f openspec/changes/<PROPOSAL>/tasks.md
 git commit -m "chore: finalize <PROPOSAL> before verified merge"
 ```
 
-无 pending changes 时不创建空 commit。记录 `PRE_REBASE_SOURCE_HEAD`。
+deterministic path 必须再次证明 `SOURCE_CLEAN=true`，不得执行任何 stage/commit；interactive clean-source path 也不创建空 commit。记录 `PRE_REBASE_SOURCE_HEAD`。
 
-紧接着再次验证来源规范 path/branch/HEAD/ref/clean，以及目标 ref 和目标 worktree HEAD 仍都等于确认的 `TARGET_HEAD`。然后在来源 worktree执行：
+紧接着再次验证来源规范 path/branch/HEAD/ref/clean，以及目标 ref 和目标 worktree HEAD 仍都等于授权并冻结的 `TARGET_HEAD`。然后在来源 worktree执行：
 
 ```bash
 git rebase <TARGET_HEAD>
 ```
 
-冲突只允许在这一次 rebase 内解决并 continue。无法可靠解决时允许 abort 尚未完成的 rebase，报告并停止；不得删除来源或改用新的目标自动重试。
+interactive path 的冲突只允许在这一次 rebase 内按已确认计划解决并 continue；无法可靠解决时 abort 尚未完成的 rebase，报告并停止。deterministic path 遇到冲突时不得发明或提交解决方案，安全执行 `git rebase --abort` 后保留规范来源并停止，要求 fresh invocation；不得自动转入 interactive path、改用新目标或重试。
 
 成功后立即冻结：
 
@@ -208,7 +246,7 @@ test -z "$(git status --porcelain --untracked-files=all)"
 git merge <POST_REBASE_SOURCE_HEAD>
 ```
 
-若 merge 未成功完成，可中止尚未完成的冲突状态并停止；不得用其他参数或新 source/target hash 自动重试。成功后立即记录：
+若 merge 未成功完成，interactive path 可按已确认计划处理当前冲突，无法可靠解决时中止；deterministic path 不解决或提交冲突，安全执行 `git merge --abort` 后保留规范来源并停止，要求 fresh invocation，且不得自动转入 interactive path。两个路径都不得用其他参数或新 source/target hash 自动重试。成功后立即记录：
 
 ```bash
 MERGE_SUCCEEDED_ONCE=true
@@ -221,7 +259,7 @@ merge 成功后禁止自动 reset/revert，即使后续验证失败。
 
 按顺序执行且每项只执行一次：
 
-1. 真实 CWD/top-level/current branch 仍是确认目标。
+1. 真实 CWD/top-level/current branch 仍是授权目标。
 2. `refs/heads/<TARGET_BRANCH>` 等于 target worktree HEAD 和 `POST_MERGE_TARGET_HEAD`。
 3. target status 严格为空。
 4. `git merge-base --is-ancestor <POST_REBASE_SOURCE_HEAD> refs/heads/<TARGET_BRANCH>` 成功。
@@ -229,9 +267,9 @@ merge 成功后禁止自动 reset/revert，即使后续验证失败。
 6. `git rev-list refs/heads/<TARGET_BRANCH>..refs/heads/<SOURCE_BRANCH>` 严格为空。
 7. delivery commit 集合仍非空。
 8. `openspec validate <PROPOSAL> --type change --strict` 成功，artifacts 完成。
-9. 从 target 中的 `tasks.md` 重新执行 Step 4 的精确分类，要求结果与确认摘要一致且 `TASK_CLEANUP_POLICY_PASSED=true`。普通未完成任务、unknown 或分类漂移阻止 cleanup；只有精确标签 `[post-merge-verification]` 的未完成任务不阻止 cleanup，也不得由 Skill 执行或修改。
+9. 从 target 中的 `tasks.md` 重新执行 Step 4 的精确分类，要求结果与冻结 audit plan 一致且 `TASK_CLEANUP_POLICY_PASSED=true`。普通未完成任务、unknown 或分类漂移阻止 cleanup；只有精确标签 `[post-merge-verification]` 的未完成任务不阻止 cleanup，也不得由 Skill 执行或修改。
 10. `git diff <PRE_MERGE_TARGET_HEAD>..<POST_MERGE_TARGET_HEAD> --check` 成功。
-11. 逐条执行确认摘要中的项目验证命令，全部成功。
+11. 逐条执行冻结 audit plan 中的项目验证命令，全部成功。
 
 任一项 false、unknown、无法解析或命令失败：报告失败 gate、相关 hashes、已完成 merge 和保留的来源；不回滚、不重试、不 cleanup。
 
@@ -280,8 +318,12 @@ git branch -d -- <SOURCE_BRANCH>
 ## Worktree Merged & Safely Cleaned
 
 Proposal: <PROPOSAL>
+Authorization path: <deterministic | interactive>
+Proposal source: <explicit | derived from SOURCE_BRANCH>
 Source: <SOURCE_BRANCH> at <POST_REBASE_SOURCE_HEAD>
-Target: <TARGET_BRANCH> at <POST_MERGE_TARGET_HEAD>
+Source pending-file policy: <none | confirmed exact file set and commit>
+Target: <TARGET_BRANCH> at <POST_MERGE_TARGET_HEAD> (<TARGET_SOURCE>)
+Preflight/revalidation snapshots: <stable identifiers and equality result>
 Merge count: 1
 Post-merge verification: passed
 Task cleanup policy: passed
@@ -296,9 +338,12 @@ Source branch: removed by safe git branch -d
 
 - source/target branch 与 path 必须不同，且完整 mapping 始终精确。
 - 目标必须预先由 clean worktree 持有；本流程不切换或自动提交其他 worktree。
-- rebase 使用确认的 target hash，merge 使用冻结的 post-rebase source hash。
+- 明确 return 请求、显式 target、clean source 和稳定预检选择 deterministic path；inferred target 或 dirty source 选择一次完整 interactive confirmation。
+- deterministic path 不请求第二次确认，不 stage/commit pending 文件；任何漂移或冲突都要求 fresh invocation，且不得自动转入 interactive path。
+- rebase 使用授权并冻结的 target hash，merge 使用冻结的 post-rebase source hash。
 - merge 最多执行一次；失败或未验证时不换参数重试。
 - merge 成功后不自动 reset/revert。
 - 普通未完成任务阻止 cleanup；只有精确标记 `[post-merge-verification]` 的延期任务可在报告后由用户自行处理，Skill 不执行或修改它们。
 - cleanup 的任何失败或 unknown 都保留所有仍存在的来源对象。
 - 只允许普通 worktree removal 和安全 local branch deletion；不删除远程 ref。
+- 失败报告始终列出授权路径、proposal/target 来源、两个不可变快照、pending-file policy、延期任务和仍保留的精确 worktree/branch/hash。
