@@ -8,15 +8,15 @@
 ## 2. 将 Worktree Apply 简化为默认非交互执行
 
 - [x] 2.1 更新 `new-worktree-apply/SKILL.md` frontmatter、argument hint、allowed tools、示例和严格参数解析，删除 `AskUserQuestion` 与 `--authorized-by-issue`，要求每次调用显式提供 `--target <target-branch>`，并对旧授权参数给出零写迁移提示。
-- [x] 2.2 定义并验证 Runtime `explicit-skill-invocation/v1` trusted dispatch provenance，绑定 `runtime_id`、当前 invocation 的唯一 `dispatch_id`、`user-explicit-skill-command`、精确 skill name 和 raw arguments；Claude `/new-worktree-apply`、Codex `$new-worktree-apply` 或等价 Runtime dispatcher 才可进入默认执行。
-- [x] 2.3 对模型自动选择、自然语言推断、嵌套 `Skill(...)` 转调、用户/仓库/环境伪造 metadata、dispatch 重放、skill/参数不匹配和来源 unknown 在任何写入前失败关闭，并在最终复检要求同一 dispatch id 与 provenance digest。
-- [x] 2.4 删除 `issue-authorization/v1`、authorization/issuer/Issue/Team 标识、时效、防重放、风险 envelope、交互/自治模式选择及相关报告字段；显式 dispatch provenance 仅证明调用来源，不承载任务平台授权或高风险权限。
+- [x] 2.2 定义并验证 Runtime 原生显式调用门禁：Claude frontmatter 使用 `disable-model-invocation: true`，Codex `agents/openai.yaml` 使用 `policy.allow_implicit_invocation: false`；其他 Runtime 仅在提供等价控制面策略时可进入默认执行。
+- [x] 2.3 对模型自动选择、自然语言推断、嵌套 `Skill(...)` 转调，以及试图用用户/仓库/环境内容替代 Runtime 激活断言的行为，在任何写入前失败关闭。
+- [x] 2.4 删除 `issue-authorization/v1`、authorization/issuer/Issue/Team 标识、时效、防重放、风险 envelope、交互/自治模式选择及相关报告字段；Runtime 原生显式调用门禁仅证明调用入口，不承载任务平台授权或高风险权限。
 - [x] 2.5 删除创建前人工确认步骤；将已验证的用户显式调用视为对 canonical source worktree 创建、OpenSpec apply、来源验证和提交的有限授权，完整只读预检通过后直接进入最终写前复检。
 - [x] 2.6 增加可选 `--dry-run`，要求相同的可信显式 dispatch，执行与默认模式相同的参数、目标、worktree topology、artifact manifest 和计划写入预检，但在任何情况下都不得创建 branch/worktree、调用 apply、stage 或 commit。
 - [x] 2.7 保持目标 worktree clean、冻结 `TARGET_HEAD`、canonical branch/path、manifest blob identity、显式 commit-hash start point、创建后 CWD/identity 校验、失败现场保留和来源提交不变量。
-- [x] 2.8 最终写前复检发现 provenance、参数、target ref/HEAD、worktree mapping、cleanliness、artifact manifest 或计划写入漂移时直接零写停止；不得刷新快照、换目标、自动重试或转为交互确认。
+- [x] 2.8 `PREFLIGHT_SNAPSHOT` 只冻结一次；最终写前复检使用独立 `REVALIDATION_SNAPSHOT`，发现参数、target ref/HEAD、worktree mapping、cleanliness、source parent 物理包含、artifact manifest 或计划写入漂移时直接零写停止；不得刷新快照、换目标、自动重试或转为交互确认。
 - [x] 2.9 明确默认执行不授权 merge、发布、部署、生产写入、不可逆迁移、真实凭据使用或无关 Git 清理；proposal/tasks 要求这些行为时在执行前阻塞并交由独立流程授权。
-- [x] 2.10 扩展 `tests/worktree-lifecycle-safety.sh`，验证 Claude/Codex trusted dispatch 可默认执行，模型自动/嵌套/伪造/unknown provenance 零写失败，`--dry-run` 严格零写、旧授权参数与缺失 target 被拒绝、preflight 漂移失败关闭，以及 merge/并行 skill 仍需确认。
+- [x] 2.10 扩展 `tests/worktree-lifecycle-safety.sh`，结构化解析 Claude/Codex Runtime 原生门禁，验证模型自动/嵌套调用零写失败、`--dry-run` 严格零写、旧授权参数与缺失 target 被拒绝、不可变 preflight baseline、source parent 符号链接逃逸失败关闭，以及 merge/并行 skill 仍需确认。
 
 ## 3. 实现显式基线的一致性验证
 
@@ -40,6 +40,6 @@
 
 - [x] 5.1 更新 `README.md` 和调用文档，展示 Claude `/skill`、Codex `$skill` 的可信显式调用、来源不可证明时的零写失败、默认非交互 worktree apply、`--dry-run`、旧授权参数迁移、`verify-impl-consistency <change> --base`、`check-changes-completed --target --change ...`、多目标分组和非祖先失败示例。
 - [x] 5.2 核对并同步 `openspec/specs/worktree-targeting` 的完整 MODIFIED requirement blocks（含必填 target/OpenSpec root/preflight terminology），以及 `target-aware-verification`、`doc-code-consistency`、`test-code-consistency` 和 `compliance-check` 与最终 skill 行为。
-- [x] 5.3 运行 `bash tests/worktree-lifecycle-safety.sh` 和 `bash tests/target-aware-verification-safety.sh`，确认可信显式 dispatch、隐式调用零写、默认执行、dry-run 零写、确认边界、选择集隔离与非 `main`/非祖先基线场景全部通过。
+- [x] 5.3 运行 `bash tests/worktree-lifecycle-safety.sh` 和 `bash tests/target-aware-verification-safety.sh`，确认 Runtime 原生显式调用门禁、隐式调用零写、默认执行、dry-run 零写、不可变复检、source parent 物理包含、确认边界、选择集隔离与非 `main`/非祖先基线场景全部通过。
 - [x] 5.4 运行 `python3 -m unittest tests/test_setup_skills_env.py`，确认 skill 安装、frontmatter 和权限声明没有回归。
 - [x] 5.5 运行 `openspec validate enable-target-aware-autonomous-rd-workflow --type change --strict`、固定基线全仓扫描和 `git diff --check`，记录最终验证证据。

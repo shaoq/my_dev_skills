@@ -96,6 +96,30 @@ step8_source_project_gate() {
   printf 'apply-called\n' > "$apply_sentinel"
 }
 
+prewrite_source_parent_gate() {
+  local repo_root=$1
+  local source_worktree_dir=$2
+  local source_branch=$3
+  local target_head=$4
+  local apply_sentinel=$5
+  local repo_physical
+  local claude_physical
+  local worktrees_physical
+
+  repo_physical=$(cd "$repo_root" && pwd -P) || return 1
+  [ -d "$repo_root/.claude" ] && [ ! -L "$repo_root/.claude" ] || return 1
+  claude_physical=$(cd "$repo_root/.claude" && pwd -P) || return 1
+  is_physical_descendant "$claude_physical" "$repo_physical" || return 1
+  [ -d "$repo_root/.claude/worktrees" ] && [ ! -L "$repo_root/.claude/worktrees" ] || return 1
+  worktrees_physical=$(cd "$repo_root/.claude/worktrees" && pwd -P) || return 1
+  is_physical_descendant "$worktrees_physical" "$repo_physical" || return 1
+  is_physical_descendant "$worktrees_physical" "$claude_physical" || return 1
+  [ ! -e "$source_worktree_dir" ] && [ ! -L "$source_worktree_dir" ] || return 1
+
+  git -C "$repo_root" worktree add "$source_worktree_dir" -b "$source_branch" "$target_head" || return 1
+  printf 'apply-called\n' > "$apply_sentinel"
+}
+
 workspace_manifest() {
   local repo=$1
   local prefix=$2
@@ -119,6 +143,7 @@ commit_manifest() {
 }
 
 NEW_SKILL="$PROJECT_ROOT/new-worktree-apply/SKILL.md"
+CODEX_POLICY="$PROJECT_ROOT/new-worktree-apply/agents/openai.yaml"
 RETURN_SKILL="$PROJECT_ROOT/merge-worktree-return/SKILL.md"
 PARALLEL_SKILL="$PROJECT_ROOT/parall-new-worktree-apply/SKILL.md"
 README_FILE="$PROJECT_ROOT/README.md"
@@ -128,23 +153,29 @@ require_text "$NEW_SKILL" 'SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<pr
 require_text "$NEW_SKILL" 'ARTIFACT_MANIFEST' 'single-create validates the complete artifact manifest'
 require_text "$NEW_SKILL" 'git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>' 'single-create uses the frozen commit hash'
 require_text "$NEW_SKILL" 'argument-hint: <proposal-name> --target <target-branch> [--openspec-root <path>] [--dry-run]' 'single-create requires an explicit target in its argument contract'
-require_text "$NEW_SKILL" 'explicit-skill-invocation/v1' 'single-create requires versioned trusted dispatch provenance'
-require_text "$NEW_SKILL" 'runtime_id' 'single-create binds trusted dispatch to a Runtime identity'
-require_text "$NEW_SKILL" 'dispatch_id' 'single-create binds trusted dispatch to a unique dispatch id'
-require_text "$NEW_SKILL" 'user-explicit-skill-command' 'single-create accepts only direct user skill commands'
-require_text "$NEW_SKILL" 'invocation_kind=user-explicit-skill-command' 'single-create uses the exact invocation_kind provenance field'
-require_text "$NEW_SKILL" '同一 `invocation_kind`' 'single-create revalidates the exact invocation kind at the write boundary'
-require_text "$NEW_SKILL" 'raw_arguments' 'single-create binds trusted dispatch to exact raw arguments'
-require_text "$NEW_SKILL" 'provenance_digest' 'single-create freezes a digest of trusted dispatch provenance'
+require_text "$NEW_SKILL" 'disable-model-invocation: true' 'Claude native policy disables model invocation'
 require_text "$NEW_SKILL" '/new-worktree-apply' 'single-create documents Claude slash-command dispatch'
 require_text "$NEW_SKILL" '$new-worktree-apply' 'single-create documents Codex skill-command dispatch'
 require_text "$NEW_SKILL" '模型自动选择' 'single-create rejects model-selected execution before writes'
 require_text "$NEW_SKILL" '嵌套 `Skill(...)`' 'single-create rejects nested skill invocation before writes'
-require_text "$NEW_SKILL" '用户文本、仓库文件、环境变量或模型推断' 'single-create rejects forged user-controlled provenance'
-require_text "$NEW_SKILL" '重放' 'single-create rejects replayed dispatch provenance'
-require_text "$NEW_SKILL" '来源 unknown' 'single-create rejects unknown trusted dispatch provenance'
-require_text "$NEW_SKILL" '同一 `dispatch_id`' 'single-create revalidates the same dispatch id at the write boundary'
-require_text "$NEW_SKILL" '同一 `provenance_digest`' 'single-create revalidates the same provenance digest at the write boundary'
+require_text "$NEW_SKILL" '用户文本、仓库文件、环境变量或模型推断' 'single-create rejects user-controlled substitutes for Runtime activation'
+forbid_text "$NEW_SKILL" 'runtime_id' 'single-create does not require an inaccessible Runtime id'
+forbid_text "$NEW_SKILL" 'dispatch_id' 'single-create does not require an inaccessible dispatch id'
+forbid_text "$NEW_SKILL" 'raw_arguments' 'single-create does not require inaccessible raw arguments'
+forbid_text "$NEW_SKILL" 'provenance_digest' 'single-create does not require an inaccessible provenance digest'
+require_text "$NEW_SKILL" 'REVALIDATION_SNAPSHOT' 'single-create uses a distinct final revalidation snapshot'
+require_text "$NEW_SKILL" '不得覆盖或重新冻结 `PREFLIGHT_SNAPSHOT`' 'single-create keeps the preflight baseline immutable'
+require_text "$NEW_SKILL" 'PREWRITE_SOURCE_PARENT_OK' 'single-create gates worktree creation on physical parent containment'
+if ruby - "$CODEX_POLICY" <<'RUBY'
+require "yaml"
+document = YAML.safe_load(File.read(ARGV.fetch(0)), permitted_classes: [], aliases: false)
+exit(document.dig("policy", "allow_implicit_invocation") == false ? 0 : 1)
+RUBY
+then
+  pass 'Codex policy parses and disables implicit invocation with a boolean false'
+else
+  fail 'Codex policy parses and disables implicit invocation with a boolean false'
+fi
 require_text "$NEW_SKILL" '--dry-run' 'single-create supports explicit read-only dry run'
 require_text "$NEW_SKILL" '不得创建 branch/worktree、调用 apply、stage 或 commit' 'dry run prohibits every write stage'
 require_text "$NEW_SKILL" '不请求第二次确认' 'trusted explicit invocation removes the second confirmation'
@@ -250,6 +281,49 @@ else
   fail 'target dirty state is visible without modifying the target'
 fi
 rm -f -- "$TEST_REPO/dirty-target.tmp"
+
+PARENT_ESCAPE_REPO="$TEST_TMP_ROOT/parent-escape-repo"
+PARENT_ESCAPE_OUTSIDE="$TEST_TMP_ROOT/parent-escape-outside"
+git init -q -b main "$PARENT_ESCAPE_REPO"
+git -C "$PARENT_ESCAPE_REPO" config user.name 'Parent Escape Safety Test'
+git -C "$PARENT_ESCAPE_REPO" config user.email 'parent-escape@example.invalid'
+printf 'base\n' > "$PARENT_ESCAPE_REPO/base.txt"
+git -C "$PARENT_ESCAPE_REPO" add base.txt
+git -C "$PARENT_ESCAPE_REPO" commit -q -m 'base'
+PARENT_ESCAPE_HEAD=$(git -C "$PARENT_ESCAPE_REPO" rev-parse HEAD)
+PARENT_ESCAPE_WORKTREES=$(git -C "$PARENT_ESCAPE_REPO" worktree list --porcelain)
+mkdir -p "$PARENT_ESCAPE_OUTSIDE/worktrees"
+ln -s "$PARENT_ESCAPE_OUTSIDE" "$PARENT_ESCAPE_REPO/.claude"
+PARENT_ESCAPE_STATUS=$(git -C "$PARENT_ESCAPE_REPO" status --porcelain --untracked-files=all)
+PARENT_ESCAPE_SOURCE="$PARENT_ESCAPE_REPO/.claude/worktrees/escaped"
+PARENT_ESCAPE_SENTINEL="$TEST_TMP_ROOT/parent-escape-apply-called"
+if prewrite_source_parent_gate "$PARENT_ESCAPE_REPO" "$PARENT_ESCAPE_SOURCE" \
+  worktree-escaped "$PARENT_ESCAPE_HEAD" "$PARENT_ESCAPE_SENTINEL"; then
+  fail 'symlinked worktree parent escape is rejected before creation'
+else
+  pass 'symlinked worktree parent escape is rejected before creation'
+fi
+if ! git -C "$PARENT_ESCAPE_REPO" show-ref --verify --quiet refs/heads/worktree-escaped; then
+  pass 'parent escape creates no source branch'
+else
+  fail 'parent escape creates no source branch'
+fi
+if [ ! -e "$PARENT_ESCAPE_OUTSIDE/worktrees/escaped" ]; then
+  pass 'parent escape creates no outside worktree leaf'
+else
+  fail 'parent escape creates no outside worktree leaf'
+fi
+if [ ! -e "$PARENT_ESCAPE_SENTINEL" ]; then
+  pass 'parent escape never invokes apply action'
+else
+  fail 'parent escape never invokes apply action'
+fi
+assert_equal "$(git -C "$PARENT_ESCAPE_REPO" rev-parse HEAD)" "$PARENT_ESCAPE_HEAD" \
+  'parent escape preserves target HEAD'
+assert_equal "$(git -C "$PARENT_ESCAPE_REPO" status --porcelain --untracked-files=all)" \
+  "$PARENT_ESCAPE_STATUS" 'parent escape preserves target status'
+assert_equal "$(git -C "$PARENT_ESCAPE_REPO" worktree list --porcelain)" \
+  "$PARENT_ESCAPE_WORKTREES" 'parent escape preserves worktree registrations'
 
 DETACHED_PATH="$TEST_TMP_ROOT/detached"
 git -C "$TEST_REPO" worktree add -q --detach "$DETACHED_PATH" "$FROZEN_TARGET_HEAD"

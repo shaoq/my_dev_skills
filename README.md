@@ -331,27 +331,27 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 **核心机制**:
 - 调用必须是 Claude `/new-worktree-apply <proposal> --target <branch>`、Codex
   `$new-worktree-apply <proposal> --target <branch>`，或 Runtime 等价的直接显式派发；`--target` 每次必填，绝不回退到主工作树、`origin/HEAD` 或 `main`/`master`/`trunk`
-- Runtime 必须以不可变 `explicit-skill-invocation/v1` 记录证明当前调用，精确绑定 runtime、唯一 dispatch id、skill 名称与原始参数；来源 unknown、模型自动选择、自然语言推断、嵌套 `Skill(...)`、用户/仓库/环境伪造 metadata、重放或任何不匹配均在写入前失败关闭
+- Runtime 必须执行原生显式调用门禁：Claude 由 `disable-model-invocation: true` 禁止模型调用，Codex 由 `agents/openai.yaml` 的 `policy.allow_implicit_invocation: false` 禁止隐式调用；其他 Runtime 缺少等价控制面策略时在写入前失败关闭，用户/仓库/环境内容不能替代 Runtime 激活断言
 - 可信用户显式调用经完整只读预检和最终复检后直接执行，**默认不再有第二次确认**；授权仅覆盖规范来源 worktree 创建、OpenSpec apply、proposal 范围本地验证和来源提交
-- `--dry-run` 使用同样的 provenance、target、拓扑、manifest 和计划写入预检，但不创建 branch/worktree、不 apply、不 stage、不 commit；其快照不能复用于后续真实调用
+- `--dry-run` 使用同样的 Runtime 原生门禁、target、拓扑、source parent 物理包含、manifest 和计划写入预检，但不创建 branch/worktree、不 apply、不 stage、不 commit；其快照不能复用于后续真实调用
 - 已移除 `--authorized-by-issue` 和 `issue-authorization/v1`：传入旧选项零写失败并提示改为上述显式调用；`--authorized`、`--yes` 等泛化批准选项也不是别名
 - OpenSpec 项目根默认为仓库根 `.`；`--openspec-root twin-rag` 精确表示
   `twin-rag/openspec/changes/<proposal>`，可与 `--target` 任意排序且不会递归搜索、猜测或回退
 - 目标分支必须已被一个注册且 clean 的 worktree 持有；流程不会为了满足目标条件切换或自动提交其他 worktree
-- 只读预检与最终写前复检冻结并比对目标、工作树、所选 OpenSpec 项目、仓库相对 artifacts、计划写入及同一 dispatch provenance；漂移时零写失败并要求新的用户显式调用
+- 只读预检只冻结一次不可变 `PREFLIGHT_SNAPSHOT`；最终写前复检把目标、工作树、source parent 物理路径、所选 OpenSpec 项目、仓库相对 artifacts 与计划写入收集到独立 `REVALIDATION_SNAPSHOT` 并逐字段比较；漂移时零写失败并要求新的用户显式调用
 - 规范映射固定为 proposal `<proposal>`、branch `worktree-<proposal>`、path `.claude/worktrees/<proposal>`；任何现有 ref/path/worktree 冲突都停止，不复用或追加后缀
-- 从确认的不可变 commit hash 精确创建：`git worktree add <path> -b worktree-<proposal> <TARGET_HEAD>`
-- 创建前递归验证完整 artifact manifest 已存在于 `TARGET_HEAD` 且与预检内容逐字节一致；创建后还须重新验证来源项目物理路径、OpenSpec 状态和 manifest，才从已验证项目目录 apply
+- 从显式冻结的不可变 commit hash 精确创建：`git worktree add <path> -b worktree-<proposal> <TARGET_HEAD>`
+- 创建前要求 `.claude/worktrees` 已作为仓库内的真实物理目录存在且没有父级符号链接逃逸，并递归验证完整 artifact manifest 已存在于 `TARGET_HEAD` 且与预检内容逐字节一致；创建后还须重新验证来源项目物理路径、OpenSpec 状态和 manifest，才从已验证项目目录 apply
 - Post-apply 自动补标记（四规则检测）+ 强制提交 `tasks.md`
 
 **注意事项**:
 - **BREAKING**：旧 `--branch` 已由 `--target` 替代；传 `--branch` 时不产生任何 Git 写操作，只显示迁移命令
 - 省略 `--openspec-root` 与显式 `--openspec-root .` 完全等价；非法、越界或符号链接逃逸路径均在确认前失败关闭
-- 所有 Git 写操作只在可信显式 dispatch 与预检快照最终复检之后执行；provenance、参数、target、worktree、manifest 或计划写入漂移时直接零写失败，不自动更新快照、换目标、重试或回退交互模式
+- 所有 Git 写操作只在 Runtime 原生显式调用门禁与不可变预检基线最终复检之后执行；参数、target、worktree、source parent、manifest 或计划写入漂移时直接零写失败，不自动更新快照、换目标、重试或回退交互模式
 - 默认范围不授权 merge、发布、部署、生产写入、不可逆迁移、数据删除、提权、真实凭据或无关 Git 清理；proposal 要求此类动作时在动作前阻塞并交由独立授权流程
 - 分支名必须符合 worktree 命名规则（kebab-case，max 64 chars）
 - 若规范 branch/path 已存在则报错停止，**不覆盖、不复用、不自动清理**
-- 即使目标 ref 在最后检查后推进，实际创建仍使用冻结 `TARGET_HEAD`，不会从未经确认的新 tip 创建
+- 即使目标 ref 在最后检查后推进，实际创建仍使用冻结 `TARGET_HEAD`，不会从未冻结的新 tip 创建
 - 创建后验证注册 path、current branch、branch ref 与 worktree HEAD；任一不一致停止 apply 并保留现场
 
 ### 5. merge-worktree-return

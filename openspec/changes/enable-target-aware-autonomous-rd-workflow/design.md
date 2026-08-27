@@ -1,6 +1,6 @@
 ## Context
 
-本仓库的 skill 以 Markdown 指令描述跨 Runtime 的执行协议。`new-worktree-apply` 具有明确的命令名称和有限的本地隔离作用域，但 `disable-model-invocation: true` 只作为 Runtime-specific defense-in-depth，不能单独证明所有 Runtime 中的调用都来自用户。默认非交互写入因此必须额外依赖 Runtime 提供的可信显式 skill-command dispatch provenance。
+本仓库的 skill 以 Markdown 指令描述跨 Runtime 的执行协议。`new-worktree-apply` 具有明确的命令名称和有限的本地隔离作用域。默认非交互写入依赖各 Runtime 自身强制执行的显式调用门禁：Claude 使用 frontmatter 的 `disable-model-invocation: true`，Codex 使用 `agents/openai.yaml` 的 `policy.allow_implicit_invocation: false`；其他 Runtime 只有具备等价策略时才受支持。
 
 现有实现有两类不一致：
 
@@ -14,7 +14,7 @@
 **Goals:**
 
 - 让显式调用的 `new-worktree-apply` 在预检通过后默认直接实施，不再重复请求人工确认。
-- 只在 Runtime 证明当前 invocation 来自用户显式 skill command 时允许默认非交互写入；自动选择、嵌套转调或来源 unknown 失败关闭。
+- 只在 Runtime 原生策略保证当前 skill 无法被模型隐式激活时允许默认非交互写入；自动选择、嵌套转调或无法执行等价门禁时失败关闭。
 - 让该 skill 与 Issue、Team 和具体 Runtime 解耦，支持任何来源的 OpenSpec proposal。
 - 要求 `new-worktree-apply` 显式提供目标分支，避免非交互执行时猜测写入基线。
 - 提供严格只读的 `--dry-run`，供调用方在需要时主动查看完整计划。
@@ -28,7 +28,7 @@
 - 不取消 `merge-worktree-return` 或并行集成的人工确认。
 - 不让 `new-worktree-apply` 执行 merge、发布、生产操作、不可逆数据变更或外部副作用。
 - 不从 Issue、Team、tracker、环境变量或任务平台授权 envelope 推导高风险或外部权限。
-- 不把 `disable-model-invocation`、用户消息正文或模型对意图的解释单独当作跨 Runtime 调用来源证据。
+- 不把用户消息正文、仓库文件、环境变量或模型对意图的解释当作 Runtime 显式调用门禁的替代证据。
 - 不修改 OpenSpec CLI、Git 配置、默认分支或用户目录下已安装的 skill。
 - 不把诊断 skill 改造成自动修复器或最终 pass/fail 裁决器。
 - 不抽取新的可执行共享库；各 skill 继续以自包含的 Markdown 协议运行。
@@ -76,32 +76,15 @@ git diff <BASE_HEAD>..<CURRENT_HEAD> --name-only
 
 只有显式 `--change` 选择集参与五维扫描、blocking reasons、任务矛盾检测和 Level-1/Level-2 回填。选择集中的 changes 共用本次调用冻结的目标基线；若它们面向不同目标，调用方必须拆分调用。
 
-### 4. Runtime 可信 dispatch 证明用户显式调用
+### 4. Runtime 原生门禁证明用户显式调用
 
-默认写入前，Runtime 必须通过控制面元数据提供 schema 为
-`explicit-skill-invocation/v1` 的不可变 dispatch provenance：
+默认写入前，实际承载调用的 Runtime 必须已强制执行禁止隐式激活的原生控制面策略：
 
-```text
-schema=explicit-skill-invocation/v1
-runtime_id=<claude-code|codex|other-supported-runtime>
-dispatch_id=<bound to this invocation>
-invocation_kind=user-explicit-skill-command
-skill_name=new-worktree-apply
-raw_arguments=<exact Runtime-dispatched argument vector>
-```
+- Claude Code：本 skill frontmatter 设置 `disable-model-invocation: true`，用户通过 `/new-worktree-apply ...` 直接激活；
+- Codex：本 skill 的 `agents/openai.yaml` 设置 `policy.allow_implicit_invocation: false`，用户通过 `$new-worktree-apply ...` 直接激活；
+- 其他 Runtime：只有提供等价、由 Runtime 自身强制的原生显式调用策略时才支持默认写入。
 
-该 provenance 来自 Runtime 的 skill-command dispatcher，而不是 user message 正文、仓库文件、
-环境变量、模型推断或另一个 skill 构造的参数。受支持的显式入口至少包括：
-
-- Claude Code：用户直接输入 `/new-worktree-apply ...` 后由 slash-command dispatcher 产生；
-- Codex：用户直接输入 `$new-worktree-apply ...` 后由 skill dispatcher 产生；
-- 其他 Runtime：只有提供等价的 trusted explicit-dispatch 元数据时才支持默认写入。
-
-自然语言任务匹配导致的模型自动选择、`Skill("new-worktree-apply", ...)` 嵌套转调、仅在消息中
-粘贴看似有效的 metadata、skill name/arguments 不匹配、重复 dispatch id 或来源 unknown 都在
-仓库写入前停止。`disable-model-invocation: true` 继续保留为支持它的 Runtime 的第一层门禁，
-但不是跨 Runtime 的唯一证据。Step 1 冻结 provenance digest；最终写前复检必须仍为同一
-`dispatch_id`、skill name、raw arguments 和 digest，且不得由模型更新或降级为人工确认。
+在这些门禁下发生的 skill 激活就是可信的用户显式调用断言，无需 Markdown skill 无法访问的 dispatcher 字段。用户消息正文、仓库文件、环境变量、模型推断或另一个 skill 构造的参数不能创建或替换该断言。自然语言任务匹配导致的模型自动选择和 `Skill("new-worktree-apply", ...)` 嵌套转调都被 Runtime 策略挡在 skill 激活之前；Runtime 无法提供等价策略时在仓库写入前停止，且不得降级为人工确认。
 
 ### 5. 可信显式调用构成有限 Worktree Apply 授权
 
@@ -118,7 +101,7 @@ Runtime 证明的用户显式调用授权以下有限操作：
 - 执行 proposal 范围内的本地验证；
 - 提交来源变更。
 
-skill 不再区分交互与自治模式，不接受 `--authorized` 或 `--authorized-by-issue`，也不读取 Issue、Team 或任务平台授权数据。`explicit-skill-invocation/v1` 只证明用户如何调用本 skill，不携带 Issue 权限、外部系统身份、凭据或高风险授权。检测到旧 `--authorized-by-issue` 时在任何写入前停止，并显示移除该参数后的等价命令。
+skill 不再区分交互与自治模式，不接受 `--authorized` 或 `--authorized-by-issue`，也不读取 Issue、Team 或任务平台授权数据。Runtime 原生门禁只证明用户如何激活本 skill，不携带 Issue 权限、外部系统身份、凭据或高风险授权。检测到旧 `--authorized-by-issue` 时在任何写入前停止，并显示移除该参数后的等价命令。
 
 `--target` 对 `new-worktree-apply` 为必填项。默认非交互执行不能通过主工作树、`origin/HEAD` 或 conventional branch fallback 猜测目标。该要求只改变单 change apply，不改变另外两个 worktree skill 的目标选择规则。
 
@@ -130,27 +113,26 @@ skill 不再区分交互与自治模式，不接受 `--authorized` 或 `--author
 /new-worktree-apply <change> --target <branch> [--openspec-root <path>] --dry-run
 ```
 
-`--dry-run` 执行完整的参数、repository/OpenSpec root、目标 worktree、cleanliness、canonical identity、artifact manifest、`TARGET_HEAD` 和计划写入检查，输出 `PREFLIGHT_SNAPSHOT` 后结束。它不得创建 branch/worktree、调用 apply、stage、commit、stash、checkout、switch、reset 或执行其他写操作。
+`--dry-run` 执行完整的参数、repository/OpenSpec root、目标 worktree、cleanliness、canonical identity、创建父目录物理包含、artifact manifest、`TARGET_HEAD` 和计划写入检查，只创建并输出一次 `PREFLIGHT_SNAPSHOT` 后结束。它不得创建 branch/worktree、调用 apply、stage、commit、stash、checkout、switch、reset 或执行其他写操作。
 
 默认模式执行同一预检，随后直接进入最终复检，不等待确认。dry-run 的输出不构成未来调用可复用的授权或快照；后续真实执行必须重新完成全部检查。
 
-显式 dispatch provenance 是两个模式共同的调用入口。来源无法证明时，即使请求 dry-run 也停止，
-避免模型把一个禁止自动触发的 workflow 隐式提升为命令执行；停止本身保持零写。
+Runtime 原生显式调用门禁是两个模式共同的调用入口。Runtime 无法强制等价门禁时，即使请求 dry-run 也停止；停止本身保持零写。
 
 ### 7. 写前漂移复检取代重复人工确认
 
 首次写入前重新解析并比较：
 
-- 原始参数；
-- `explicit-skill-invocation/v1` 的 dispatch id、skill name、raw arguments 和 provenance digest；
+- 本次调用参数；
 - repository 与 OpenSpec root；
 - target branch/ref/HEAD；
 - target worktree 注册、CWD 和 clean 状态；
 - canonical source branch/path 不存在性；
+- canonical source 父目录的物理包含与非符号链接状态；
 - 完整 artifact path set、blob identity 和 digest；
 - 计划写入范围。
 
-任何变化、未知值或命令错误都直接零写停止。skill 不自动刷新快照、自动接受新状态、切换目标、交互询问或使用新快照继续；调用方在处理漂移后重新发起命令。
+`PREFLIGHT_SNAPSHOT` 只在预检时创建一次且不可覆盖。最终复检仅重跑收集上述只读事实所需的检查，把结果写入独立不可变的 `REVALIDATION_SNAPSHOT`，再逐字段比较。任何变化、未知值或命令错误都直接零写停止。skill 不自动刷新基线、自动接受新状态、切换目标、交互询问或使用新快照继续；调用方在处理漂移后重新发起命令。
 
 通过复检后，创建命令仍以冻结 hash 为起点：
 
@@ -171,10 +153,11 @@ git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>
 测试必须验证：
 
 - 默认调用在稳定预检后不询问确认并创建 canonical worktree。
-- Claude `/new-worktree-apply` 与 Codex `$new-worktree-apply` 的 trusted dispatch 可进入预检；模型自动选择、嵌套转调、伪造或 unknown provenance 均零写失败。
+- Claude `disable-model-invocation: true` 与 Codex `policy.allow_implicit_invocation: false` 可被结构化测试验证；模型自动选择、嵌套转调或缺少等价 Runtime 门禁时均零写失败。
 - `--dry-run` 在成功和失败场景都保持零写。
 - 缺失显式 `--target`、旧授权参数、未知参数和重复参数在首次写入前停止。
-- target/artifact/worktree 快照漂移直接失败关闭，不进入交互确认。
+- target/artifact/worktree 快照漂移直接失败关闭，不覆盖预检基线或进入交互确认。
+- `.claude` 或 `.claude/worktrees` 缺失、不可验证或通过符号链接逃逸时，在创建 branch/worktree 前失败关闭。
 - merge 与并行 apply 仍要求人工确认。
 - 两个验证 skill 使用冻结的非 `main` commit，并在目标不是当前 commit 祖先时失败关闭。
 - 未选择 change 永不被 completion check 回填。
@@ -182,8 +165,8 @@ git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>
 
 ## Risks / Trade-offs
 
-- [不同 Runtime 对 skill 自动触发的支持不同] → 不把 frontmatter 当作唯一证据；要求统一的 `explicit-skill-invocation/v1` trusted dispatch，缺失时失败关闭。
-- [错误的上游自动化尝试转调] → nested/model-selected invocation 不满足 `user-explicit-skill-command`，不得进入默认写入。
+- [不同 Runtime 对 skill 自动触发的支持不同] → 为 Claude 与 Codex 分别配置其原生禁止隐式调用策略；其他 Runtime 缺少等价门禁时失败关闭。
+- [错误的上游自动化尝试转调] → Runtime 原生策略禁止 nested/model-selected activation，不能由 Markdown 内容绕过。
 - [默认执行会创建 branch、worktree 和来源 commit] → 所有写入限定在 canonical source identity，目标 worktree保持不变；失败现场保留，不自动清理或扩大操作范围。
 - [dry-run 结果可能在真实执行前过期] → dry-run 不可复用；真实执行重新冻结并复检全部事实。
 - [显式基线参数带来调用迁移成本] → 这是有意的确定性输入，避免自动化流程把错误目标当作基线。
@@ -192,11 +175,11 @@ git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>
 
 ## Migration Plan
 
-1. 更新 delta specs 和任务清单，明确 trusted explicit dispatch、默认非交互、必填 target、dry-run 和确认边界。
-2. 增加 `explicit-skill-invocation/v1` 解析与同 invocation 复检；来源 unknown 时失败关闭。
+1. 更新 delta specs 和任务清单，明确 Runtime 原生显式调用门禁、默认非交互、必填 target、dry-run 和确认边界。
+2. 为 Claude 保留 `disable-model-invocation: true`，为 Codex 增加 `policy.allow_implicit_invocation: false`，其他 Runtime 缺少等价门禁时失败关闭。
 3. 删除 `new-worktree-apply` 的 `--authorized-by-issue`、任务平台 envelope、双模式和人工确认实现。
 4. 增加 `--dry-run`，并让默认与 dry-run 共用同一只读 preflight。
-5. 把 Step 6–7 重构为 preflight snapshot 与最终零写漂移复检；通过后默认直接创建。
+5. 把 Step 6–7 重构为不可变 preflight baseline 与独立零写 revalidation snapshot，并在创建前增加 source parent 物理包含门禁；通过后默认直接创建。
 6. 更新 `verify-impl-consistency` 与 `check-changes-completed` 的显式冻结基线实现和文档。
 7. 扫描所有非归档 skill，确认没有固定 `main` 比较或遗留 Issue 授权文本。
 8. 运行 worktree lifecycle、target-aware、安装环境、OpenSpec strict validation 和 diff 检查。
@@ -204,4 +187,4 @@ git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>
 
 ## Open Questions
 
-无。可信用户显式 dispatch 即有限授权、显式 target、dry-run、漂移失败关闭、外部副作用边界和验证 skill 的目标基线契约均已确定。
+无。Runtime 原生门禁下的用户显式调用即有限授权、显式 target、dry-run、漂移失败关闭、父目录物理包含、外部副作用边界和验证 skill 的目标基线契约均已确定。
