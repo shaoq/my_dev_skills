@@ -19,6 +19,7 @@ argument-hint: "[--target <target-branch>]"
   ```
 - 每个 Worker rebase 后冻结独立 `POST_REBASE_SOURCE_HEAD`；Controller 只 merge 该 commit hash，不 merge 活跃 source branch name。
 - 每个 child 独立计算完整 `CLEANUP_READY`；false/unknown/命令错误时保留该 child worktree 和 branch。
+- 每个 child 在 apply 后独立计算 `TASK_CLEANUP_POLICY_PASSED`：普通未完成任务阻止交付与 cleanup；只有精确标签 `[post-merge-verification]` 的延期任务不阻止结构性交付、cleanup 或依赖 Wave。
 - 不自动 reset/revert 已完成 merge，不自动重试失败或未验证 merge，不使用强制 cleanup。
 
 ## Step 0：参数、仓库、目标与控制器上下文（只读）
@@ -80,6 +81,7 @@ Kahn 算法生成 Wave；每 Wave 按 change 名字母序分 Batch，每 Batch �
 - 每个 Batch 共享冻结 hash、每个 Worker apply/commit、来源内 rebase、冻结 source hash、目标内 exact-hash merge、验证和条件式普通 cleanup。
 - 确认后不会 checkout/switch 或 auto-commit 目标；漂移和 cleanup 失败的 child 会保留。
 - 确定的 `PROJECT_VERIFY_COMMANDS`；至少含 change strict validation、任务完成度、artifacts、目标 identity/clean、containment、source-only commits 和 `git diff --check`。
+- 每个 change 已声明的精确 `[post-merge-verification]` 任务；明确这些任务由用户后续在 target worktree 执行，Controller/Worker 不执行或修改，且 child 会保持 `incomplete / non-archivable`。
 - merge 每个 child 最多一次，失败不换参数重试；成功后验证失败不自动回滚。
 
 使用交互工具请求无默认值、无超时同意的明确确认。拒绝、取消、缺失、模糊或无交互能力时不写、不 spawn、不 apply。
@@ -135,13 +137,23 @@ git worktree add <SOURCE_WORKTREE_DIR> -b worktree-<change-name> <BATCH_TARGET_H
 
 ### 6.2 Worker apply 与来源提交
 
-每个 Worker 在自己的 verified source CWD 调用 `openspec-apply-change <change-name>`，执行任务回填并提交。返回必须包含 source path、`SOURCE_BRANCH`、source HEAD、clean 状态、DONE/TOTAL、错误。
+每个 Worker 在自己的 verified source CWD 调用 `openspec-apply-change <change-name>`，但明确跳过同一未勾选行含精确标签 `[post-merge-verification]` 的任务；这些任务由用户后续在 target worktree 执行。Worker 不得执行、勾选、stage 或 commit 延期任务。
+
+apply 后只按标准 checkbox 行分类：
+
+```text
+TOTAL=<所有 - [ ] / - [x] 行数>
+DEFERRED_REMAINING=<未勾选且同一行含精确标签 [post-merge-verification] 的任务>
+BLOCKING_REMAINING=<其余未勾选任务>
+```
+
+`tasks.md` 缺失、不可读、`TOTAL == 0` 或无法确定分类时，`TASK_CLEANUP_POLICY_PASSED=unknown`；`BLOCKING_REMAINING` 非空时为 false；否则为 true。只有 true 才把 Worker 视为成功 delivery candidate。Worker 返回必须包含 source path、`SOURCE_BRANCH`、source HEAD、clean 状态、DONE/TOTAL、`TASK_CLEANUP_POLICY_PASSED`、两类 remaining 清单与错误。只有延期任务时明确报告 `incomplete / non-archivable`，但不是 Worker failure。
 
 Worker 失败不清理且不合并。Batch 内其他 Worker 可完成；Controller 等待全部返回后才串行处理成功者。
 
 ## Step 7：每个成功 child 的 rebase 与冻结
 
-按 change 名字母序串行处理。对一个 child，在其规范 source worktree 中验证：注册 path/branch、worktree HEAD 与 branch ref 相等、source clean、tasks/artifacts 状态可读；target ref 和 target worktree HEAD 等于当前 `EXPECTED_TARGET_HEAD`。
+按 change 名字母序串行处理。对一个 child，在其规范 source worktree 中验证：注册 path/branch、worktree HEAD 与 branch ref 相等、source clean、tasks/artifacts 状态可读，且重新分类结果与 Worker 返回完全一致并满足 `TASK_CLEANUP_POLICY_PASSED=true`；target ref 和 target worktree HEAD 等于当前 `EXPECTED_TARGET_HEAD`。
 
 从来源真实 CWD执行一次：
 
@@ -188,8 +200,8 @@ POST_MERGE_TARGET_HEAD=<git rev-parse HEAD>
 - target 包含精确 `POST_REBASE_SOURCE_HEAD`。
 - source canonical mapping 仍精确，source clean，source HEAD/ref 仍等于冻结 hash。
 - source 有 delivery commits，且 `git rev-list target..source` 为空。
-- change strict validation、artifacts 与 tasks 全部完成。
-- `git diff <PRE_MERGE_TARGET_HEAD>..<POST_MERGE_TARGET_HEAD> --check` 和确认的项目命令全部成功。
+- change strict validation 与 artifacts 完成；target 中的 task 分类与冻结 child 结果一致且 `TASK_CLEANUP_POLICY_PASSED=true`。普通未完成任务或 unknown 阻止 cleanup，只有延期任务时保持 checkbox 不变。
+- `git diff <PRE_MERGE_TARGET_HEAD>..<POST_MERGE_TARGET_HEAD> --check` 和确认的项目命令全部成功；不得把 `DEFERRED_REMAINING` 描述的测试当作 Controller/Worker 项目命令执行。
 
 只有全部显式成功：
 
@@ -204,6 +216,7 @@ CLEANUP_READY =
   AND TARGET_REF_EQUALS_TARGET_WORKTREE_HEAD
   AND TARGET_CONTAINS_POST_REBASE_SOURCE_HEAD
   AND NO_SOURCE_ONLY_COMMITS
+  AND TASK_CLEANUP_POLICY_PASSED
   AND POST_MERGE_VERIFICATION_PASSED
 ```
 
@@ -218,7 +231,7 @@ git branch -d -- <SOURCE_BRANCH>
 
 若 post-merge/cleanup 任一 gate 失败，target 上已成功 merge 保留，child source 现场保留，不自动回滚或重试 merge。
 
-只有 child merge 与 post-merge verification 全部通过，才更新：
+只有 child merge、task cleanup policy 与结构性 post-merge verification 全部通过，才更新：
 
 ```text
 EXPECTED_TARGET_HEAD=<POST_MERGE_TARGET_HEAD>
@@ -226,11 +239,14 @@ EXPECTED_TARGET_HEAD=<POST_MERGE_TARGET_HEAD>
 
 cleanup 因锁失败不否认代码已经验证进入目标，但报告为“已交付、未清理”；依赖调度可基于已验证 target 继续。post-merge verification 失败则不得推进依赖 Wave。
 
+若 child 只有 `DEFERRED_REMAINING`，成功更新 `EXPECTED_TARGET_HEAD` 后可推进依赖 Wave；这仅表示代码已结构性交付，不表示 proposal 已完成或可归档。最终报告必须列出延期任务，保留其未勾选状态并交给用户执行。
+
 ## Step 10：Batch/Wave 推进规则
 
 - 同 Batch children 都基于相同 `BATCH_TARGET_HEAD`；串行 rebase 到每个前序已验证 merge 后的最新 `EXPECTED_TARGET_HEAD`。
 - 下个 Batch spawn 前重新执行目标 equality/clean/CWD 和每个 manifest 检查。
 - Wave 的依赖 change 必须已成功 merge 且 post-merge verification 通过；cleanup 是否因普通路径锁失败单独报告，不阻止已经验证的依赖代码可见性。
+- 只有延期任务的依赖 change 在 `TASK_CLEANUP_POLICY_PASSED=true` 且结构性 post-merge verification 通过后可推进依赖 Wave；普通未完成任务、unknown 或验证失败仍阻止依赖者。
 - 外部 target 漂移、target dirty 或控制器上下文漂移停止后续 Batch/Wave，不执行修复性 checkout。
 
 ## Step 11：最终报告
@@ -248,6 +264,9 @@ cleanup 因锁失败不否认代码已经验证进入目标，但报告为“已
 | Merge count | 0 或 1 |
 | Verification | 每个 gate 的 true/false/unknown |
 | CLEANUP_READY | true/false |
+| Task cleanup policy | true/false/unknown |
+| Deferred tasks | none / exact unchecked lines; user-owned in target |
+| Proposal status | complete / incomplete / non-archivable |
 | Preserved recovery objects | exact worktree/branch |
 
 最终摘要显示 `EXPECTED_TARGET_HEAD`、成功/失败/已交付未清理数量、未执行的依赖 changes 和人工恢复上下文。

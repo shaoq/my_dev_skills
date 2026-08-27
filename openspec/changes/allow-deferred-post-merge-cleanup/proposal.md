@@ -9,7 +9,7 @@
 - Keep ordinary unchecked tasks as cleanup blockers.
 - Do not execute, mark, stage, or commit deferred post-merge tasks; report them for the user to perform later in the target worktree.
 - Keep the OpenSpec change incomplete and non-archivable until the user completes and marks the deferred tasks.
-- Limit the behavior change to `merge-worktree-return`; do not alter the parallel apply workflow.
+- Apply the same per-child classification, cleanup, reporting, and dependency-wave semantics in `parall-new-worktree-apply`.
 
 ## Capabilities
 
@@ -19,8 +19,8 @@ None.
 
 ### Modified Capabilities
 
-- `worktree-targeting`: Refine single-worktree return cleanup eligibility for explicitly deferred user-run post-merge verification tasks.
+- `worktree-targeting`: Refine single-return and parallel-child cleanup eligibility for explicitly deferred user-run post-merge verification tasks.
 
 ## Impact
 
-Affected surfaces are `merge-worktree-return/SKILL.md`, its worktree lifecycle regression tests, README guidance, and the canonical `worktree-targeting` specification. No application runtime, API, dependency, remote operation, or parallel workflow changes.
+Affected surfaces are `merge-worktree-return/SKILL.md`, `parall-new-worktree-apply/SKILL.md`, their worktree lifecycle regression tests, README guidance, and the canonical `worktree-targeting` specification. No application runtime, API, dependency, or remote operation changes.

@@ -309,7 +309,9 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - Agent spawn 前控制器持久进入目标工作树；控制器用 `EXPECTED_TARGET_HEAD` 只接纳自身已验证 merge 的推进
 - 同一 Batch 共享冻结的 `BATCH_TARGET_HEAD`，每个 child 使用规范 branch `worktree-<proposal>` 和 `.claude/worktrees/<proposal>`，从该 commit hash 显式创建
 - 串行合并前在 child 中 rebase 并冻结 `POST_REBASE_SOURCE_HEAD`，目标只 merge 该 hash，不 merge 可继续移动的 source branch ref
+- Worker 和 Controller 对每个 child 独立分类任务：普通未完成任务阻止交付；精确 `[post-merge-verification]` 任务由用户后续在 target 执行，流程不执行、不勾选、不提交
 - 每个 child 独立执行 post-merge checks 和 `CLEANUP_READY`；全部为 true 才普通移除 worktree 并安全删除本地 branch
+- 只有延期任务的 child 在结构性交付通过后可清理、推进 `EXPECTED_TARGET_HEAD` 和依赖 Wave，但 proposal 保持 incomplete / non-archivable，最终摘要列出用户待办
 - 冲突只在当前 rebase 内处理；无法可靠解决时 abort 未完成 rebase 并保留来源
 
 **注意事项**:
@@ -320,6 +322,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - Agent spawn 必须在同一消息中并行（同一 Batch 内）
 - 合并必须串行绑定目标分支，每个 Batch 完成后立即合并
 - artifacts 不完整的 change 会被跳过
+- 普通未完成任务或 task 分类 unknown 的 child 不合并、不清理，也不解锁依赖 Wave
 - 失败或漂移的 Agent/分支不阻塞其他安全项，失败 worktree 与 branch 保留待人工处理
 - merge 后验证失败不会自动 reset/revert，也不会换参数重试 merge
 - 普通 cleanup 因 Windows 路径锁、进程占用或平台锁失败时保留现场并在报告中列出精确恢复对象
