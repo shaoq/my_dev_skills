@@ -1,8 +1,7 @@
 ---
 name: parall-new-worktree-apply
-description: Use when implementing multiple pending OpenSpec changes in dependency-aware isolated worktrees.
+description: Implement multiple selected pending OpenSpec changes in dependency-aware isolated worktrees after one confirmed batch plan.
 argument-hint: "[--target <target-branch>]"
-disable-model-invocation: true
 ---
 
 按依赖 Wave/Batch 并行实施所有待执行 OpenSpec changes。
@@ -71,6 +70,8 @@ Kahn 算法生成 Wave；每 Wave 按 change 名字母序分 Batch，每 Batch �
 
 ## Step 3：确认摘要（只读）
 
+进入本步时设置 `WRITE_AUTHORIZATION_GATE=closed`；自动路由和只读规划不授权 spawn、worktree、apply、merge 或 cleanup。
+
 摘要必须显示：
 
 - `TARGET_BRANCH`、选择来源、`TARGET_WORKTREE_DIR`、`TARGET_HEAD`、clean/HEAD-ref 结果。
@@ -82,6 +83,8 @@ Kahn 算法生成 Wave；每 Wave 按 change 名字母序分 Batch，每 Batch �
 - merge 每个 child 最多一次，失败不换参数重试；成功后验证失败不自动回滚。
 
 使用交互工具请求无默认值、无超时同意的明确确认。拒绝、取消、缺失、模糊或无交互能力时不写、不 spawn、不 apply。
+
+只有完整批次计划获得明确肯定后设置 `WRITE_AUTHORIZATION_GATE=open`。Step 4 复检出现任何漂移都会使授权失效并返回本步，不得沿用旧确认。
 
 ## Step 4：确认后完整复检（只读）
 

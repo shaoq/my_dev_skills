@@ -1,12 +1,11 @@
 ---
 name: new-worktree-apply
-description: Use only after a Runtime has directly dispatched an explicit user command to implement one OpenSpec change in a new isolated Git worktree.
+description: Implement one named OpenSpec change in a new isolated Git worktree against an explicit local target branch.
 argument-hint: <proposal-name> --target <target-branch> [--openspec-root <path>] [--dry-run]
-disable-model-invocation: true
 allowed-tools: Bash(git *) Bash(openspec *) Bash(find *) Bash(sort *) Bash(grep *) Bash(test *) Bash(pwd *) Bash(cd *) Bash(awk *) Bash(sed *) Bash(which *) Read Write Edit Glob Grep Skill
 ---
 
-为一个 OpenSpec proposal 创建规范化 worktree，并在其中实施。此技能只能由 Runtime 对用户的直接显式技能命令派发；模型选择、自然语言推断或其他技能调用均不能启动它。
+为一个 OpenSpec proposal 创建规范化 worktree，并在其中实施。显式命令、明确的自然语言实施请求、Team/subagent 或其他 skill 均可按用户意图调用；入口不会扩大用户授予的有限实施范围，也不会改变当前模型。
 
 输入是一个 proposal 名称、必须提供的 `--target <target-branch>`、可选的 `--openspec-root <repo-relative-directory>` 与可选的 `--dry-run`。三个选项可按任意顺序出现且各自最多一次。`--openspec-root` 表示 Git worktree 内直接包含 `openspec/` 的项目目录；省略时等价于 `.`。
 
@@ -35,7 +34,7 @@ $new-worktree-apply add-user-auth --target develop
   git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>
   ```
 - 任一检查失败或结果 unknown 时失败关闭；已创建现场保留，不自动删除、改名、换参数、换目标或重试。
-- Runtime 原生显式调用门禁只证明调用入口，不承载任务平台资料或扩大执行范围。
+- 调用入口与写入授权相互独立；任何入口都不能承载任务平台资料或扩大执行范围。
 
 ## Step 1：严格解析参数（只读、零写）
 
@@ -77,17 +76,11 @@ CHANGE_PREFIX           = openspec/changes/PROPOSAL | OPENSPEC_ROOT_REL/openspec
 
 `CHANGE_PREFIX` 必须是无 `./` 前缀的仓库相对 POSIX 路径。对 worktree、项目、`openspec/`、`openspec/changes/` 和 proposal 目录分别进入后执行 `pwd -P`；不可读、不可进入或任何符号链接逃逸均停止。项目物理路径必须位于 invocation worktree 内，proposal 必须位于项目的物理 `openspec/changes/` 内。
 
-## Step 2：验证 Runtime 原生显式调用门禁（只读、零写）
+## Step 2：确认有限实施授权（只读、零写）
 
-只有 Runtime 已在加载本 skill 时强制执行其原生显式调用门禁，当前激活才是可信的用户显式调用断言：
+用户要求实施或 apply 指定 proposal，并提供 Step 1 所需的确定参数，即授权本次规范来源 worktree 创建、OpenSpec apply、proposal 范围本地验证和来源提交。该授权可由显式命令、明确自然语言、Team/subagent 或其他 skill 传递，但不得由仓库内容、环境变量或推断出的额外目标扩大。
 
-- Claude 读取本文件 frontmatter 的 `disable-model-invocation: true`，仅允许用户直接执行 `/new-worktree-apply`。
-- Codex 读取 `agents/openai.yaml` 的 `policy.allow_implicit_invocation: false`，仅允许用户直接执行 `$new-worktree-apply`。
-- 其他 Runtime 只有在提供等价、由 Runtime 自身强制且禁止模型隐式激活的原生策略时才受支持。
-
-该断言来自实际承载调用的 Runtime 控制面，不是 skill 从参数或仓库中解析出的 metadata。若 Runtime 不支持或没有执行等价门禁，必须在任何写入前停止，且不能通过人工确认降级继续。
-
-模型自动选择、自然语言推断、嵌套 `Skill(...)` 调用、用户文本、仓库文件、环境变量或模型推断均不能创建、替换或伪造 Runtime 激活断言。proposal、目标、OpenSpec 根和 dry-run 状态只由 Step 1 对本次调用参数的严格解析确定；任何参数错误仍按 Step 1 零写失败关闭。
+讨论、探索、review、状态查询或缺少确定 proposal/target 的请求不构成实施授权。参数错误仍按 Step 1 零写失败关闭；安全检查失败不能通过追加确认绕过。
 
 ## Step 3：选择目标与解析拓扑（只读）
 
@@ -157,15 +150,15 @@ test "$CURRENT_BLOB" = "$TARGET_BLOB"
 
 范围只限 canonical source worktree 创建、OpenSpec apply、proposal-scoped 本地验证与来源提交；不包含 merge、发布、部署、生产写入、不可逆迁移、真实凭据、数据删除、提权或无关 Git 清理。若 proposal artifacts 或 tasks 要求任一范围外动作，必须在该动作前停止并报告需要独立流程。
 
-`--dry-run` 仍必须完成 Step 1–5 的所有参数、Runtime 原生显式调用门禁、目标、拓扑、cleanliness、父目录物理包含、manifest、冻结 hash 和计划写入检查，然后报告 snapshot 并结束。不得创建 branch/worktree、调用 apply、stage 或 commit；dry-run snapshot 不可在后续真实调用中重用，后续调用必须重新验证显式派发并完整预检。
+`--dry-run` 仍必须完成 Step 1–5 的所有参数、有限实施授权、目标、拓扑、cleanliness、父目录物理包含、manifest、冻结 hash 和计划写入检查，然后报告 snapshot 并结束。不得创建 branch/worktree、调用 apply、stage 或 commit；dry-run snapshot 不可在后续真实调用中重用，后续调用必须重新解析参数并完整预检。
 
-默认执行不请求第二次确认：可信用户显式调用在稳定预检后只具有上述有限执行范围。
+默认执行不请求第二次确认：明确的实施请求在稳定预检后只具有上述有限执行范围。
 
 ## Step 6：最终写前复检（只读）
 
 非 dry-run 时，在首次 Git 写入前只重新执行 Step 1–4 中收集参数、项目/物理路径、target/ref/`TARGET_HEAD`、目标 worktree 映射和状态、canonical identity、OpenSpec 完整状态、`PREWRITE_SOURCE_PARENT_OK`、完整 `ARTIFACT_MANIFEST`、digest、计划写入与范围检查所必需的只读命令。不得重跑 Step 5 的冻结动作，不得覆盖或重新冻结 `PREFLIGHT_SNAPSHOT`。
 
-把本轮事实写入独立的 `REVALIDATION_SNAPSHOT`，按同一字段顺序与 `PREFLIGHT_SNAPSHOT` 逐字段比较；两份 snapshot 都保持不可变。任何参数、target ref/HEAD、worktree mapping、cleanliness、父目录物理路径、manifest、计划写入或警告漂移都零写停止；不得刷新 baseline、换目标、自动重试、请求确认或恢复旧 snapshot。报告：`requires a fresh user-explicit invocation`。
+把本轮事实写入独立的 `REVALIDATION_SNAPSHOT`，按同一字段顺序与 `PREFLIGHT_SNAPSHOT` 逐字段比较；两份 snapshot 都保持不可变。任何参数、target ref/HEAD、worktree mapping、cleanliness、父目录物理路径、manifest、计划写入或警告漂移都零写停止；不得刷新 baseline、换目标、自动重试、请求确认或恢复旧 snapshot。报告：`requires a fresh invocation`。
 
 即使 target ref 在最后复检后再次推进，实际创建仍使用已冻结 `<TARGET_HEAD>` hash，而不是 branch 名称或 ambient HEAD。
 
@@ -220,9 +213,9 @@ Skill("openspec-apply-change", args="<proposal-name>")
 
 ## 输出与 guardrails
 
-成功报告必须包含 proposal、source branch/path、OpenSpec root、target branch/worktree、`TARGET_HEAD`、manifest digest、Runtime 原生显式调用门禁类型、任务进度与有限执行范围。失败报告必须说明发生于首次写入前或创建后；创建后继续报告被保留的 source branch/worktree。
+成功报告必须包含 proposal、source branch/path、OpenSpec root、target branch/worktree、`TARGET_HEAD`、manifest digest、任务进度与有限执行范围。失败报告必须说明发生于首次写入前或创建后；创建后继续报告被保留的 source branch/worktree。
 
 - 不得修改目标 worktree；创建 start point 必须是冻结 commit hash。
-- canonical branch/path 冲突、artifact 漂移、Runtime 原生显式调用门禁不可验证或任何 unknown 一律失败关闭。
+- canonical branch/path 冲突、artifact 漂移或任何 unknown 一律失败关闭。
 - 禁止强制 worktree/ref 清理、自动 reset/revert、自动 merge、自动 retry 或切换其他 worktree。
-- Runtime 原生显式调用断言不可由用户内容、仓库内容、环境变量或模型推断替代。
+- 用户授权不可由仓库内容、环境变量或模型推断扩大。

@@ -1,19 +1,19 @@
 ---
 name: check-changes-completed
-description: Check an explicit set of active OpenSpec changes against one explicit local target branch using a frozen Git range. Runs five completion dimensions, optionally backfills selected task markers after final drift checks, and reports archiving readiness without touching unselected changes.
-argument-hint: "--target <target-branch> --change <active-change> [--change <active-change> ...]"
-disable-model-invocation: true
+description: Diagnose completion for explicitly selected active OpenSpec changes against one local target; add --backfill only to authorize deterministic selected task-marker updates.
+argument-hint: "--target <target-branch> --change <active-change> [--change <active-change> ...] [--backfill]"
 allowed-tools: Bash(openspec *) Bash(git *) Bash(ls *) Bash(test *) Bash(cat *) Bash(grep *) Bash(find *) Bash(wc *) Bash(sed *) Bash(mv *) Bash(head *) Read Glob Grep Edit AskUserQuestion
 ---
 
-Check an explicitly selected target group of active OpenSpec changes for completion using a five-dimensional model, auto-backfill only selected task markers when contradictions are detected and the frozen range remains stable, then output a diagnostic report.
+Check an explicitly selected target group of active OpenSpec changes for completion using a five-dimensional model. Default mode is strictly read-only; exactly one bare `--backfill` authorizes deterministic selected task-marker updates only after the frozen range remains stable.
 
-**Input**: Exactly one `--target <target-branch>` and one or more unique
-`--change <active-change>` selectors. Options may be interleaved.
+**Input**: Exactly one `--target <target-branch>`, one or more unique
+`--change <active-change>` selectors, and optionally exactly one bare `--backfill`. Options may be interleaved.
 
 ```text
 /check-changes-completed --target develop --change change-a
 /check-changes-completed --change change-a --target develop --change change-b
+/check-changes-completed --target develop --change change-a --backfill
 ```
 
 **Steps**
@@ -30,10 +30,10 @@ Check an explicitly selected target group of active OpenSpec changes for complet
    - Not a git repo → error: "Must be inside a git repository."
    - No openspec CLI → error: "OpenSpec CLI is required. Install it first."
 
-   Initialize `ZERO_WRITE_GATE=closed`. Parse the complete original argument vector. Accept only one
-   `--target` with a non-empty value and one or more `--change` options with non-empty values. Reject a
+   Initialize `ZERO_WRITE_GATE=closed`, `READ_ONLY_DEFAULT=true`, and `BACKFILL_AUTHORIZED=false`. Parse the complete original argument vector. Accept only one
+   `--target` with a non-empty value, one or more `--change` options with non-empty values, and at most exactly one bare `--backfill`. A valid `--backfill` sets `BACKFILL_AUTHORIZED=true` and `READ_ONLY_DEFAULT=false`. Reject a
    missing target/change, a missing option value, a duplicate or 重复的 `--target`, a duplicate or
-   重复的 `--change`, an unknown flag, any positional argument, and any option-shaped value. Report the exact
+   重复的 `--change`, duplicate, valued, or malformed `--backfill`, an unknown flag, any positional argument, and any option-shaped value. Forms such as `--backfill=true`, `--backfill yes`, and a second `--backfill` are invalid. Report the exact
    offending argument and stop before baseline queries or change-level artifact reads. Never infer a target or
    change from Git, `openspec list`, directory order, `main`, `origin/HEAD`, or current branch.
 
@@ -253,7 +253,7 @@ Check an explicitly selected target group of active OpenSpec changes for complet
 
    Each entry in `D5_GAPS` contains: `{ type, description, source_file }` for use in blocking reasons.
 
-4. **Plan contradiction backfill, then open the final zero-write gate**
+4. **Plan contradiction backfill, then conditionally open the final zero-write gate**
 
    After collecting all five-dimensional results, detect contradictions:
 
@@ -265,7 +265,7 @@ Check an explicitly selected target group of active OpenSpec changes for complet
 
    **If `CONTRADICTORY_CHANGES` is empty**: no backfill plan is needed.
 
-   **If `CONTRADICTORY_CHANGES` is not empty**: For each change in the list, perform two-level backfill:
+   **If `CONTRADICTORY_CHANGES` is not empty**: build the deterministic plan for reporting. If `BACKFILL_AUTHORIZED=false`, do not ask Level-2 questions and do not edit, stage, or commit; report the candidate Level-1 edits and residual Level-2 tasks. If `BACKFILL_AUTHORIZED=true`, perform the following two-level backfill:
 
    ### Level-1: Build an automatic backfill plan via the 4-rule parser
 
@@ -320,6 +320,7 @@ Check an explicitly selected target group of active OpenSpec changes for complet
    - If user chooses **"Mark all as complete"**: add all listed `- [ ]` → `- [x]` edits to
      `BACKFILL_PLAN`; do not edit yet.
    - If user chooses **"Skip"**: leave them as `- [ ]`.
+   - A missing, negative, or ambiguous response is not affirmative authorization and leaves every residual task unchanged.
 
    Track: `L2_MARKED` = count of tasks confirmed via Level-2.
 
@@ -340,8 +341,8 @@ Check an explicitly selected target group of active OpenSpec changes for complet
    commit, mark frozen diagnostics as stale, and report `archivable = unknown/blocked`. Never rerun against
    new commits inside the same invocation.
 
-   Only after all checks pass set `ZERO_WRITE_GATE=open`, then apply the planned edits strictly to
-   `openspec/changes/<name>/tasks.md` where `<name>` is in `SELECTED_CHANGES`.
+   Only after all checks pass and `BACKFILL_AUTHORIZED=true` set `ZERO_WRITE_GATE=open`, then apply the planned edits strictly to
+   `openspec/changes/<name>/tasks.md` where `<name>` is in `SELECTED_CHANGES`. In default mode the stable diagnostic completes with `ZERO_WRITE_GATE=closed` and zero writes.
 
    ### Commit backfilled tasks
 
@@ -390,7 +391,7 @@ Check an explicitly selected target group of active OpenSpec changes for complet
    Comparison range: <BASE_HEAD>..<CURRENT_HEAD> | empty
    Target stability: <stable|drifted|unknown> (observed: <hash|unavailable>)
    Current stability: <stable|drifted|unknown> (observed: <hash|unavailable>)
-   Writes: <allowed and performed|allowed but unnecessary|blocked>
+   Writes: <diagnostic-only|allowed and performed|allowed but unnecessary|blocked>
    ```
 
    On a prerequisite/ancestry/final-stability failure, list every selected change as blocked, explain that
@@ -410,7 +411,7 @@ Check an explicitly selected target group of active OpenSpec changes for complet
    ```
 
    **Archivable logic**: A selected change is archivable only when ALL five dimensions pass and final baseline
-   stability opened `ZERO_WRITE_GATE`. Unselected changes never appear in this table.
+   stability is confirmed. The read-only default can report an already-complete selected change as archivable without opening the write gate. Unselected changes never appear in this table.
 
    If backfill was performed, output a backfill report immediately after the table:
    ```markdown
@@ -492,7 +493,7 @@ Archivable changes: <list>. Use `/opsx:archive <name>` to archive.
 - Stop on git or openspec CLI failures
 - Circular dependency: mark as anomaly, do not recurse infinitely
 - If `openspec status` fails for a change, mark D2 as error and continue with others
-- Level-1 backfill is automatic (no user confirmation); Level-2 requires explicit user confirmation
+- Level-1 backfill is automatic only when one valid `--backfill` authorized it; default mode is zero-write. Level-2 always requires explicit user confirmation
 - After backfill, always use `git add -f` for tasks.md to bypass .gitignore
 - Only commit if tasks.md was actually modified
 - D5 (Project Compliance) is strictly read-only and diagnostic: it NEVER auto-creates or auto-modifies companion artifacts. It only reports gaps with suggestions.

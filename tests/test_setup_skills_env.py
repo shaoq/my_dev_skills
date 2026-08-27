@@ -158,6 +158,43 @@ class FullInstallerIsolationTests(unittest.TestCase):
 
 
 class FrontmatterConsistencyTests(unittest.TestCase):
+    def test_model_invocable_skill_without_policy_fields_is_valid(self) -> None:
+        module = load_setup_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            skill_file = Path(temp_dir) / "SKILL.md"
+            skill_file.write_text(
+                "---\nname: model-invocable\ndescription: intent-routed workflow\n---\n",
+                encoding="utf-8",
+            )
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                warnings = module.check_skill_consistency(
+                    [("model-invocable", skill_file)], module.STANDARD_PERMISSIONS
+                )
+
+        self.assertEqual(warnings, 0)
+        self.assertEqual(output.getvalue(), "")
+
+    def test_missing_bash_preapproval_still_warns(self) -> None:
+        module = load_setup_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            skill_file = Path(temp_dir) / "SKILL.md"
+            skill_file.write_text(
+                "---\nname: custom-command\ndescription: demo\n"
+                "allowed-tools: Bash(command-not-preapproved *)\n---\n",
+                encoding="utf-8",
+            )
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                warnings = module.check_skill_consistency(
+                    [("custom-command", skill_file)], module.STANDARD_PERMISSIONS
+                )
+
+        self.assertEqual(warnings, 1)
+        self.assertIn("command-not-preapproved", output.getvalue())
+
     def test_specific_read_only_bash_rules_are_recognized_by_command_prefix(self) -> None:
         module = load_setup_module()
         with tempfile.TemporaryDirectory() as temp_dir:

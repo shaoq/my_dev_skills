@@ -1,8 +1,7 @@
 ---
 name: merge-worktree-return
-description: Use when finishing an OpenSpec change from its canonical linked worktree and returning it to a confirmed target branch.
+description: Commit and return one completed OpenSpec change from its canonical linked worktree to an explicit target branch after one confirmed return plan.
 argument-hint: "[proposal-name] [--target <target-branch>]"
-disable-model-invocation: true
 allowed-tools: Bash(git *) Bash(openspec *) Bash(grep *) Bash(awk *) Bash(sed *) Bash(test *) Bash(pwd *) Read Write Edit Glob Grep AskUserQuestion
 ---
 
@@ -115,6 +114,8 @@ openspec status --change "<PROPOSAL>" --json
 
 ## Step 5：预检摘要与明确确认（只读）
 
+进入本步时设置 `WRITE_AUTHORIZATION_GATE=closed`；自动路由和预检不授权 commit、rebase、merge 或 cleanup。
+
 摘要必须显示：
 
 - `PROPOSAL`、`SOURCE_BRANCH`、`SOURCE_WORKTREE_DIR` 的规范映射结果。
@@ -126,6 +127,8 @@ openspec status --change "<PROPOSAL>" --json
 - incomplete task 风险与“merge 后验证失败时不回滚且不清理”的行为。
 
 请求无默认值、无定时批准的明确确认。拒绝、取消、缺失或模糊回答保持 Git 不变；无交互工具时输出问题并结束响应。
+
+只有完整 return plan 获得明确肯定后设置 `WRITE_AUTHORIZATION_GATE=open`。Step 6 的任一实质变化都会使授权失效并返回本步，不得沿用旧确认。
 
 ## Step 6：确认后快照复检（只读）
 

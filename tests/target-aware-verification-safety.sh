@@ -85,8 +85,16 @@ require_text "$VERIFY_SKILL" 'If the local branch is absent' \
 require_text "$VERIFY_SKILL" 'not executed: BASE_HEAD is not an ancestor of CURRENT_HEAD' \
   'verify reports non-ancestor incremental verification as not executed'
 
-require_text "$COMPLETION_SKILL" 'argument-hint: "--target <target-branch> --change <active-change> [--change <active-change> ...]"' \
+require_text "$COMPLETION_SKILL" 'argument-hint: "--target <target-branch> --change <active-change> [--change <active-change> ...] [--backfill]"' \
   'completion advertises an explicit target and repeated change selectors'
+require_text "$COMPLETION_SKILL" '[--backfill]' \
+  'completion advertises explicit backfill authorization'
+require_text "$COMPLETION_SKILL" 'READ_ONLY_DEFAULT=true' \
+  'completion defaults to diagnostic-only mode'
+require_text "$COMPLETION_SKILL" 'exactly one bare `--backfill`' \
+  'completion accepts only one valueless backfill flag'
+require_text "$COMPLETION_SKILL" 'duplicate, valued, or malformed `--backfill`' \
+  'completion rejects malformed backfill authorization'
 require_text "$COMPLETION_SKILL" 'SELECTED_CHANGES' \
   'completion uses an explicit selected-change set'
 require_text "$COMPLETION_SKILL" 'LC_ALL=C sort' \
@@ -121,6 +129,10 @@ require_text "$COMPLETION_SKILL" 'not selected)' \
   'completion does not recursively scan an unselected active dependency'
 require_text "$COMPLETION_SKILL" 'discard the plan, perform zero backfill, zero stage, zero' \
   'completion discards planned writes when snapshots drift'
+require_text "$COMPLETION_SKILL" 'BACKFILL_AUTHORIZED=true' \
+  'completion opens deterministic writes only after explicit authorization'
+require_text "$COMPLETION_SKILL" 'missing, negative, or ambiguous' \
+  'completion preserves Level-2 residual tasks without affirmative confirmation'
 
 TEST_TMP_ROOT=$(mktemp -d)
 trap 'rm -rf -- "$TEST_TMP_ROOT"' EXIT

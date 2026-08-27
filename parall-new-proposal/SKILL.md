@@ -1,8 +1,7 @@
 ---
 name: parall-new-proposal
-description: 并行提案拆分 skill。根据用户综合需求描述，按功能切片维度拆解为多个带依赖声明的 OpenSpec 提案，通过三问判定控制颗粒度，复用 /opsx:propose 创建 artifacts，后注入 ## Dependencies 段，使得后续 /parall-new-worktree-apply 可最大化并行执行。
+description: 将一个明确的综合需求拆分为多个可独立交付、带依赖关系的 OpenSpec 提案，并在用户确认拆分计划后创建 artifacts。
 argument-hint: "<需求描述> (如: 给项目添加完整的认证系统)"
-disable-model-invocation: true
 ---
 
 并行提案拆分 — 将综合需求拆解为多个带依赖声明的 OpenSpec 提案。
@@ -217,10 +216,14 @@ Wave 1                    Wave 2
 
 ### 4.2 用户确认交互
 
+进入本节时设置 `WRITE_AUTHORIZATION_GATE=closed`。自动路由、需求分析和依赖规划均不授权创建 artifacts。
+
 使用 **AskUserQuestion** 工具，提供三个选项：
 1. **确认执行** — 按方案创建所有提案
 2. **调整方案** — 用户修改后重新展示
 3. **取消** — 终止流程
+
+只有明确选择“确认执行”时设置 `WRITE_AUTHORIZATION_GATE=open`。拒绝、取消、缺失或模糊响应保持关闭；写入前若输入、拆分计划、依赖图或仓库快照漂移，确认失效并返回 Step 4.1。
 
 ### 4.3 方案调整
 

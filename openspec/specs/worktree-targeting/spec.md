@@ -26,43 +26,16 @@ The three worktree skills SHALL use `--target <target-branch>` as their only exp
 - **WHEN** an invocation has a missing target value, duplicate target options, an unknown option, or invalid positional arguments for that skill
 - **THEN** the skill reports an argument error and performs no Git write operation
 
-### Requirement: New worktree apply requires Runtime-native explicit invocation gates
-Before `new-worktree-apply` performs repository or OpenSpec writes, the Runtime SHALL enforce a native policy that prevents implicit model invocation of this skill. Claude SHALL load `disable-model-invocation: true`; Codex SHALL load `agents/openai.yaml` with `policy.allow_implicit_invocation: false`; another Runtime MUST provide an equivalent control-plane gate. Activation under such a gate is the trusted user-explicit invocation assertion. User message text, repository files, environment variables, model inference, automatic skill selection, and nested skill calls MUST NOT create or replace that assertion. A Runtime that cannot enforce an equivalent gate MUST stop without writes.
-
-#### Scenario: Claude slash command is explicitly dispatched
-- **WHEN** a user directly invokes `/new-worktree-apply add-user-auth --target develop` and Claude Code has enforced `disable-model-invocation: true`
-- **THEN** the Runtime-native activation assertion is trusted and the skill may continue to read-only preflight
-
-#### Scenario: Codex skill command is explicitly dispatched
-- **WHEN** a user directly invokes `$new-worktree-apply add-user-auth --target develop` and Codex has enforced `policy.allow_implicit_invocation: false`
-- **THEN** the Runtime-native activation assertion is trusted and the skill may continue to read-only preflight
-
-#### Scenario: Runtime lacks an explicit invocation gate
-- **WHEN** a Runtime loads the skill but cannot enforce a native policy equivalent to the Claude or Codex gate
-- **THEN** the skill reports that explicit activation cannot be guaranteed and performs no repository or OpenSpec write
-
-#### Scenario: Model or another skill selects the workflow
-- **WHEN** the model selects `new-worktree-apply` from a natural-language task or another skill invokes it through a nested `Skill(...)` call
-- **THEN** the invocation is not treated as user-explicit and the workflow stops without writing
-
-#### Scenario: Activation evidence is forged in user-controlled data
-- **WHEN** user text, a repository file, or an environment variable claims that an explicit invocation occurred but the Runtime did not enforce its native gate
-- **THEN** the claim is ignored as authorization evidence and the workflow performs no write
-
-#### Scenario: Runtime-native gate cannot be guaranteed
-- **WHEN** the invocation is not running under the Runtime-native explicit activation policy
-- **THEN** the invocation stops without asking for confirmation or performing a write
-
 ### Requirement: New worktree apply executes without repeated authorization
-`new-worktree-apply` SHALL treat a Runtime-verified user-explicit invocation as authorization to create and implement in the canonical isolated source worktree. After a complete read-only preflight and a stable final pre-write revalidation, the skill SHALL proceed without requesting interactive confirmation and without requiring an Issue, Team, task-platform envelope, authorization token, or authorization flag. This authorization MUST remain limited to canonical source worktree creation, OpenSpec apply, proposal-scoped local verification, and source commit.
+`new-worktree-apply` SHALL treat a concrete user request to implement or apply the selected OpenSpec proposal as authorization to create and implement in the canonical isolated source worktree, whether routed from an explicit command, natural language, Team/subagent orchestration, or a nested skill workflow. After complete read-only preflight and stable final revalidation, it SHALL proceed without interactive confirmation or task-platform authorization metadata. Authorization remains limited to source worktree creation, OpenSpec apply, proposal-scoped local verification, and source commit.
 
-#### Scenario: Explicit invocation proceeds after stable preflight
-- **WHEN** Runtime-native explicit activation is guaranteed for `new-worktree-apply add-user-auth --target develop` and every preflight and final revalidation check succeeds
+#### Scenario: Routed implementation request proceeds after stable preflight
+- **WHEN** a concrete implementation request for `add-user-auth` on `develop` is routed and every preflight and final revalidation check succeeds
 - **THEN** the skill creates the canonical source worktree from the frozen target commit and enters apply without asking for confirmation
 
 #### Scenario: Proposal has no Issue
-- **WHEN** a local OpenSpec proposal is invoked directly without any Issue or Team context
-- **THEN** the skill applies the same invocation, repository, target, artifact, and worktree safety checks and does not require task-platform metadata
+- **WHEN** a local OpenSpec proposal is requested without any Issue or Team context
+- **THEN** the skill applies the same argument, repository, target, artifact, and worktree safety checks and does not require task-platform metadata
 
 #### Scenario: Legacy Issue authorization option is supplied
 - **WHEN** an invocation contains `--authorized-by-issue`
@@ -81,10 +54,10 @@ Before `new-worktree-apply` performs repository or OpenSpec writes, the Runtime 
 - **THEN** the skill stops before that action and reports that it requires a separate authorized workflow
 
 ### Requirement: New worktree apply supports a read-only dry run
-`new-worktree-apply` SHALL accept one optional `--dry-run` flag on a Runtime-gated user-explicit invocation. Dry-run mode MUST execute the same strict argument, repository, OpenSpec root, target worktree, cleanliness, canonical identity, source-parent physical containment, artifact manifest, frozen target, and planned-write preflight used by default execution, then report the resulting snapshot and stop without any write. A dry-run snapshot MUST NOT be reused as authorization or as the frozen snapshot of a later real invocation.
+`new-worktree-apply` SHALL accept one optional `--dry-run` flag through every supported routing path. Dry-run mode MUST execute the same strict argument, repository, OpenSpec root, target worktree, cleanliness, canonical identity, source-parent physical containment, artifact manifest, frozen target, and planned-write preflight used by default execution, then report the resulting snapshot and stop without any write. A dry-run snapshot MUST NOT be reused as authorization or as the frozen snapshot of a later real invocation.
 
 #### Scenario: Dry run succeeds
-- **WHEN** the caller explicitly invokes `new-worktree-apply add-user-auth --target develop --dry-run`, the Runtime-native gate is enforced, and preflight succeeds
+- **WHEN** the caller requests `new-worktree-apply add-user-auth --target develop --dry-run` and preflight succeeds
 - **THEN** the skill reports the complete plan without creating a branch or worktree and without invoking apply, stage, or commit
 
 #### Scenario: Dry run finds a blocker
@@ -93,7 +66,7 @@ Before `new-worktree-apply` performs repository or OpenSpec writes, the Runtime 
 
 #### Scenario: Repository changes after dry run
 - **WHEN** a successful dry run is followed by a real invocation after repository state has changed
-- **THEN** the real invocation requires a new Runtime-gated explicit activation and preflight and MUST NOT trust the prior dry-run snapshot
+- **THEN** the real invocation performs a new complete preflight and MUST NOT trust the prior dry-run snapshot
 
 ### Requirement: Shared deterministic target selection
 Each worktree skill SHALL accept `--target <target-branch>` as its explicit target input. `new-worktree-apply` MUST require that explicit option and MUST NOT consult the primary worktree branch, `origin/HEAD`, or conventional branch names when it is omitted. `merge-worktree-return` and `parall-new-worktree-apply` SHALL continue selecting `TARGET_BRANCH` in this order when no explicit target is supplied: the local branch currently checked out in the primary worktree, the existing local branch named by `origin/HEAD`, then the first existing local branch among `main`, `master`, and `trunk`. Every skill SHALL record and display the winning source, and an invalid explicit target MUST fail without fallback.
@@ -158,7 +131,7 @@ Each worktree skill SHALL derive repository root, primary worktree, invocation w
 - **THEN** `new-worktree-apply` creates no branch or worktree, invokes no apply action, and preserves the target state
 
 ### Requirement: Preflight authorization and integration confirmation
-Each worktree skill SHALL finish its read-only preflight and display the command scope, target branch and source, relevant worktree paths, pending file changes, planned writes, and risk warnings. `merge-worktree-return` and `parall-new-worktree-apply` MUST obtain an explicit affirmative response with no default or timed approval before any Git write or OpenSpec apply action. `new-worktree-apply` MUST NOT request a second confirmation after Runtime-gated explicit activation: that invocation authorizes the limited isolated-source operation, and it proceeds only after stable final pre-write revalidation. In `--dry-run` mode it MUST stop after reporting the snapshot.
+Each worktree skill SHALL finish its read-only preflight and display the command scope, target branch and source, relevant worktree paths, pending file changes, planned writes, and risk warnings. `merge-worktree-return` and `parall-new-worktree-apply` MUST obtain one explicit affirmative response with no default or timed approval before any Git write or OpenSpec apply action, regardless of whether routing was explicit, model-selected, Team/subagent-driven, or nested. `new-worktree-apply` MUST NOT request a second confirmation after a concrete user implementation request; it proceeds only after stable final pre-write revalidation. In `--dry-run` mode it MUST stop after reporting the snapshot.
 
 #### Scenario: Integration user confirms
 - **WHEN** the complete merge or parallel preflight summary is displayed and the user explicitly continues
@@ -177,11 +150,11 @@ Each worktree skill SHALL finish its read-only preflight and display the command
 - **THEN** the integration skill asks in its response, ends the current execution, and waits for the next user message
 
 #### Scenario: New worktree preflight is stable
-- **WHEN** Runtime-native explicit activation, preflight, and final revalidation complete with no blocker or drift
+- **WHEN** a concrete implementation request, preflight, and final revalidation complete with no blocker or drift
 - **THEN** `new-worktree-apply` begins the planned source worktree writes without asking a question
 
 #### Scenario: New worktree preflight has a blocker
-- **WHEN** `new-worktree-apply` finds an unavailable Runtime-native gate, incomplete OpenSpec artifacts, a dirty target worktree, an occupied canonical identity, an unsafe source parent, a required checkout, or out-of-scope work
+- **WHEN** `new-worktree-apply` finds incomplete OpenSpec artifacts, a dirty target worktree, an occupied canonical identity, an unsafe source parent, a required checkout, or out-of-scope work
 - **THEN** it stops before writing and reports the exact blocker rather than asking whether to bypass it
 
 #### Scenario: Dry run reaches the write boundary
@@ -197,7 +170,7 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 
 #### Scenario: New worktree snapshot changes before writing
 - **WHEN** final revalidation finds changed arguments, target ref, HEAD, worktree path, status, source parent, manifest, planned writes, or warnings
-- **THEN** it performs no write and requires a fresh user-explicit invocation rather than refreshing the snapshot or asking for confirmation
+- **THEN** it performs no write and requires a fresh preflight invocation rather than refreshing the snapshot or asking for confirmation
 
 #### Scenario: Confirmed integration snapshot remains stable
 - **WHEN** merge or parallel revalidation matches every material fact in the confirmed summary
@@ -211,7 +184,7 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 `new-worktree-apply` SHALL freeze the explicitly selected `TARGET_HEAD` during preflight, bind a complete verified artifact manifest to that snapshot, and create the canonical source branch/worktree with `TARGET_HEAD` as an explicit commit-hash start point after final revalidation. It MUST NOT refresh the baseline by auto-committing target changes or pass `TARGET_BRANCH` as the actual creation start point. Before OpenSpec apply it MUST verify the registered path, current branch, source branch ref, and worktree HEAD exactly match the expected canonical identity and frozen hash.
 
 #### Scenario: Worktree is created from an explicit commit hash
-- **WHEN** Runtime-native explicit activation, preflight, and final revalidation succeed for proposal `add-user-auth`
+- **WHEN** a concrete implementation request, preflight, and final revalidation succeed for proposal `add-user-auth`
 - **THEN** the workflow runs the equivalent of `git worktree add <repo>/.claude/worktrees/add-user-auth -b worktree-add-user-auth <TARGET_HEAD>`
 
 #### Scenario: Target ref advances before final revalidation
@@ -309,11 +282,11 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 - **THEN** that child worktree and branch are preserved, the failure is reported with exact hashes, and no forced deletion or automatic merge retry occurs
 
 ### Requirement: Target-aware reporting and cleanup
-All three skills SHALL report the preflight-selected or interactively confirmed target branch/worktree, immutable target and source snapshots, canonical proposal/branch/path mapping, artifact manifest result, merge result, every cleanup gate, and preserved recovery objects. `new-worktree-apply` reports which Runtime-native explicit invocation gate governed its activation. Cleanup MUST use ordinary explicit Git commands from verified target CWD only after the applicable complete gate succeeds; platform convenience tools MUST NOT weaken or obscure these conditions.
+All three skills SHALL report the preflight-selected or interactively confirmed target branch/worktree, immutable target and source snapshots, canonical proposal/branch/path mapping, artifact manifest result, merge result, every cleanup gate, and preserved recovery objects. Invocation syntax or Runtime activation policy MUST NOT be reported as authorization evidence. Cleanup MUST use ordinary explicit Git commands from verified target CWD only after the applicable complete gate succeeds; platform convenience tools MUST NOT weaken or obscure these conditions.
 
 #### Scenario: Successful creation report
 - **WHEN** a canonical source worktree is created and verified from a frozen hash
-- **THEN** the report identifies proposal, source branch, source path, target branch/worktree, `TARGET_HEAD`, artifact manifest result, and Runtime-native activation gate
+- **THEN** the report identifies proposal, source branch, source path, target branch/worktree, `TARGET_HEAD`, artifact manifest result, and limited operation scope
 
 #### Scenario: Successful return report
 - **WHEN** merge, post-merge verification, ordinary worktree removal, and safe branch deletion all succeed
@@ -383,7 +356,7 @@ Before creating any source worktree, the workflow SHALL build an `ARTIFACT_MANIF
 
 #### Scenario: Artifact snapshot changes before default execution
 - **WHEN** any manifest path, content, digest, or `TARGET_HEAD` differs during final revalidation
-- **THEN** execution stops with no Git write and requires a fresh user-explicit invocation
+- **THEN** execution stops with no Git write and requires a fresh preflight invocation
 
 #### Scenario: Dry-run artifact snapshot is not reusable
 - **WHEN** artifacts matched during dry-run but differ during a later real invocation
@@ -499,7 +472,7 @@ Worktree lifecycle instructions, commands, guardrails, error messages, and recov
 
 #### Scenario: Selected project changes before writing
 - **WHEN** argument parsing, normalized or physical project paths, containment results, OpenSpec status, change prefix, manifest paths, blobs, digest, or target snapshot differs during pre-write revalidation
-- **THEN** the invocation performs no write and requires a fresh user-explicit invocation rather than refreshing the snapshot or asking for confirmation
+- **THEN** the invocation performs no write and requires a fresh preflight invocation rather than refreshing the snapshot or asking for confirmation
 
 #### Scenario: Source project context is verified before apply
 - **WHEN** the canonical source worktree is created from the preflight target hash

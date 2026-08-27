@@ -376,7 +376,7 @@ def check_skill_consistency(
     standard_prefixes = extract_standard_bash_prefixes(standard_permissions)
 
     for name, source_path in skills:
-        bash_prefixes, is_disabled = parse_skill_frontmatter(source_path)
+        bash_prefixes, _is_disabled = parse_skill_frontmatter(source_path)
 
         for prefix in bash_prefixes:
             if prefix not in standard_prefixes:
@@ -385,13 +385,6 @@ def check_skill_consistency(
                     f"but no matching permission in standard list"
                 )
                 warnings += 1
-
-        if not bash_prefixes and not is_disabled:
-            print(
-                f"  Warning: skill '{name}' has no allowed-tools and no "
-                f"disable-model-invocation — may be auto-invoked by model"
-            )
-            warnings += 1
 
     return warnings
 

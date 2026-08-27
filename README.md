@@ -329,11 +329,10 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 **做什么**: 为单个 proposal 创建 git worktree 并在其中实施。
 
 **核心机制**:
-- 调用必须是 Claude `/new-worktree-apply <proposal> --target <branch>`、Codex
-  `$new-worktree-apply <proposal> --target <branch>`，或 Runtime 等价的直接显式派发；`--target` 每次必填，绝不回退到主工作树、`origin/HEAD` 或 `main`/`master`/`trunk`
-- Runtime 必须执行原生显式调用门禁：Claude 由 `disable-model-invocation: true` 禁止模型调用，Codex 由 `agents/openai.yaml` 的 `policy.allow_implicit_invocation: false` 禁止隐式调用；其他 Runtime 缺少等价控制面策略时在写入前失败关闭，用户/仓库/环境内容不能替代 Runtime 激活断言
-- 可信用户显式调用经完整只读预检和最终复检后直接执行，**默认不再有第二次确认**；授权仅覆盖规范来源 worktree 创建、OpenSpec apply、proposal 范围本地验证和来源提交
-- `--dry-run` 使用同样的 Runtime 原生门禁、target、拓扑、source parent 物理包含、manifest 和计划写入预检，但不创建 branch/worktree、不 apply、不 stage、不 commit；其快照不能复用于后续真实调用
+- 可由 Claude `/new-worktree-apply`、Codex `$new-worktree-apply`、明确自然语言、Team/subagent 或其他 skill 按实施意图路由；不设置 `model:`，始终继承调用方当前模型。`--target` 每次必填，绝不回退到主工作树、`origin/HEAD` 或 `main`/`master`/`trunk`
+- 调用路由、写入授权、工具权限和安全验证是独立控制：`allowed-tools` 只预批准工具，不决定模型或调用入口；GitNexus 等工具仍按正常 Runtime 权限流程使用
+- 明确的实施请求经完整只读预检和最终复检后直接执行，**默认不再有第二次确认**；授权仅覆盖规范来源 worktree 创建、OpenSpec apply、proposal 范围本地验证和来源提交
+- `--dry-run` 使用相同的 target、拓扑、source parent 物理包含、manifest 和计划写入预检，但不创建 branch/worktree、不 apply、不 stage、不 commit；其快照不能复用于后续真实调用
 - 已移除 `--authorized-by-issue` 和 `issue-authorization/v1`：传入旧选项零写失败并提示改为上述显式调用；`--authorized`、`--yes` 等泛化批准选项也不是别名
 - OpenSpec 项目根默认为仓库根 `.`；`--openspec-root twin-rag` 精确表示
   `twin-rag/openspec/changes/<proposal>`，可与 `--target` 任意排序且不会递归搜索、猜测或回退
@@ -347,7 +346,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 **注意事项**:
 - **BREAKING**：旧 `--branch` 已由 `--target` 替代；传 `--branch` 时不产生任何 Git 写操作，只显示迁移命令
 - 省略 `--openspec-root` 与显式 `--openspec-root .` 完全等价；非法、越界或符号链接逃逸路径均在确认前失败关闭
-- 所有 Git 写操作只在 Runtime 原生显式调用门禁与不可变预检基线最终复检之后执行；参数、target、worktree、source parent、manifest 或计划写入漂移时直接零写失败，不自动更新快照、换目标、重试或回退交互模式
+- 所有 Git 写操作只在不可变预检基线最终复检之后执行；参数、target、worktree、source parent、manifest 或计划写入漂移时直接零写失败，不自动更新快照、换目标、重试或追加确认
 - 默认范围不授权 merge、发布、部署、生产写入、不可逆迁移、数据删除、提权、真实凭据或无关 Git 清理；proposal 要求此类动作时在动作前阻塞并交由独立授权流程
 - 分支名必须符合 worktree 命名规则（kebab-case，max 64 chars）
 - 若规范 branch/path 已存在则报错停止，**不覆盖、不复用、不自动清理**
@@ -386,6 +385,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 ```text
 /check-changes-completed --target develop --change change-a --change change-b
 /check-changes-completed --target release-next --change release-candidate
+/check-changes-completed --target develop --change change-a --backfill
 ```
 
 调用必须显式指定一个本地 target 和至少一个不重复的 active change。不同 target 的 changes 要
@@ -401,9 +401,11 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 | D4 - 依赖 | `dependencies.yaml` 引用的 change 完整性 |
 | D5 - 合规 | CLAUDE.md 定义的合规要求（测试同步/文档更新/API schema 等） |
 
-**补标记机制**（当 D3=✓ 但 D1=✗ 时触发）:
+默认调用严格只读，只报告补标记候选。只有恰好一个裸 `--backfill` 才授权所选 change 的确定性 task marker 写入；重复、带值或畸形参数在读取 artifacts 前失败。
+
+**补标记机制**（`--backfill` 且 D3=✓、D1=✗ 时触发）:
 - **Level-1 自动**: 四规则解析器（反引号路径、目录创建、frontmatter、实现关键词）
-- **Level-2 需确认**: 自动无法匹配但 code 已交付时，询问用户
+- **Level-2 需确认**: 自动无法匹配但 code 已交付时，询问一次；缺失、否定或模糊回答保持未完成
 
 **合规检查机制**（D5 — 当项目有 CLAUDE.md 时触发）:
 - 载入项目根目录和变更相关子目录中的 CLAUDE.md
@@ -414,12 +416,12 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 - 无 CLAUDE.md 时不阻塞归档
 
 **注意事项**:
-- 只修改选择集中 D3 通过但 D1 未通过的 `tasks.md`，其他 artifact 严格只读
+- 默认零写；带 `--backfill` 时只修改选择集中 D3 通过但 D1 未通过的 `tasks.md`，其他 artifact 严格只读
 - target 必须是 `CURRENT_HEAD` 的祖先；非祖先直接阻塞全部所选 changes，例如 feature 并非从
   `release-next` 派生时，`check-changes-completed --target release-next --change feature-change` 会失败，不会用 merge-base 猜测比较范围
 - 最终写入前再次检查 target ref 和 current HEAD；任一漂移都丢弃回填计划，零 stage、零 commit，
   可存档状态报告为 unknown/blocked
-- Level-1 自动无需确认，Level-2 需用户确认
+- `--backfill` 已授权 Level-1，无需再次确认；Level-2 仍需用户明确确认
 - D5 合规缺失仅提示，不自动补全配套产出
 - 检测循环依赖，防止无限递归
 - 输出结果包含 "可归档" 和 "未完成" 的分类建议
@@ -480,7 +482,7 @@ my_dev_skills/
 
 ## 权限模型
 
-所有 skill 的 `allowed-tools` 都与 `setup-skills-env.py` 的标准权限列表交叉校验。安装器把该列表合并到 `~/.claude/settings.json`；Codex 侧仅安装 skill 链接，不写入 Codex 配置。
+声明了 `allowed-tools` 的 skill 会由 `setup-skills-env.py` 将 Bash 前缀与标准权限列表交叉校验。未声明该字段是合法的，表示工具调用走 Runtime 正常权限流程；它不代表禁用模型调用。安装器把标准列表合并到 `~/.claude/settings.json`；Codex 侧仅安装 skill 链接，不写入 Codex 配置。
 
 关键权限包括：
 - `Bash(openspec *)` — OpenSpec CLI 操作

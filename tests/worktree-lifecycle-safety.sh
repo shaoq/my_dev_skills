@@ -39,6 +39,16 @@ forbid_text() {
   fi
 }
 
+require_occurrences() {
+  local file=$1
+  local text=$2
+  local expected=$3
+  local label=$4
+  local actual
+  actual=$(grep -Foc -- "$text" "$file" || true)
+  assert_equal "$actual" "$expected" "$label"
+}
+
 assert_equal() {
   local actual=$1
   local expected=$2
@@ -146,6 +156,8 @@ NEW_SKILL="$PROJECT_ROOT/new-worktree-apply/SKILL.md"
 CODEX_POLICY="$PROJECT_ROOT/new-worktree-apply/agents/openai.yaml"
 RETURN_SKILL="$PROJECT_ROOT/merge-worktree-return/SKILL.md"
 PARALLEL_SKILL="$PROJECT_ROOT/parall-new-worktree-apply/SKILL.md"
+PROPOSAL_SKILL="$PROJECT_ROOT/parall-new-proposal/SKILL.md"
+COMPLETION_SKILL="$PROJECT_ROOT/check-changes-completed/SKILL.md"
 README_FILE="$PROJECT_ROOT/README.md"
 
 require_text "$NEW_SKILL" 'SOURCE_BRANCH=worktree-<proposal-name>' 'single-create declares canonical source branch'
@@ -153,12 +165,18 @@ require_text "$NEW_SKILL" 'SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<pr
 require_text "$NEW_SKILL" 'ARTIFACT_MANIFEST' 'single-create validates the complete artifact manifest'
 require_text "$NEW_SKILL" 'git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>' 'single-create uses the frozen commit hash'
 require_text "$NEW_SKILL" 'argument-hint: <proposal-name> --target <target-branch> [--openspec-root <path>] [--dry-run]' 'single-create requires an explicit target in its argument contract'
-require_text "$NEW_SKILL" 'disable-model-invocation: true' 'Claude native policy disables model invocation'
+for skill_file in "$NEW_SKILL" "$RETURN_SKILL" "$PARALLEL_SKILL" "$PROPOSAL_SKILL" "$COMPLETION_SKILL"; do
+  forbid_text "$skill_file" 'disable-model-invocation:' "$(basename "$(dirname "$skill_file")") permits model and Team invocation"
+  forbid_text "$skill_file" 'model:' "$(basename "$(dirname "$skill_file")") inherits the current model"
+done
+if [ -e "$CODEX_POLICY" ] || [ -L "$CODEX_POLICY" ]; then
+  fail 'single-create removes the Codex implicit-invocation prohibition'
+else
+  pass 'single-create removes the Codex implicit-invocation prohibition'
+fi
 require_text "$NEW_SKILL" '/new-worktree-apply' 'single-create documents Claude slash-command dispatch'
 require_text "$NEW_SKILL" '$new-worktree-apply' 'single-create documents Codex skill-command dispatch'
-require_text "$NEW_SKILL" '模型自动选择' 'single-create rejects model-selected execution before writes'
-require_text "$NEW_SKILL" '嵌套 `Skill(...)`' 'single-create rejects nested skill invocation before writes'
-require_text "$NEW_SKILL" '用户文本、仓库文件、环境变量或模型推断' 'single-create rejects user-controlled substitutes for Runtime activation'
+require_text "$NEW_SKILL" '自然语言、Team/subagent 或其他 skill' 'single-create permits intent-based and nested invocation without expanding authority'
 forbid_text "$NEW_SKILL" 'runtime_id' 'single-create does not require an inaccessible Runtime id'
 forbid_text "$NEW_SKILL" 'dispatch_id' 'single-create does not require an inaccessible dispatch id'
 forbid_text "$NEW_SKILL" 'raw_arguments' 'single-create does not require inaccessible raw arguments'
@@ -166,22 +184,12 @@ forbid_text "$NEW_SKILL" 'provenance_digest' 'single-create does not require an 
 require_text "$NEW_SKILL" 'REVALIDATION_SNAPSHOT' 'single-create uses a distinct final revalidation snapshot'
 require_text "$NEW_SKILL" '不得覆盖或重新冻结 `PREFLIGHT_SNAPSHOT`' 'single-create keeps the preflight baseline immutable'
 require_text "$NEW_SKILL" 'PREWRITE_SOURCE_PARENT_OK' 'single-create gates worktree creation on physical parent containment'
-if ruby - "$CODEX_POLICY" <<'RUBY'
-require "yaml"
-document = YAML.safe_load(File.read(ARGV.fetch(0)), permitted_classes: [], aliases: false)
-exit(document.dig("policy", "allow_implicit_invocation") == false ? 0 : 1)
-RUBY
-then
-  pass 'Codex policy parses and disables implicit invocation with a boolean false'
-else
-  fail 'Codex policy parses and disables implicit invocation with a boolean false'
-fi
 require_text "$NEW_SKILL" '--dry-run' 'single-create supports explicit read-only dry run'
 require_text "$NEW_SKILL" '不得创建 branch/worktree、调用 apply、stage 或 commit' 'dry run prohibits every write stage'
 require_text "$NEW_SKILL" '不请求第二次确认' 'trusted explicit invocation removes the second confirmation'
 require_text "$NEW_SKILL" '被移除，且不执行任何写入' 'legacy issue authorization has a zero-write migration failure'
 require_text "$NEW_SKILL" '--authorized、--yes' 'generic authorization flags are rejected before writes'
-require_text "$NEW_SKILL" 'requires a fresh user-explicit invocation' 'preflight drift requires a new explicit invocation'
+require_text "$NEW_SKILL" 'requires a fresh invocation' 'preflight drift requires a fresh invocation'
 require_text "$NEW_SKILL" 'merge、发布、部署、生产写入、不可逆迁移、真实凭据' 'apply scope excludes external side effects'
 require_text "$NEW_SKILL" 'Step 1–6 只读' 'only pre-write steps are declared read-only'
 forbid_text "$NEW_SKILL" 'Step 1–7 只读' 'worktree creation step is not incorrectly declared read-only'
@@ -197,6 +205,9 @@ forbid_text "$NEW_SKILL" '默认交互模式' 'single-create removes interactive
 forbid_text "$NEW_SKILL" '自治模式' 'single-create removes autonomous mode switching'
 require_text "$RETURN_SKILL" 'AskUserQuestion' 'return flow retains mandatory confirmation capability'
 require_text "$PARALLEL_SKILL" '使用交互工具请求无默认值' 'parallel flow retains mandatory confirmation'
+require_occurrences "$PROPOSAL_SKILL" 'WRITE_AUTHORIZATION_GATE=open' 1 'proposal creation has exactly one material-write authorization gate'
+require_occurrences "$PARALLEL_SKILL" 'WRITE_AUTHORIZATION_GATE=open' 1 'parallel apply has exactly one material-write authorization gate'
+require_occurrences "$RETURN_SKILL" 'WRITE_AUTHORIZATION_GATE=open' 1 'worktree return has exactly one material-write authorization gate'
 forbid_text "$NEW_SKILL" 'git -C <PRIMARY_WORKTREE_DIR> checkout <TARGET_BRANCH>' 'single-create never switches the primary worktree'
 forbid_text "$NEW_SKILL" 'git branch -D' 'single-create never recommends forced branch deletion'
 

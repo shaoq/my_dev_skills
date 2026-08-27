@@ -88,3 +88,28 @@ The project verification suite SHALL scan every non-archived source `SKILL.md` f
 #### Scenario: Conventional fallback is descriptive
 - **WHEN** a worktree skill lists `main/master/trunk` only as final target-selection candidates and all later operations use `TARGET_BRANCH` or `TARGET_HEAD`
 - **THEN** the regression audit does not classify that text as a fixed comparison baseline
+
+### Requirement: Completion checking is read-only by default
+`check-changes-completed` SHALL perform only diagnostics and reporting unless the caller supplies exactly one `--backfill` flag. Without it the skill MUST NOT edit, stage, or commit task markers, including deterministic Level-1 matches. Duplicate, valued, or malformed forms MUST fail before artifact reads or writes.
+
+#### Scenario: Default check finds stale markers
+- **WHEN** implementation evidence is verified but `--backfill` is absent
+- **THEN** the report identifies proposed marker updates and leaves the working tree and history unchanged
+
+### Requirement: Explicit backfill intent authorizes only selected task-marker writes
+Exactly one `--backfill` SHALL authorize deterministic Level-1 edits only for explicitly selected changes after frozen endpoint and task-input stability checks pass. Other artifacts and unselected changes MUST remain unchanged. Ambiguous Level-2 tasks require one separate affirmative response and remain unchanged for a missing, ambiguous, or negative response.
+
+#### Scenario: Deterministic backfill is stable
+- **WHEN** `--backfill` is present, Level-1 evidence matches, and every frozen input remains stable
+- **THEN** the skill may update, stage, and commit only planned selected `tasks.md` markers
+
+#### Scenario: Backfill evidence drifts
+- **WHEN** target, current HEAD, selected set, or selected task input changes
+- **THEN** the plan is discarded with no edit, stage, or commit
+
+### Requirement: Completion checking supports model and Team routing
+The completion workflow SHALL support explicit command, natural-language, Team/subagent, and nested-skill invocation. The model MUST include `--backfill` only when the user's request explicitly includes fixing task markers; check, review, report, or assessment requests MUST use read-only default mode.
+
+#### Scenario: User asks only for a report
+- **WHEN** the user asks whether selected changes are complete without requesting marker updates
+- **THEN** the workflow runs without `--backfill` and remains read-only
