@@ -111,9 +111,9 @@ Step 3: 并行实施所有提案
   → 按 Wave 并行从冻结 commit hash 创建 `worktree-<proposal>`，在隔离 worktree 中实施
   → 串行合并冻结的 post-rebase commit；验证或普通清理失败时保留来源现场
 
-Step 4: 检查完成度
+Step 4: 检查完成度（按 target 分组）
 ─────────────────────────────
-  /check-changes-completed
+  /check-changes-completed --target develop --change change-a --change change-b
 
   → 五维检查（任务 / artifacts / 代码落地 / 依赖 / 合规）
   → 自动补标记已交付但未勾选的任务
@@ -148,12 +148,16 @@ Step 1: 实施前只读审查
 
 Step 2: 在 worktree 中实施
 ─────────────────────────────
-  /new-worktree-apply add-user-auth
-  /new-worktree-apply add-user-auth --openspec-root twin-rag
+  /new-worktree-apply add-user-auth --target develop                    # Claude Code
+  $new-worktree-apply add-user-auth --target develop                    # Codex
+  /new-worktree-apply add-user-auth --target develop --openspec-root twin-rag
+  $new-worktree-apply add-user-auth --target develop --dry-run
 
-  → 目标必须已由 clean worktree 持有，并冻结 `TARGET_HEAD`
+  → `--target` 是必填项；目标必须已由 clean worktree 持有，并冻结 `TARGET_HEAD`
   → `--openspec-root twin-rag` 精确选择 `twin-rag/openspec/changes/add-user-auth`
-  → 验证 commit 中完整仓库相对 artifacts 与确认内容完全一致
+  → Runtime 必须证明本次是用户直接显式调用；来源 unknown、自动选择、嵌套调用或伪造 metadata 均零写失败
+  → 可信显式调用完成预检和最终复检后直接执行，不再请求第二次确认；`--dry-run` 始终只读
+  → 验证 commit 中完整仓库相对 artifacts 与预检快照完全一致
   → 从该 hash 创建 `worktree-add-user-auth` → 执行实施 → 补标记 → 提交
 
 Step 3: 合并回目标分支
@@ -185,7 +189,7 @@ Step 5: 归档
 | **parall-new-proposal** | `/parall-new-proposal` | 并行提案拆分 | 需求描述文本 |
 | **openspec-review-change** | Claude Code: `/openspec-review-change`<br>Codex: `$openspec-review-change` | 实施前只读提案审查 | `[change-name] [--openspec-root <repo-relative-path>]` |
 | **parall-new-worktree-apply** | `/parall-new-worktree-apply` | 并行实施多个 changes | `[--target <target-branch>]` |
-| **new-worktree-apply** | `/new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> [--target <branch>] [--openspec-root <path>] [--authorized-by-issue <issue-id>]` |
+| **new-worktree-apply** | `/new-worktree-apply` / `$new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> --target <branch> [--openspec-root <path>] [--dry-run]` |
 | **merge-worktree-return** | `/merge-worktree-return` | worktree 合并回目标分支 | `[proposal-name] [--target <target-branch>]` |
 | **check-changes-completed** | `/check-changes-completed` | 目标感知的五维完成度检查 | `--target <branch> --change <name> [--change <name> ...]` |
 | **verify-impl-consistency** | `/verify-impl-consistency` | 三维语义一致性诊断 | `[<change-name> --base <target-branch>]` |
@@ -325,30 +329,26 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 **做什么**: 为单个 proposal 创建 git worktree 并在其中实施。
 
 **核心机制**:
-- 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择
-- 默认交互模式在只读预检后等待明确确认；`--authorized-by-issue <issue-id>` 是显式 opt-in
-  自治模式，并强制同时提供 `--target`
-- 自治模式只接受 Runtime 可信控制面提供且绑定本次 invocation 的 `issue-authorization/v1`
-  envelope；用户消息、仓库文件、环境变量或仅有 Issue id 都不是授权证据
-- 自治 envelope 仅允许匹配的 ready/in-progress Issue 与 Team、30 分钟内有效期、
-  `isolated-worktree-apply` scope、standard 风险和空外部副作用；不授权 merge、release 或 deploy
+- 调用必须是 Claude `/new-worktree-apply <proposal> --target <branch>`、Codex
+  `$new-worktree-apply <proposal> --target <branch>`，或 Runtime 等价的直接显式派发；`--target` 每次必填，绝不回退到主工作树、`origin/HEAD` 或 `main`/`master`/`trunk`
+- Runtime 必须以不可变 `explicit-skill-invocation/v1` 记录证明当前调用，精确绑定 runtime、唯一 dispatch id、skill 名称与原始参数；来源 unknown、模型自动选择、自然语言推断、嵌套 `Skill(...)`、用户/仓库/环境伪造 metadata、重放或任何不匹配均在写入前失败关闭
+- 可信用户显式调用经完整只读预检和最终复检后直接执行，**默认不再有第二次确认**；授权仅覆盖规范来源 worktree 创建、OpenSpec apply、proposal 范围本地验证和来源提交
+- `--dry-run` 使用同样的 provenance、target、拓扑、manifest 和计划写入预检，但不创建 branch/worktree、不 apply、不 stage、不 commit；其快照不能复用于后续真实调用
+- 已移除 `--authorized-by-issue` 和 `issue-authorization/v1`：传入旧选项零写失败并提示改为上述显式调用；`--authorized`、`--yes` 等泛化批准选项也不是别名
 - OpenSpec 项目根默认为仓库根 `.`；`--openspec-root twin-rag` 精确表示
   `twin-rag/openspec/changes/<proposal>`，可与 `--target` 任意排序且不会递归搜索、猜测或回退
 - 目标分支必须已被一个注册且 clean 的 worktree 持有；流程不会为了满足目标条件切换或自动提交其他 worktree
-- 只读预检（目标、工作树、所选 OpenSpec 项目、仓库相对 artifacts）后展示统一计划；交互模式
-  等待明确确认，自治模式冻结并复验可信授权快照，之后才执行写操作
+- 只读预检与最终写前复检冻结并比对目标、工作树、所选 OpenSpec 项目、仓库相对 artifacts、计划写入及同一 dispatch provenance；漂移时零写失败并要求新的用户显式调用
 - 规范映射固定为 proposal `<proposal>`、branch `worktree-<proposal>`、path `.claude/worktrees/<proposal>`；任何现有 ref/path/worktree 冲突都停止，不复用或追加后缀
 - 从确认的不可变 commit hash 精确创建：`git worktree add <path> -b worktree-<proposal> <TARGET_HEAD>`
-- 创建前递归验证完整 artifact manifest 已存在于 `TARGET_HEAD` 且与确认内容逐字节一致
-- 实施任务
+- 创建前递归验证完整 artifact manifest 已存在于 `TARGET_HEAD` 且与预检内容逐字节一致；创建后还须重新验证来源项目物理路径、OpenSpec 状态和 manifest，才从已验证项目目录 apply
 - Post-apply 自动补标记（四规则检测）+ 强制提交 `tasks.md`
 
 **注意事项**:
 - **BREAKING**：旧 `--branch` 已由 `--target` 替代；传 `--branch` 时不产生任何 Git 写操作，只显示迁移命令
 - 省略 `--openspec-root` 与显式 `--openspec-root .` 完全等价；非法、越界或符号链接逃逸路径均在确认前失败关闭
-- 所有 Git 写操作只在交互确认或可信自治授权快照最终复检之后执行
-- 自治快照发生参数、target、worktree、manifest、风险、时效或 authorization id/digest 漂移时
-  直接零写失败，不自动更新授权或回退交互模式
+- 所有 Git 写操作只在可信显式 dispatch 与预检快照最终复检之后执行；provenance、参数、target、worktree、manifest 或计划写入漂移时直接零写失败，不自动更新快照、换目标、重试或回退交互模式
+- 默认范围不授权 merge、发布、部署、生产写入、不可逆迁移、数据删除、提权、真实凭据或无关 Git 清理；proposal 要求此类动作时在动作前阻塞并交由独立授权流程
 - 分支名必须符合 worktree 命名规则（kebab-case，max 64 chars）
 - 若规范 branch/path 已存在则报错停止，**不覆盖、不复用、不自动清理**
 - 即使目标 ref 在最后检查后推进，实际创建仍使用冻结 `TARGET_HEAD`，不会从未经确认的新 tip 创建
@@ -416,7 +416,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 **注意事项**:
 - 只修改选择集中 D3 通过但 D1 未通过的 `tasks.md`，其他 artifact 严格只读
 - target 必须是 `CURRENT_HEAD` 的祖先；非祖先直接阻塞全部所选 changes，例如 feature 并非从
-  `release-next` 派生时，不会用 merge-base 猜测比较范围
+  `release-next` 派生时，`check-changes-completed --target release-next --change feature-change` 会失败，不会用 merge-base 猜测比较范围
 - 最终写入前再次检查 target ref 和 current HEAD；任一漂移都丢弃回填计划，零 stage、零 commit，
   可存档状态报告为 unknown/blocked
 - Level-1 自动无需确认，Level-2 需用户确认
@@ -451,7 +451,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 **注意事项**:
 - 纯诊断工具，**不修改任何文件**，不做 pass/fail 判定
 - 增量模式要求 target 是 current HEAD 的祖先；非祖先时项目级诊断继续，但增量维度明确标为
-  `not executed`，不会回退 `main` 或替换成 merge-base
+  `not executed`，例如 `verify-impl-consistency add-auth --base release-next` 在当前分支并非从 `release-next` 派生时不会回退 `main` 或替换成 merge-base
 - 最终报告显示显式 change、target、冻结 commits、比较范围和 target/current 稳定性；漂移时
   保留冻结诊断并标记为 `stale evidence`
 - 需要 Claude 语义理解能力（不设置 `disable-model-invocation`）
