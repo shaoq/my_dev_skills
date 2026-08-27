@@ -40,6 +40,6 @@
 
 - [x] 5.1 更新 `README.md` 和调用文档，展示 Claude `/skill`、Codex `$skill` 的可信显式调用、来源不可证明时的零写失败、默认非交互 worktree apply、`--dry-run`、旧授权参数迁移、`verify-impl-consistency <change> --base`、`check-changes-completed --target --change ...`、多目标分组和非祖先失败示例。
 - [x] 5.2 核对并同步 `openspec/specs/worktree-targeting` 的完整 MODIFIED requirement blocks（含必填 target/OpenSpec root/preflight terminology），以及 `target-aware-verification`、`doc-code-consistency`、`test-code-consistency` 和 `compliance-check` 与最终 skill 行为。
-- [ ] 5.3 运行 `bash tests/worktree-lifecycle-safety.sh` 和 `bash tests/target-aware-verification-safety.sh`，确认可信显式 dispatch、隐式调用零写、默认执行、dry-run 零写、确认边界、选择集隔离与非 `main`/非祖先基线场景全部通过。
-- [ ] 5.4 运行 `python3 -m unittest tests/test_setup_skills_env.py`，确认 skill 安装、frontmatter 和权限声明没有回归。
-- [ ] 5.5 运行 `openspec validate enable-target-aware-autonomous-rd-workflow --type change --strict`、固定基线全仓扫描和 `git diff --check`，记录最终验证证据。
+- [x] 5.3 运行 `bash tests/worktree-lifecycle-safety.sh` 和 `bash tests/target-aware-verification-safety.sh`，确认可信显式 dispatch、隐式调用零写、默认执行、dry-run 零写、确认边界、选择集隔离与非 `main`/非祖先基线场景全部通过。
+- [x] 5.4 运行 `python3 -m unittest tests/test_setup_skills_env.py`，确认 skill 安装、frontmatter 和权限声明没有回归。
+- [x] 5.5 运行 `openspec validate enable-target-aware-autonomous-rd-workflow --type change --strict`、固定基线全仓扫描和 `git diff --check`，记录最终验证证据。
