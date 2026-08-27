@@ -5,15 +5,18 @@
 - [x] 1.3 为 `check-changes-completed` 覆盖 `--target` + 重复 `--change`、无/重复/无效 change、D3/D5 同一冻结 commits、空范围、非祖先基线、漂移零写，以及两个目标组之间的扫描和回填隔离。
 - [x] 1.4 增加非归档 source `SKILL.md` 固定基线扫描，阻止可执行的 `main..HEAD`/`refs/heads/main` 比较，同时允许 conventional target fallback 描述和禁止性反例文本。
 
-## 2. 实现 Issue 授权的自治 Worktree Apply
+## 2. 将 Worktree Apply 简化为默认非交互执行
 
-- [x] 2.1 更新 `new-worktree-apply/SKILL.md` frontmatter、argument hint、示例和严格参数解析，增加唯一的 `--authorized-by-issue <issue-id>`，并要求自治模式显式提供 `--target`。
-- [x] 2.2 定义 Runtime 控制面 `issue-authorization/v1` 输入契约，明确只有不可由 user content、仓库文件、环境变量或模型推断填充的可信元数据通道才可提供 envelope；无该能力的 Runtime 只保留交互模式。
-- [x] 2.3 验证 schema、authorization/issuer/Issue/Team 标识、`ready|in_progress` 状态、RFC3339 UTC 且不超过 30 分钟的有效窗口、跨 invocation 防重放、同 invocation envelope digest 复检、`isolated-worktree-apply` scope、仓库/OpenSpec root/change/target、standard 风险和空外部副作用列表，任何未知或冲突均零写失败。
-- [x] 2.4 将 Step 6 实现为默认交互确认与自治授权快照双路径，保证两种模式输出相同的 target、canonical identity、artifact manifest、planned writes 和风险证据；自治审计输出不得泄露 token 或签名材料。
-- [x] 2.5 更新 Step 7，使交互模式漂移重新确认、自治模式漂移直接失败关闭，并禁止自动更新授权、模式回退、换目标或使用新快照继续。
-- [x] 2.6 保持 Step 1–5 与 Step 8–11 的冻结 hash、目标 worktree 不变、canonical branch/path、manifest blob、失败现场保留和来源提交不变量，并在成功/失败报告中记录授权来源、时效和边界。
-- [x] 2.7 扩展 `tests/worktree-lifecycle-safety.sh`，验证默认模式仍需确认、可信授权可自治执行，以及 user JSON 伪造、未知 schema、issuer 未认证、过期/重放、Issue/Team/scope/目标不匹配、高风险和快照漂移均在首次写入前停止。
+- [x] 2.1 更新 `new-worktree-apply/SKILL.md` frontmatter、argument hint、allowed tools、示例和严格参数解析，删除 `AskUserQuestion` 与 `--authorized-by-issue`，要求每次调用显式提供 `--target <target-branch>`，并对旧授权参数给出零写迁移提示。
+- [x] 2.2 定义并验证 Runtime `explicit-skill-invocation/v1` trusted dispatch provenance，绑定 `runtime_id`、当前 invocation 的唯一 `dispatch_id`、`user-explicit-skill-command`、精确 skill name 和 raw arguments；Claude `/new-worktree-apply`、Codex `$new-worktree-apply` 或等价 Runtime dispatcher 才可进入默认执行。
+- [x] 2.3 对模型自动选择、自然语言推断、嵌套 `Skill(...)` 转调、用户/仓库/环境伪造 metadata、dispatch 重放、skill/参数不匹配和来源 unknown 在任何写入前失败关闭，并在最终复检要求同一 dispatch id 与 provenance digest。
+- [x] 2.4 删除 `issue-authorization/v1`、authorization/issuer/Issue/Team 标识、时效、防重放、风险 envelope、交互/自治模式选择及相关报告字段；显式 dispatch provenance 仅证明调用来源，不承载任务平台授权或高风险权限。
+- [x] 2.5 删除创建前人工确认步骤；将已验证的用户显式调用视为对 canonical source worktree 创建、OpenSpec apply、来源验证和提交的有限授权，完整只读预检通过后直接进入最终写前复检。
+- [x] 2.6 增加可选 `--dry-run`，要求相同的可信显式 dispatch，执行与默认模式相同的参数、目标、worktree topology、artifact manifest 和计划写入预检，但在任何情况下都不得创建 branch/worktree、调用 apply、stage 或 commit。
+- [x] 2.7 保持目标 worktree clean、冻结 `TARGET_HEAD`、canonical branch/path、manifest blob identity、显式 commit-hash start point、创建后 CWD/identity 校验、失败现场保留和来源提交不变量。
+- [x] 2.8 最终写前复检发现 provenance、参数、target ref/HEAD、worktree mapping、cleanliness、artifact manifest 或计划写入漂移时直接零写停止；不得刷新快照、换目标、自动重试或转为交互确认。
+- [x] 2.9 明确默认执行不授权 merge、发布、部署、生产写入、不可逆迁移、真实凭据使用或无关 Git 清理；proposal/tasks 要求这些行为时在执行前阻塞并交由独立流程授权。
+- [x] 2.10 扩展 `tests/worktree-lifecycle-safety.sh`，验证 Claude/Codex trusted dispatch 可默认执行，模型自动/嵌套/伪造/unknown provenance 零写失败，`--dry-run` 严格零写、旧授权参数与缺失 target 被拒绝、preflight 漂移失败关闭，以及 merge/并行 skill 仍需确认。
 
 ## 3. 实现显式基线的一致性验证
 
@@ -35,8 +38,8 @@
 
 ## 5. 文档、规范与最终验证
 
-- [x] 5.1 更新 `README.md` 或现有调用文档，展示默认/Issue 授权 worktree 模式、`verify-impl-consistency <change> --base`、`check-changes-completed --target --change ...`、多目标分组和非祖先失败示例。
-- [x] 5.2 核对 `openspec/specs/worktree-targeting`、`target-aware-verification`、`doc-code-consistency`、`test-code-consistency` 和 `compliance-check` 与最终 skill 行为逐项一致。
-- [x] 5.3 运行 `bash tests/worktree-lifecycle-safety.sh` 和新增的 target-aware verification test，确认授权安全、选择集隔离与非 `main`/非祖先基线场景全部通过。
-- [x] 5.4 运行 `python3 -m unittest tests/test_setup_skills_env.py`，确认 skill 安装、frontmatter 和权限声明没有回归。
-- [x] 5.5 运行 `openspec validate enable-target-aware-autonomous-rd-workflow --type change --strict`、固定基线全仓扫描和 `git diff --check`，记录最终验证证据。
+- [ ] 5.1 更新 `README.md` 和调用文档，展示 Claude `/skill`、Codex `$skill` 的可信显式调用、来源不可证明时的零写失败、默认非交互 worktree apply、`--dry-run`、旧授权参数迁移、`verify-impl-consistency <change> --base`、`check-changes-completed --target --change ...`、多目标分组和非祖先失败示例。
+- [ ] 5.2 核对并同步 `openspec/specs/worktree-targeting` 的完整 MODIFIED requirement blocks（含必填 target/OpenSpec root/preflight terminology），以及 `target-aware-verification`、`doc-code-consistency`、`test-code-consistency` 和 `compliance-check` 与最终 skill 行为。
+- [ ] 5.3 运行 `bash tests/worktree-lifecycle-safety.sh` 和 `bash tests/target-aware-verification-safety.sh`，确认可信显式 dispatch、隐式调用零写、默认执行、dry-run 零写、确认边界、选择集隔离与非 `main`/非祖先基线场景全部通过。
+- [ ] 5.4 运行 `python3 -m unittest tests/test_setup_skills_env.py`，确认 skill 安装、frontmatter 和权限声明没有回归。
+- [ ] 5.5 运行 `openspec validate enable-target-aware-autonomous-rd-workflow --type change --strict`、固定基线全仓扫描和 `git diff --check`，记录最终验证证据。
