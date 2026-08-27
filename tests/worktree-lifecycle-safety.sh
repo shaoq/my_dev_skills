@@ -66,6 +66,36 @@ is_physical_descendant() {
   [ "$child" = "$parent" ] || [ "${child#"$parent"/}" != "$child" ]
 }
 
+step8_source_project_gate() {
+  local source_worktree_dir=$1
+  local source_project_dir=$2
+  local proposal=$3
+  local apply_sentinel=$4
+  local source_worktree_physical
+  local source_project_physical
+  local source_openspec_physical
+  local source_changes_physical
+  local source_proposal_physical
+
+  source_worktree_physical=$(cd "$source_worktree_dir" && pwd -P) || return 1
+  source_project_physical=$(cd "$source_project_dir" && pwd -P) || return 1
+  source_openspec_physical=$(cd "$source_project_dir/openspec" && pwd -P) || return 1
+  source_changes_physical=$(cd "$source_project_dir/openspec/changes" && pwd -P) || return 1
+  source_proposal_physical=$(cd "$source_project_dir/openspec/changes/$proposal" && pwd -P) || return 1
+
+  [ "$source_worktree_physical" = "$source_worktree_dir" ] || return 1
+  [ -n "$source_project_physical" ] || return 1
+  [ -n "$source_openspec_physical" ] || return 1
+  [ -n "$source_changes_physical" ] || return 1
+  [ -n "$source_proposal_physical" ] || return 1
+  is_physical_descendant "$source_project_physical" "$source_worktree_physical" || return 1
+  is_physical_descendant "$source_openspec_physical" "$source_project_physical" || return 1
+  is_physical_descendant "$source_changes_physical" "$source_openspec_physical" || return 1
+  is_physical_descendant "$source_proposal_physical" "$source_changes_physical" || return 1
+
+  printf 'apply-called\n' > "$apply_sentinel"
+}
+
 workspace_manifest() {
   local repo=$1
   local prefix=$2
@@ -252,6 +282,29 @@ if [ "$(cd "$SOURCE_PROJECT_LOGICAL/openspec/changes/demo" && pwd -P)" = \
 else
   fail 'source proposal physical path exposes the escaped external project'
 fi
+
+SOURCE_HEAD_BEFORE_GATE=$(git -C "$SOURCE_PATH" rev-parse HEAD)
+SOURCE_STATUS_BEFORE_GATE=$(git -C "$SOURCE_PATH" status --porcelain --untracked-files=all)
+SOURCE_BRANCH_BEFORE_GATE=$(git -C "$TEST_REPO" rev-parse refs/heads/worktree-demo)
+APPLY_SENTINEL="$TEST_TMP_ROOT/source-escape-apply-called"
+if step8_source_project_gate "$SOURCE_PATH" "$SOURCE_PROJECT_LOGICAL" demo "$APPLY_SENTINEL"; then
+  fail 'source project escape gate rejects before apply'
+else
+  pass 'source project escape gate rejects before apply'
+fi
+if [ ! -e "$APPLY_SENTINEL" ]; then
+  pass 'source project escape never invokes apply action'
+else
+  fail 'source project escape never invokes apply action'
+fi
+REGISTERED_SOURCE_AFTER_GATE=$(git -C "$TEST_REPO" worktree list --porcelain | awk -v branch='refs/heads/worktree-demo' '
+  $1 == "worktree" { path = $2 }
+  $1 == "branch" && $2 == branch { print path }
+')
+assert_equal "$REGISTERED_SOURCE_AFTER_GATE" "$SOURCE_PATH" 'source project gate failure preserves worktree registration'
+assert_equal "$(git -C "$TEST_REPO" rev-parse refs/heads/worktree-demo)" "$SOURCE_BRANCH_BEFORE_GATE" 'source project gate failure preserves source branch ref'
+assert_equal "$(git -C "$SOURCE_PATH" rev-parse HEAD)" "$SOURCE_HEAD_BEFORE_GATE" 'source project gate failure preserves source HEAD'
+assert_equal "$(git -C "$SOURCE_PATH" status --porcelain --untracked-files=all)" "$SOURCE_STATUS_BEFORE_GATE" 'source project gate failure preserves source files'
 
 assert_equal "$(git -C "$SOURCE_PATH" rev-parse HEAD)" "$FROZEN_TARGET_HEAD" 'commit-hash creation is immune to later target movement'
 assert_equal "$(git -C "$SOURCE_PATH" branch --show-current)" 'worktree-demo' 'canonical branch is checked out in the canonical path'
