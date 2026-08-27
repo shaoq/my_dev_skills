@@ -19,7 +19,7 @@ $new-worktree-apply add-user-auth --target develop
 
 ## 核心不变量
 
-- Step 1–7 只读：完整预检和最终复检前，不执行 Git 写操作、不创建 worktree、不调用 apply。
+- Step 1–6 只读：完整预检和最终复检前，不执行 Git 写操作、不创建 worktree、不调用 apply。
 - 不 checkout/switch、stage、commit、stash、reset 或修改主工作树和任何现有目标 worktree。
 - `--target` 是每次调用必填的唯一目标来源；缺失或无效时不使用主 worktree、`origin/HEAD`、`main`、`master`、`trunk` 或任何 fallback。
 - 目标分支必须已经由一个注册 worktree 精确持有，且该 worktree clean、HEAD 与 branch ref 一致。
@@ -85,7 +85,7 @@ Runtime 必须通过不可变控制面记录提供并验证唯一可信 provenan
 schema=explicit-skill-invocation/v1
 runtime_id=<authenticated Runtime identity>
 dispatch_id=<invocation-unique, unconsumed Runtime dispatch id>
-kind=user-explicit-skill-command
+invocation_kind=user-explicit-skill-command
 skill_name=new-worktree-apply
 raw_arguments=<exact Runtime-dispatched raw argument vector>
 provenance_digest=<Runtime-computed immutable digest of the entire record>
@@ -93,7 +93,7 @@ provenance_digest=<Runtime-computed immutable digest of the entire record>
 
 只有 Runtime 直接派发的 Claude `/new-worktree-apply`、Codex `$new-worktree-apply` 或具备同等不可变记录的受支持 Runtime dispatcher 才可继续。`raw_arguments` 必须逐项等于本次解析的原始参数；`skill_name`、目标、OpenSpec 根和 dry-run 状态均由该同一参数向量确定。
 
-模型自动选择、自然语言推断、嵌套 `Skill(...)` 调用、用户文本、仓库文件、环境变量或模型推断中伪造的 metadata 均不能创建或替换 provenance。缺失、多个、字段未知、来源 unknown、签名/真实性不可验证、重复消费、重放、`runtime_id`/`dispatch_id`/kind/skill/参数/digest 不匹配，均在任何写入前停止。不得补全、刷新或接受另一个 dispatch 继续。
+模型自动选择、自然语言推断、嵌套 `Skill(...)` 调用、用户文本、仓库文件、环境变量或模型推断中伪造的 metadata 均不能创建或替换 provenance。缺失、多个、字段未知、来源 unknown、签名/真实性不可验证、重复消费、重放、`runtime_id`/`dispatch_id`/`invocation_kind`/skill/参数/digest 不匹配，均在任何写入前停止。不得补全、刷新或接受另一个 dispatch 继续。
 
 在同一 invocation 中将完整记录及其不可变摘要冻结为 `DISPATCH_SNAPSHOT`。报告只显示 `runtime_id` 和非敏感 `dispatch_id` 审计值，绝不回显私有 Runtime metadata。
 
@@ -170,7 +170,7 @@ test "$CURRENT_BLOB" = "$TARGET_BLOB"
 
 非 dry-run 时，在首次 Git 写入前完整重跑 Step 1–5。所有 material facts 必须逐字匹配 `PREFLIGHT_SNAPSHOT`，包括 raw arguments、项目/物理路径、target/ref/`TARGET_HEAD`、目标 worktree 映射和状态、canonical identity、OpenSpec 完整状态、`ARTIFACT_MANIFEST`、digest、计划写入和范围检查。
 
-Runtime 还必须重新返回并验证同一 `dispatch_id`、同一 `provenance_digest`、同一 `runtime_id`、同一 kind、skill name 与 `raw_arguments`，并证明 dispatch 未被重放或替换。任何 provenance、参数、target ref/HEAD、worktree mapping、cleanliness、manifest、计划写入或警告漂移都零写停止；不得刷新 snapshot、换目标、自动重试、请求确认或恢复旧 snapshot。报告：`requires a fresh user-explicit invocation`。
+Runtime 还必须重新返回并验证同一 `dispatch_id`、同一 `provenance_digest`、同一 `runtime_id`、同一 `invocation_kind`、skill name 与 `raw_arguments`，并证明 dispatch 未被重放或替换。任何 provenance、参数、target ref/HEAD、worktree mapping、cleanliness、manifest、计划写入或警告漂移都零写停止；不得刷新 snapshot、换目标、自动重试、请求确认或恢复旧 snapshot。报告：`requires a fresh user-explicit invocation`。
 
 即使 target ref 在最后复检后再次推进，实际创建仍使用已冻结 `<TARGET_HEAD>` hash，而不是 branch 名称或 ambient HEAD。
 
@@ -194,9 +194,20 @@ test "$(git rev-parse refs/heads/<SOURCE_BRANCH>)" = "<TARGET_HEAD>"
 
 还必须从 `git worktree list --porcelain` 精确确认该路径注册到该 branch 和 HEAD。任一创建后检查失败时停止 apply，保留来源 branch/worktree；不自动删除、切换、重建或 fallback。
 
-## Step 8：在来源 worktree 验证 artifacts 并执行 apply
+## Step 8：在来源 worktree 重新验证物理项目根、artifacts 并执行 apply
 
-进入已验证 `SOURCE_PROJECT_DIR` 后重跑 OpenSpec status，要求 artifacts 全部 `done`、`isComplete=true`，并从 `SOURCE_WORKTREE_DIR` 重新枚举 manifest、逐项计算 blob 和 digest；它们必须仍等于 `TARGET_HEAD` 与冻结快照。任何路径、status、manifest 或物理包含失败均停止并保留现场。
+创建身份验证通过后，必须重新通过进入目录后执行 `pwd -P` 验证对 `SOURCE_WORKTREE_DIR`、`SOURCE_PROJECT_DIR`、其 `openspec/`、`openspec/changes/` 和 proposal 目录的物理路径。定义：
+
+```text
+SOURCE_PROJECT_DIR  = SOURCE_WORKTREE_DIR | SOURCE_WORKTREE_DIR/OPENSPEC_ROOT_REL
+SOURCE_OPENSPEC_DIR = SOURCE_PROJECT_DIR/openspec
+SOURCE_CHANGES_DIR  = SOURCE_OPENSPEC_DIR/changes
+SOURCE_PROPOSAL_DIR = SOURCE_CHANGES_DIR/PROPOSAL
+```
+
+`SOURCE_WORKTREE_DIR` 的物理路径必须等于 Step 7 已验证的 canonical source path。`SOURCE_PROJECT_DIR` 必须位于 source worktree 内；根项目时两者可相等。`SOURCE_OPENSPEC_DIR` 必须位于 source project 内，`SOURCE_CHANGES_DIR` 必须位于 source `openspec/` 内，`SOURCE_PROPOSAL_DIR` 必须位于 source `openspec/changes/` 内，且必须是该 proposal 的精确目录。每一层均以相等或完整目录边界包含关系验证，纯字符串前缀不算；不可读、不可进入、缺失或任一符号链接逃逸均失败关闭。
+
+只有这些创建后物理路径和包含关系全部成立，才从物理 `SOURCE_PROJECT_DIR` 重跑 OpenSpec status，要求 artifacts 全部 `done`、`isComplete=true`，并从 `SOURCE_WORKTREE_DIR` 重新枚举 manifest、逐项计算 blob 和 digest；它们必须仍等于 `TARGET_HEAD` 与冻结快照。任何路径、status、manifest 或物理包含失败均停止并保留 source branch/worktree，不启动 apply。
 
 仅以已验证的 `SOURCE_PROJECT_DIR` 为当前目录调用：
 

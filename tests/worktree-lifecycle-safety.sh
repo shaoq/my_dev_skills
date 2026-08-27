@@ -60,6 +60,12 @@ assert_command_fails() {
   fi
 }
 
+is_physical_descendant() {
+  local child=$1
+  local parent=$2
+  [ "$child" = "$parent" ] || [ "${child#"$parent"/}" != "$child" ]
+}
+
 workspace_manifest() {
   local repo=$1
   local prefix=$2
@@ -96,6 +102,8 @@ require_text "$NEW_SKILL" 'explicit-skill-invocation/v1' 'single-create requires
 require_text "$NEW_SKILL" 'runtime_id' 'single-create binds trusted dispatch to a Runtime identity'
 require_text "$NEW_SKILL" 'dispatch_id' 'single-create binds trusted dispatch to a unique dispatch id'
 require_text "$NEW_SKILL" 'user-explicit-skill-command' 'single-create accepts only direct user skill commands'
+require_text "$NEW_SKILL" 'invocation_kind=user-explicit-skill-command' 'single-create uses the exact invocation_kind provenance field'
+require_text "$NEW_SKILL" '同一 `invocation_kind`' 'single-create revalidates the exact invocation kind at the write boundary'
 require_text "$NEW_SKILL" 'raw_arguments' 'single-create binds trusted dispatch to exact raw arguments'
 require_text "$NEW_SKILL" 'provenance_digest' 'single-create freezes a digest of trusted dispatch provenance'
 require_text "$NEW_SKILL" '/new-worktree-apply' 'single-create documents Claude slash-command dispatch'
@@ -114,6 +122,10 @@ require_text "$NEW_SKILL" '被移除，且不执行任何写入' 'legacy issue a
 require_text "$NEW_SKILL" '--authorized、--yes' 'generic authorization flags are rejected before writes'
 require_text "$NEW_SKILL" 'requires a fresh user-explicit invocation' 'preflight drift requires a new explicit invocation'
 require_text "$NEW_SKILL" 'merge、发布、部署、生产写入、不可逆迁移、真实凭据' 'apply scope excludes external side effects'
+require_text "$NEW_SKILL" 'Step 1–6 只读' 'only pre-write steps are declared read-only'
+forbid_text "$NEW_SKILL" 'Step 1–7 只读' 'worktree creation step is not incorrectly declared read-only'
+require_text "$NEW_SKILL" '对 `SOURCE_WORKTREE_DIR`、`SOURCE_PROJECT_DIR`、其 `openspec/`、`openspec/changes/` 和 proposal 目录' 'created source project requires physical path validation'
+require_text "$NEW_SKILL" '完整目录边界包含关系' 'created source project rejects symlink escapes by directory boundary'
 forbid_text "$NEW_SKILL" 'AskUserQuestion' 'single-create does not request interactive confirmation'
 require_text "$NEW_SKILL" '`--authorized-by-issue` 已被移除' 'single-create reports a legacy Issue authorization migration'
 forbid_text "$NEW_SKILL" 'issue-authorization/v1' 'single-create removes Issue authorization envelopes'
@@ -222,6 +234,24 @@ SOURCE_PATH="$TEST_REPO/.claude/worktrees/demo"
 mkdir -p "$(dirname "$SOURCE_PATH")"
 git -C "$TEST_REPO" worktree add -q "$SOURCE_PATH" -b worktree-demo "$FROZEN_TARGET_HEAD"
 SOURCE_PATH=$(cd "$SOURCE_PATH" && pwd -P)
+
+OUTSIDE_SOURCE_PROJECT="$TEST_TMP_ROOT/outside-source-project"
+mkdir -p "$OUTSIDE_SOURCE_PROJECT/openspec/changes/demo"
+OUTSIDE_SOURCE_PROJECT=$(cd "$OUTSIDE_SOURCE_PROJECT" && pwd -P)
+ln -s "$OUTSIDE_SOURCE_PROJECT" "$SOURCE_PATH/nested-root"
+SOURCE_PROJECT_LOGICAL="$SOURCE_PATH/nested-root"
+SOURCE_PROJECT_PHYSICAL=$(cd "$SOURCE_PROJECT_LOGICAL" && pwd -P)
+if ! is_physical_descendant "$SOURCE_PROJECT_PHYSICAL" "$SOURCE_PATH"; then
+  pass 'a nested source OpenSpec root symlink escape is detected by physical directory boundaries'
+else
+  fail 'a nested source OpenSpec root symlink escape is detected by physical directory boundaries'
+fi
+if [ "$(cd "$SOURCE_PROJECT_LOGICAL/openspec/changes/demo" && pwd -P)" = \
+     "$OUTSIDE_SOURCE_PROJECT/openspec/changes/demo" ]; then
+  pass 'source proposal physical path exposes the escaped external project'
+else
+  fail 'source proposal physical path exposes the escaped external project'
+fi
 
 assert_equal "$(git -C "$SOURCE_PATH" rev-parse HEAD)" "$FROZEN_TARGET_HEAD" 'commit-hash creation is immune to later target movement'
 assert_equal "$(git -C "$SOURCE_PATH" branch --show-current)" 'worktree-demo' 'canonical branch is checked out in the canonical path'
