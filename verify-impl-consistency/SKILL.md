@@ -1,13 +1,21 @@
 ---
 name: verify-impl-consistency
-description: "Deep consistency verification between docs, API schema, and integration tests vs actual code implementation. Two-layer verification — precise pattern matching first, then semantic analysis for uncertain items. Auto-detects OpenSpec changes for enhanced verification. Pure diagnostic tool (no pass/fail judgment, no auto-fix). Supports multiple languages: TS/JS, Python, Go, Java."
-argument-hint: "[change-name]"
+description: "Deep consistency verification between docs, API schema, and integration tests vs actual code implementation. Runs project-level diagnostics with no arguments, or incremental verification for exactly one explicitly selected active OpenSpec change and target baseline. Pure diagnostic tool (no pass/fail judgment, no auto-fix)."
+argument-hint: "[<change-name> --base <target-branch>]"
 allowed-tools: Bash(openspec *) Bash(git *) Read Glob Grep AskUserQuestion
 ---
 
 Deep consistency verification between documentation, API schema, and integration tests vs actual code. Two-layer strategy: precise matching then semantic analysis. Pure diagnostic — reports findings only, no modifications.
 
-**Input**: Optionally a change name. Example: `/verify-impl-consistency` or `/verify-impl-consistency add-auth`.
+**Input**: Either no arguments for project-level D1/D2/D3, or exactly one active change plus an explicit
+local baseline: `/verify-impl-consistency <change-name> --base <target-branch>`.
+
+Examples:
+
+```text
+/verify-impl-consistency
+/verify-impl-consistency add-auth --base develop
+```
 
 **Steps**
 
@@ -22,6 +30,32 @@ Deep consistency verification between documentation, API schema, and integration
    **If any check fails:**
    - Not a git repo → error: "Must be inside a git repository."
    - No openspec CLI → error: "OpenSpec CLI is required. Install it first."
+
+   Then parse the complete original argument vector with this closed grammar:
+
+   - No arguments: set `MODE=project-level`. Do not resolve a baseline, run `openspec list`, or select a
+     change. 不得自动选择 active change。
+   - Exactly `<change-name> --base <target-branch>`: set `MODE=change-scoped`,
+     `SELECTED_CHANGE=<change-name>`, `BASE_BRANCH=<target-branch>`.
+   - Reject an isolated `--base`, missing option value, repeated positional change, duplicate or
+     重复的 `--base`, an unknown option（未知选项）, an extra positional argument, or either ordering/
+     spelling outside the grammar. Report the exact offending argument and perform no change-scoped work.
+
+   In `MODE=change-scoped`, before any baseline query prove `SELECTED_CHANGE` is one exact active directory
+   `openspec/changes/<change-name>/` and is not `archive`, absent, ambiguous, or archive-only. Do not infer a
+   similarly named change. Then require the explicit local ref and freeze both commits once:
+
+   ```bash
+   git rev-parse --verify --quiet refs/heads/<BASE_BRANCH>
+   BASE_HEAD=$(git rev-parse refs/heads/<BASE_BRANCH>)
+   CURRENT_HEAD=$(git rev-parse HEAD)
+   git merge-base --is-ancestor <BASE_HEAD> <CURRENT_HEAD>
+   ```
+
+   Never fetch, guess `main`, use `origin/HEAD`, substitute a merge base, or re-resolve the branch for an
+   individual dimension. If the local branch is absent, stop change-scoped verification with the exact ref
+   error. If the ancestor check fails, continue project-level D1/D2/D3 but mark OpenSpec incremental as
+   `not executed: BASE_HEAD is not an ancestor of CURRENT_HEAD`.
 
 2. **Project-level discovery**
 
@@ -40,6 +74,7 @@ Deep consistency verification between documentation, API schema, and integration
    **SKIP (never read)**:
    - `CHANGELOG*`, `HISTORY*`, `CONTRIBUTING*`, `LICENSE*`, `CODE_OF_CONDUCT*`
    - Files in `node_modules/`, `vendor/`, `.git/`, `__pycache__/`
+   - Files under `openspec/changes/**`; a selected change's artifacts are added only by Step 6
    - `i18n/` translation directories (read source language only)
 
    Store discovered docs as `DOC_FILES`.
@@ -392,46 +427,83 @@ Deep consistency verification between documentation, API schema, and integration
    { dimension: "D3", sub_dimension: "spec-grounded", severity, spec_source, scenario_name, expected, actual, finding, suggestion }
    ```
 
-6. **OpenSpec incremental verification (conditional)**
+6. **OpenSpec incremental verification (explicit and conditional)**
 
-   Run:
-   ```bash
-   openspec list --json
-   ```
-
-   Parse the JSON. If `changes` array is non-empty, for each active change:
+   Run this step only when `MODE=change-scoped` and the Step 1 ancestry check passed. In
+   `MODE=project-level`, record `not executed: no change selected; no change-scoped baseline required` and
+   do not inspect active-change artifacts. Never loop over `openspec list` or include unselected active
+   changes.
 
    ### 6a. Read change artifacts
 
-   Read the change's:
+   Read only `SELECTED_CHANGE`'s:
    - `proposal.md` — extract all verifiable claims (same patterns as D1)
    - `design.md` — extract file path references and technical decisions
    - `specs/*/spec.md` — extract WHEN/THEN scenarios as verifiable requirements
 
    ### 6b. Verify claims against change scope
 
-   Determine the change's code scope:
+   Determine the selected change's implementation scope using only the frozen commit pair:
    ```bash
-   git diff main..HEAD --name-only
+   git diff <BASE_HEAD>..<CURRENT_HEAD> --name-only
    ```
 
    For each extracted claim:
-   - Verify the claim is satisfied within the change scope
-   - Check if WHEN/THEN scenarios have corresponding code in the diff
-   - Check if test files in the diff cover the change's spec scenarios
+   - Verify the claim is satisfied within that exact change scope
+   - Check if WHEN/THEN scenarios have corresponding code in the frozen diff
+   - Check if test files in the frozen diff cover the selected change's spec scenarios
+   - Feed the selected change's scenarios into Step 5d spec-grounded assertion verification; documentation,
+     implementation, test coverage, and assertions must all use the same `<BASE_HEAD>..<CURRENT_HEAD>`
+     attribution boundary
+
+   Project-level D1/D2/D3 always remain whole-repository diagnostics; `--base` MUST NOT crop their discovery
+   sets or rewrite their findings.
 
    ### 6c. Append findings
 
-   Add change-level findings to the main findings list, tagged with:
+   Add selected change-level findings to the main findings list, tagged with:
    ```
    { dimension: "OpenSpec", change_name, severity, source_artifact, finding, suggestion }
    ```
 
-7. **Generate diagnostic report**
+7. **Finalize baseline evidence and generate diagnostic report**
+
+   Before reporting, in change-scoped mode resolve both moving endpoints one final time, only for stability
+   comparison:
+
+   ```bash
+   OBSERVED_BASE_HEAD=$(git rev-parse refs/heads/<BASE_BRANCH>)
+   OBSERVED_CURRENT_HEAD=$(git rev-parse HEAD)
+   ```
+
+   Do not recompute findings. Report `target stability=stable|drifted|unknown` by comparing
+   `OBSERVED_BASE_HEAD` to `BASE_HEAD`, and `current stability=stable|drifted|unknown` by comparing
+   `OBSERVED_CURRENT_HEAD` to `CURRENT_HEAD`. Any difference or failed final resolution marks all frozen
+   incremental results as `stale evidence`; retain the original findings and exact frozen range as diagnostic
+   evidence. This tool remains read-only and does not retry against new commits.
 
    Compile all findings from D1, D2, D3, and OpenSpec incremental into a structured report.
 
-   ### 7a. Summary table
+   ### 7a. Baseline evidence
+
+   Always state `MODE` and parameter source. In change-scoped mode report:
+
+   ```text
+   Selected change: <SELECTED_CHANGE> (explicit positional argument)
+   Target branch: <BASE_BRANCH> (explicit --base)
+   BASE_HEAD: <frozen commit>
+   CURRENT_HEAD: <frozen commit>
+   Comparison range: <BASE_HEAD>..<CURRENT_HEAD>
+   Target stability: <stable|drifted|unknown> (observed: <hash|unavailable>)
+   Current stability: <stable|drifted|unknown> (observed: <hash|unavailable>)
+   Evidence status: <current|stale evidence|incremental not executed>
+   ```
+
+   If `BASE_HEAD == CURRENT_HEAD`, explicitly report an empty comparison range and do not invent delivered
+   files, commits, or tests. On non-ancestry, include both frozen commits and why incremental was not executed.
+   In project-level mode state that no change was selected and no change-scoped baseline was required.
+
+   ### 7b. Summary table
 
    Count findings per dimension and severity:
    ```
@@ -445,7 +517,7 @@ Deep consistency verification between documentation, API schema, and integration
 
    The "Assertion Drift" column counts findings from Step 5d (spec-grounded assertion verification). Use `—` for dimensions that do not perform assertion checking.
 
-   ### 7b. Detailed findings
+   ### 7c. Detailed findings
 
    Group by dimension, sorted by severity (CRITICAL first):
 
@@ -490,7 +562,7 @@ Deep consistency verification between documentation, API schema, and integration
    - **Extra assertions**: <description>
    ```
 
-   ### 7c. Skipped dimensions
+   ### 7d. Skipped dimensions
 
    For any skipped dimension (no files found), note:
    - "D2: Skipped — no API schema files found and no code-first framework detected"
@@ -503,6 +575,10 @@ Deep consistency verification between documentation, API schema, and integration
 
 ```
 # Implementation Consistency Diagnostic Report
+
+## Baseline Evidence
+
+(mode, explicit selection/baseline, frozen range, and final stability)
 
 ## Summary
 
@@ -554,4 +630,10 @@ Deep consistency verification between documentation, API schema, and integration
 - Read-only access to all source code, docs, schemas, and tests
 - If a dimension has no relevant files (e.g., no schema files), skip it gracefully with an informational note
 - OpenSpec incremental verification is additive — it supplements project-level findings, never replaces them
+- OpenSpec incremental verification runs for exactly one explicitly selected active change; unselected active
+  changes are neither read nor included in change-scoped conclusions
+- `--base` is valid only with one explicit change; no argument mode never guesses a baseline or active change
+- Every incremental Git query uses the frozen `<BASE_HEAD>..<CURRENT_HEAD>` pair; never use a branch name,
+  literal `HEAD`, fixed `main`, or a synthesized merge base in that range
+- Non-ancestor baseline means incremental not executed; endpoint drift means stale evidence
 - When unable to determine tech stack, fall back to generic pattern matching across all supported frameworks

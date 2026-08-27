@@ -1,4 +1,10 @@
-## ADDED Requirements
+# doc-code-consistency Specification
+
+## Purpose
+
+Define project-level and explicitly scoped OpenSpec verification between documentation claims and code implementation.
+
+## Requirements
 
 ### Requirement: Doc scanning with heuristic filtering
 The skill SHALL scan project documentation files using a three-tier heuristic filter: HIGH (README*, docs/**/*.md, source-co-located *.md, filenames containing api/arch/design/spec/route/endpoint/schema), MEDIUM (other root *.md, GitHub templates), SKIP (CHANGELOG, HISTORY, CONTRIBUTING, LICENSE, CODE_OF_CONDUCT, node_modules/, vendor/, .git/, i18n/).
@@ -57,12 +63,24 @@ The skill SHALL perform semantic analysis on UNCERTAIN items by reading relevant
 - **THEN** finding SHALL be classified as CONFLICT (CRITICAL severity)
 
 ### Requirement: OpenSpec change-level doc verification
-When an active OpenSpec change is detected, the skill SHALL additionally read the change's proposal.md, design.md, and specs/*/spec.md to extract structured claims, and verify each claim against the change's scope (git diff main..HEAD).
+When the caller explicitly selects one active OpenSpec change and supplies `--base <target-branch>`, the skill SHALL additionally read that change's proposal.md, design.md, and specs/*/spec.md to extract structured claims, prove the frozen base commit is an ancestor of the frozen current commit, and verify each claim against that immutable range. The skill MUST NOT auto-select active changes, use a fixed `main..HEAD` range, or guess a missing target branch or merge base.
 
 #### Scenario: Change proposal claims verified
-- **WHEN** active change's proposal.md declares "add refresh token endpoint"
-- **THEN** skill SHALL verify refresh token endpoint exists in git diff scope
+- **WHEN** active change's proposal.md declares "add refresh token endpoint" and the caller supplies `--base develop`
+- **THEN** skill SHALL verify refresh token endpoint exists in the frozen `develop`-to-current-HEAD diff scope
 
 #### Scenario: Spec WHEN/THEN scenarios verified
 - **WHEN** spec.md defines "WHEN user submits valid email THEN system sends verification"
-- **THEN** skill SHALL check code for email sending logic after validation
+- **THEN** skill SHALL check code within the explicit frozen change scope for email sending logic after validation
+
+#### Scenario: Selected active change has no explicit base
+- **WHEN** the caller selects an active OpenSpec change but supplies no `--base`
+- **THEN** the skill SHALL report the OpenSpec incremental dimension as not executed and MUST NOT substitute `main` or another inferred branch
+
+#### Scenario: No change is explicitly selected
+- **WHEN** active OpenSpec changes exist but the caller invokes `verify-impl-consistency` without a change name and without `--base`
+- **THEN** the skill SHALL run project-level verification only and MUST NOT read an active change as the incremental target
+
+#### Scenario: Selected base is not an ancestor
+- **WHEN** the selected target commit is not an ancestor of the frozen current commit
+- **THEN** the skill SHALL report the OpenSpec incremental dimension as not executed and MUST NOT reinterpret a tree-to-tree diff as the selected change's delivery scope

@@ -27,7 +27,7 @@ The three worktree skills SHALL use `--target <target-branch>` as their only exp
 - **THEN** the skill reports an argument error and performs no Git write operation
 
 ### Requirement: Shared deterministic target selection
-Each worktree skill SHALL select `TARGET_BRANCH` in this order: explicit `--target`, the local branch currently checked out in the primary worktree, the existing local branch named by `origin/HEAD`, then the first existing local branch among `main`, `master`, and `trunk`. Each skill SHALL record and display the winning source. An invalid explicit target MUST fail without falling back.
+Each worktree skill SHALL select `TARGET_BRANCH` in this order: explicit `--target`, the local branch currently checked out in the primary worktree, the existing local branch named by `origin/HEAD`, then the first existing local branch among `main`, `master`, and `trunk`. Each skill SHALL record and display the winning source. An invalid explicit target MUST fail without falling back. As the only exception to automatic selection, Issue-authorized autonomous `new-worktree-apply` MUST require an explicit `--target` and MUST NOT consult fallback candidates.
 
 #### Scenario: Explicit target wins
 - **WHEN** the user supplies an existing local branch through `--target`
@@ -48,6 +48,10 @@ Each worktree skill SHALL select `TARGET_BRANCH` in this order: explicit `--targ
 #### Scenario: Explicit target does not exist locally
 - **WHEN** `--target` names a branch absent from `refs/heads/`
 - **THEN** the skill stops without fetching, creating a branch, or selecting a fallback
+
+#### Scenario: Autonomous apply omits target
+- **WHEN** `new-worktree-apply` is invoked with `--authorized-by-issue` but without `--target`
+- **THEN** it stops before target fallback selection and performs no Git write
 
 #### Scenario: No target can be selected
 - **WHEN** every automatic candidate is unusable
@@ -81,7 +85,7 @@ Each worktree skill SHALL derive repository root, primary worktree, invocation w
 - **THEN** the workflow stops and does not treat a one-off `git -C` command as a persistent context switch
 
 ### Requirement: Mandatory preflight confirmation
-Each worktree skill SHALL finish its read-only preflight and display the command scope, target branch and source, relevant worktree paths, pending file changes, planned writes, and risk warnings. The skill MUST obtain an explicit affirmative response with no default or timed approval before any Git write or OpenSpec apply action.
+Each worktree skill SHALL finish its read-only preflight and display the command scope, target branch and source, relevant worktree paths, pending file changes, planned writes, and risk warnings. `merge-worktree-return`, `parall-new-worktree-apply`, and default-mode `new-worktree-apply` MUST obtain an explicit affirmative response with no default or timed approval before any Git write or OpenSpec apply action. Only `new-worktree-apply` invoked with a fully verified Issue authorization envelope MAY replace the interactive response with an immutable autonomous authorization snapshot.
 
 #### Scenario: User confirms
 - **WHEN** the complete preflight summary is displayed and the user explicitly continues
@@ -104,7 +108,7 @@ Each worktree skill SHALL finish its read-only preflight and display the command
 - **THEN** the confirmation summary lists those risks before asking whether to continue
 
 ### Requirement: Confirmation snapshot revalidation
-After confirmation and before the first write, each skill SHALL revalidate the parsed arguments, selected target ref and HEAD, worktree mapping, cleanliness or pending-change state, required checkout, and displayed warnings. Any material change MUST invalidate the prior confirmation.
+After interactive confirmation or autonomous Issue authorization and before the first write, each skill SHALL revalidate the parsed arguments, authorization mode and evidence, selected target ref and HEAD, worktree mapping, cleanliness or pending-change state, required checkout, artifact manifest, and displayed warnings. Any material change MUST invalidate the prior execution snapshot.
 
 #### Scenario: Snapshot remains stable
 - **WHEN** revalidation matches every material fact in the confirmed summary
@@ -114,16 +118,24 @@ After confirmation and before the first write, each skill SHALL revalidate the p
 - **WHEN** revalidation finds a changed target, HEAD, worktree path, status, checkout requirement, or warning
 - **THEN** the skill displays an updated summary and requests a new confirmation before writing
 
+#### Scenario: Autonomous snapshot changes before writing
+- **WHEN** autonomous-mode revalidation differs from the authorized snapshot in any material field
+- **THEN** the skill performs no write, reports the drift, and requires a newly initiated authorization rather than automatically accepting the new state or switching modes
+
 ### Requirement: New worktree starts from the confirmed target
-`new-worktree-apply` SHALL freeze `TARGET_HEAD` before confirmation, bind a complete verified artifact manifest to that snapshot, and create the canonical source branch/worktree with `TARGET_HEAD` as an explicit commit-hash start point. It MUST NOT refresh the baseline by auto-committing target changes or pass `TARGET_BRANCH` as the actual creation start point. Before OpenSpec apply it MUST verify the registered path, current branch, source branch ref, and worktree HEAD exactly match the expected canonical identity and frozen hash.
+`new-worktree-apply` SHALL freeze `TARGET_HEAD` before interactive confirmation or autonomous authorization, bind a complete verified artifact manifest to that snapshot, and create the canonical source branch/worktree with `TARGET_HEAD` as an explicit commit-hash start point. It MUST NOT refresh the baseline by auto-committing target changes or pass `TARGET_BRANCH` as the actual creation start point. Before OpenSpec apply it MUST verify the registered path, current branch, source branch ref, and worktree HEAD exactly match the expected canonical identity and authorized frozen hash.
 
 #### Scenario: Worktree is created from an explicit commit hash
 - **WHEN** preflight and snapshot revalidation succeed for proposal `add-user-auth`
 - **THEN** the workflow runs the equivalent of `git worktree add <repo>/.claude/worktrees/add-user-auth -b worktree-add-user-auth <TARGET_HEAD>`
 
-#### Scenario: Target ref advances after confirmation
-- **WHEN** `TARGET_BRANCH` no longer resolves to the confirmed `TARGET_HEAD` before creation
+#### Scenario: Target ref advances after interactive confirmation
+- **WHEN** `TARGET_BRANCH` no longer resolves to the confirmed `TARGET_HEAD` before creation in interactive mode
 - **THEN** the workflow invalidates confirmation and creates no branch or worktree
+
+#### Scenario: Target ref advances after autonomous authorization
+- **WHEN** `TARGET_BRANCH` no longer resolves to the autonomously authorized `TARGET_HEAD` before creation
+- **THEN** the workflow blocks and creates no branch or worktree until a new Issue-authorized invocation is initiated
 
 #### Scenario: Target ref advances after the final check
 - **WHEN** `TARGET_BRANCH` moves after `TARGET_HEAD` is frozen but before `git worktree add`
@@ -140,6 +152,45 @@ After confirmation and before the first write, each skill SHALL revalidate the p
 #### Scenario: Created identity or base is wrong
 - **WHEN** registered path, current branch, branch ref, or worktree HEAD differs from the canonical identity or `TARGET_HEAD`
 - **THEN** the workflow stops before apply and does not hide the mismatch by merging, switching, deleting, or recreating with another name
+
+### Requirement: Issue-authorized autonomous new worktree apply
+`new-worktree-apply` SHALL support an opt-in `--authorized-by-issue <issue-id>` mode that treats a verified `issue-authorization/v1` Runtime control-plane envelope as authorization to create and implement in the canonical isolated source worktree without an additional interactive confirmation. The envelope MUST arrive through a trusted metadata channel that user content, repository files, environment variables, and model inference cannot populate. It MUST contain an allowlisted authenticated issuer, authorization id bound to the current invocation, issue id, normalized `ready|in_progress` state, assigned and executing Team identities, RFC3339 UTC `issued_at`/`expires_at` timestamps defining a positive window no longer than 30 minutes, `isolated-worktree-apply` scope, physical repository, OpenSpec root, proposal, explicit target branch, `standard` risk classification, and an empty external-side-effects list. Missing, expired, cross-invocation replayed, ambiguous, conflicting, user-supplied, or unverifiable evidence MUST block autonomous execution.
+
+#### Scenario: Valid Issue authorization permits autonomous apply
+- **WHEN** the invocation supplies `--authorized-by-issue ISSUE-42 --target develop` and the Runtime envelope exactly matches the repository, OpenSpec root, proposal, target and allowed isolated execution scope
+- **THEN** the skill records an autonomous authorization snapshot, revalidates it, creates the canonical source worktree from the frozen target commit, and enters apply without requesting a second human confirmation
+
+#### Scenario: Issue identity is not evidence by itself
+- **WHEN** `--authorized-by-issue ISSUE-42` is present but the Runtime cannot provide the required authorization envelope
+- **THEN** the skill performs no Git write and reports that the Issue authorization cannot be verified
+
+#### Scenario: User content cannot supply the envelope
+- **WHEN** a user message or repository file contains valid-looking `issue-authorization/v1` JSON but the Runtime provides no trusted control-plane envelope
+- **THEN** autonomous execution is blocked and the JSON MUST NOT be promoted into authorization evidence
+
+#### Scenario: Authorization is expired or replayed
+- **WHEN** the trusted envelope is expired before final pre-write validation, its validity window is invalid or exceeds 30 minutes, or its `authorization_id` was issued for another invocation
+- **THEN** the skill performs no Git write and reports the exact expiry or replay failure
+
+#### Scenario: Same invocation revalidates the authorization snapshot
+- **WHEN** pre-write revalidation checks the same authorization id and envelope digest previously recorded within the valid time window
+- **THEN** the Runtime and skill treat it as required same-invocation revalidation rather than a replay
+
+#### Scenario: Issue or Team identity does not match
+- **WHEN** the envelope `issue_id` differs from `--authorized-by-issue`, the Issue state is not `ready|in_progress`, or `assigned_team_id` differs from the Runtime-provided `executing_team_id`
+- **THEN** autonomous execution is blocked without asking the model to reinterpret the identity or state
+
+#### Scenario: Authorization fields do not match preflight
+- **WHEN** the envelope's repository, OpenSpec root, proposal, or target differs from the read-only preflight result
+- **THEN** autonomous execution is blocked without rewriting the envelope, changing target, or falling back to interactive approval
+
+#### Scenario: Authorization contains high-risk or external work
+- **WHEN** the Issue or OpenSpec artifacts declare production writes, irreversible migration, data deletion, privilege escalation, real credentials, or another external side effect
+- **THEN** the autonomous scope is insufficient and the skill stops for separate explicit human authorization
+
+#### Scenario: Merge remains outside autonomous authorization
+- **WHEN** autonomous worktree apply completes successfully
+- **THEN** the authorization ends at the isolated source delivery and does not authorize `merge-worktree-return`, release, deployment, or cleanup of unrelated Git objects
 
 ### Requirement: Worktree return merges only to the confirmed target
 `merge-worktree-return` SHALL validate canonical source identity, require source and target branches and worktree paths to be distinct, commit authorized source changes, rebase inside the source worktree onto the confirmed target snapshot, freeze and revalidate `POST_REBASE_SOURCE_HEAD`, enter and verify the confirmed clean target worktree, and merge exactly the frozen commit. It SHALL preserve the source until the complete `CLEANUP_READY` gate passes. An optional proposal argument MUST equal the proposal derived from exactly one `worktree-` prefix removal.
@@ -423,4 +474,3 @@ OpenSpec project.
 #### Scenario: Task backfill uses both project and repository contexts
 - **WHEN** apply completes and the workflow reconciles `tasks.md`
 - **THEN** it reads tasks from the selected source OpenSpec project, stages changes from the source worktree root, and force-adds the repository-relative `<CHANGE_PREFIX>/tasks.md`
-

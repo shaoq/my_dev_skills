@@ -1,18 +1,24 @@
 ---
 name: check-changes-completed
-description: Scan all active OpenSpec changes, run a five-dimensional completion check (tasks, artifacts, code delivery, dependencies, project compliance), auto-backfill task markers when code is delivered but tasks are unmarked, and output a summary report. Diagnostic + backfill tool — use opsx:archive to act on results. No arguments needed.
-argument-hint: (no arguments)
+description: Check an explicit set of active OpenSpec changes against one explicit local target branch using a frozen Git range. Runs five completion dimensions, optionally backfills selected task markers after final drift checks, and reports archiving readiness without touching unselected changes.
+argument-hint: "--target <target-branch> --change <active-change> [--change <active-change> ...]"
 disable-model-invocation: true
 allowed-tools: Bash(openspec *) Bash(git *) Bash(ls *) Bash(test *) Bash(cat *) Bash(grep *) Bash(find *) Bash(wc *) Bash(sed *) Bash(mv *) Bash(head *) Read Glob Grep Edit AskUserQuestion
 ---
 
-Check all active OpenSpec changes for completion using a five-dimensional model, auto-backfill task markers when contradictions are detected, then output a diagnostic report.
+Check an explicitly selected target group of active OpenSpec changes for completion using a five-dimensional model, auto-backfill only selected task markers when contradictions are detected and the frozen range remains stable, then output a diagnostic report.
 
-**Input**: No arguments required. Example: `/check-changes-completed`.
+**Input**: Exactly one `--target <target-branch>` and one or more unique
+`--change <active-change>` selectors. Options may be interleaved.
+
+```text
+/check-changes-completed --target develop --change change-a
+/check-changes-completed --change change-a --target develop --change change-b
+```
 
 **Steps**
 
-1. **Validate prerequisites**
+1. **Validate prerequisites and parse arguments without writes**
 
    Run these checks in parallel:
    ```bash
@@ -24,22 +30,45 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
    - Not a git repo → error: "Must be inside a git repository."
    - No openspec CLI → error: "OpenSpec CLI is required. Install it first."
 
-2. **Scan active changes**
+   Initialize `ZERO_WRITE_GATE=closed`. Parse the complete original argument vector. Accept only one
+   `--target` with a non-empty value and one or more `--change` options with non-empty values. Reject a
+   missing target/change, a missing option value, a duplicate or 重复的 `--target`, a duplicate or
+   重复的 `--change`, an unknown flag, any positional argument, and any option-shaped value. Report the exact
+   offending argument and stop before baseline queries or change-level artifact reads. Never infer a target or
+   change from Git, `openspec list`, directory order, `main`, `origin/HEAD`, or current branch.
 
-   List all subdirectories under `openspec/changes/`, excluding `archive/`:
+2. **Build the selected set and freeze the baseline without writes**
+
+   For each requested change, require an exact directory match under `openspec/changes/<name>/`. Reject
+   absent, ambiguous, path-like, similarly named, or archive-only values. The literal `archive` is invalid.
+   Validate only the requested names; do not enumerate unrelated change contents. Sort the unique names:
+
    ```bash
-   ls -d openspec/changes/*/ 2>/dev/null | sed 's|openspec/changes/||;s|/||' | grep -v '^archive$'
+   SELECTED_CHANGES=$(printf '%s\n' <validated-change-values> | LC_ALL=C sort)
    ```
 
-   If the output is empty:
-   > "No active changes found. Nothing to check."
-   Then stop.
+   未选择的 change 不得读取其 change-level artifacts，不参与五维扫描、依赖递归、blocking
+   reasons、可存档结论或 task backfill。selected change 声明的 active dependency 若未被显式选择，
+   只标为 `阻塞: <dep-name> (not selected)`，不得读取该 dependency 的 artifacts 或自动扩大集合。
+   不同目标分支必须分组调用。
 
-   Store the list as `ACTIVE_CHANGES`.
+   Require the explicit local target and freeze both endpoints exactly once:
+
+   ```bash
+   git rev-parse --verify --quiet refs/heads/<TARGET_BRANCH>
+   BASE_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)
+   CURRENT_HEAD=$(git rev-parse HEAD)
+   git merge-base --is-ancestor <BASE_HEAD> <CURRENT_HEAD>
+   ```
+
+   Do not fetch, substitute a merge base, or re-resolve either endpoint for D3/D5. A missing local ref,
+   command error, or failed ancestry check blocks every selected change, keeps `ZERO_WRITE_GATE=closed`, sets
+   `archivable = unknown/blocked`, and skips all change artifact reads, backfill, stage, and commit. If
+   `BASE_HEAD == CURRENT_HEAD`, record an empty comparison range; do not invent delivered files or commits.
 
 3. **For each change, run five-dimensional checks**
 
-   For each `<name>` in `ACTIVE_CHANGES`, perform the following checks sequentially. Collect results into a structured record.
+   For each `<name>` in sorted `SELECTED_CHANGES`, perform the following checks sequentially. Collect results into a structured record.
 
    ### Dimension 1 — Tasks Completion
 
@@ -98,7 +127,7 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
    **Step 3c: Check git commits**
 
    ```bash
-   git log --oneline main..HEAD -- <expected-file-paths>
+   git log <BASE_HEAD>..<CURRENT_HEAD> -- <expected-file-paths>
    ```
 
    **Result logic:**
@@ -119,9 +148,13 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
    - Otherwise, for each dependency name:
      1. Verify the dependency change exists in `openspec/changes/` or `openspec/changes/archive/`
      2. If not found → mark as `无效引用: <dep-name>`
-     3. If found, recursively check its four-dimensional status (use a VISITED set to detect circular dependencies)
-     4. If all dependencies pass → D4 = `✓`
-     5. If any dependency fails → D4 = `✗ 阻塞: <dep-name> (<reason>)`
+     3. If found only under `openspec/changes/archive/`, treat that dependency as completed without reading its artifacts
+     4. If found as an active change but absent from `SELECTED_CHANGES`, mark
+        `✗ 阻塞: <dep-name> (not selected)` and do not read its artifacts
+     5. If it is also selected, reuse that selected record's four-dimensional status; recursively resolve only
+        within `SELECTED_CHANGES` using a VISITED set
+     6. If all dependencies pass → D4 = `✓`
+     7. If any dependency fails → D4 = `✗ 阻塞: <dep-name> (<reason>)`
 
    **Circular dependency detection**: Maintain a `VISITED` set across recursive calls. If a change is already in `VISITED`, stop and mark as `循环依赖`.
 
@@ -196,8 +229,11 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
    For each triggered requirement in `TRIGGERED_REQS`, verify that the companion artifact was updated alongside the change:
 
    ```bash
-   CHANGED_FILES=$(git diff main..HEAD --name-only)
+   CHANGED_FILES=$(git diff <BASE_HEAD>..<CURRENT_HEAD> --name-only)
    ```
+
+   D3 and D5 MUST reuse the same literal frozen values. Do not pass `TARGET_BRANCH`, `HEAD`, or a freshly
+   resolved ref to either query.
 
    Match `CHANGED_FILES` against requirement-specific patterns:
 
@@ -215,7 +251,9 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
    - All triggered requirements pass → D5 = `✓`
    - Any triggered requirement fails → D5 = `✗ 缺失: <type-list>`, where `<type-list>` is the comma-separated list of failed requirement types (e.g., `test-sync, doc-sync`)
 
-   Each entry in `D5_GAPS` contains: `{ type, description, source_file }` for use in blocking reasons. (when contradictions detected)**
+   Each entry in `D5_GAPS` contains: `{ type, description, source_file }` for use in blocking reasons.
+
+4. **Plan contradiction backfill, then open the final zero-write gate**
 
    After collecting all five-dimensional results, detect contradictions:
 
@@ -225,11 +263,11 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
 
    Build a list `CONTRADICTORY_CHANGES` of all changes matching this pattern.
 
-   **If `CONTRADICTORY_CHANGES` is empty**: Skip to Step 5 (no backfill needed).
+   **If `CONTRADICTORY_CHANGES` is empty**: no backfill plan is needed.
 
    **If `CONTRADICTORY_CHANGES` is not empty**: For each change in the list, perform two-level backfill:
 
-   ### Level-1: Automatic backfill via 4-rule parser
+   ### Level-1: Build an automatic backfill plan via the 4-rule parser
 
    For each change in `CONTRADICTORY_CHANGES`, read its `tasks.md` and process each `- [ ]` line:
 
@@ -238,28 +276,28 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
    ```bash
    test -f <path> && echo "EXISTS" || echo "MISSING"
    ```
-   If EXISTS → auto-mark this task: `- [ ]` → `- [x]`.
+   If EXISTS → add this exact task-line edit to `BACKFILL_PLAN`; do not edit yet.
 
    **Rule 2 — Directory creation patterns**:
    If task description matches "创建 `xxx/` 目录" or "Create `xxx/` directory":
    ```bash
    test -d <directory-path> && echo "EXISTS" || echo "MISSING"
    ```
-   If EXISTS → auto-mark this task: `- [ ]` → `- [x]`.
+   If EXISTS → add this exact task-line edit to `BACKFILL_PLAN`; do not edit yet.
 
    **Rule 3 — Frontmatter patterns**:
    If task description matches "编写 frontmatter" or "write frontmatter", extract any backtick-enclosed file reference. Check if that file contains frontmatter:
    ```bash
    test -f <path> && head -1 <path> | grep -q '^---' && echo "EXISTS" || echo "MISSING"
    ```
-   If EXISTS → auto-mark this task: `- [ ]` → `- [x]`.
+   If EXISTS → add this exact task-line edit to `BACKFILL_PLAN`; do not edit yet.
 
    **Rule 4 — Implementation keyword patterns**:
    If task description matches "实现 xxx" or "implement xxx", extract the keyword phrase and search for related code files:
    ```bash
    grep -rl "<keyword>" --include="*.md" --include="*.py" --include="*.ts" --include="*.js" --include="*.go" . 2>/dev/null | head -3
    ```
-   If results found → auto-mark this task: `- [ ]` → `- [x]`.
+   If results found → add this exact task-line edit to `BACKFILL_PLAN`; do not edit yet.
 
    Track results for each change:
    - `L1_MARKED`: count of tasks auto-marked by Level-1
@@ -279,10 +317,31 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
    >
    > Options: "Mark all as complete" / "Skip (keep as incomplete)"
 
-   - If user chooses **"Mark all as complete"**: change all listed `- [ ]` → `- [x]`.
+   - If user chooses **"Mark all as complete"**: add all listed `- [ ]` → `- [x]` edits to
+     `BACKFILL_PLAN`; do not edit yet.
    - If user chooses **"Skip"**: leave them as `- [ ]`.
 
    Track: `L2_MARKED` = count of tasks confirmed via Level-2.
+
+   ### Final endpoint stability check
+
+   After every diagnostic and any Level-2 wait, but before applying `BACKFILL_PLAN`, staging, or committing,
+   resolve only for equality checking:
+
+   ```bash
+   OBSERVED_BASE_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)
+   OBSERVED_CURRENT_HEAD=$(git rev-parse HEAD)
+   ```
+
+   Require `OBSERVED_BASE_HEAD == BASE_HEAD` and `OBSERVED_CURRENT_HEAD == CURRENT_HEAD`. Also require the
+   parsed arguments, sorted `SELECTED_CHANGES`, and every selected `tasks.md` input used to build
+   `BACKFILL_PLAN` to remain byte-identical. Any target/current drift, unreadable state, selection drift, or
+   task-input drift keeps `ZERO_WRITE_GATE=closed`: discard the plan, perform zero backfill, zero stage, zero
+   commit, mark frozen diagnostics as stale, and report `archivable = unknown/blocked`. Never rerun against
+   new commits inside the same invocation.
+
+   Only after all checks pass set `ZERO_WRITE_GATE=open`, then apply the planned edits strictly to
+   `openspec/changes/<name>/tasks.md` where `<name>` is in `SELECTED_CHANGES`.
 
    ### Commit backfilled tasks
 
@@ -319,7 +378,24 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
 
    Update the D1 result for that change. If now `DONE == TOTAL` → D1 = `✓ N/N`. Otherwise → D1 = `✗ X/N` (updated count).
 
-5. **Output summary table**
+5. **Output baseline evidence and summary table**
+
+   Before the table report:
+
+   ```text
+   Selected changes: <sorted SELECTED_CHANGES> (explicit --change values)
+   Target branch: <TARGET_BRANCH> (explicit --target)
+   BASE_HEAD: <frozen commit>
+   CURRENT_HEAD: <frozen commit>
+   Comparison range: <BASE_HEAD>..<CURRENT_HEAD> | empty
+   Target stability: <stable|drifted|unknown> (observed: <hash|unavailable>)
+   Current stability: <stable|drifted|unknown> (observed: <hash|unavailable>)
+   Writes: <allowed and performed|allowed but unnecessary|blocked>
+   ```
+
+   On a prerequisite/ancestry/final-stability failure, list every selected change as blocked, explain that
+   writes and archivable conclusions were blocked, and use `archivable = unknown/blocked`; do not present a
+   positive or negative archive verdict derived from incomplete/drifted evidence.
 
    After backfill (or if skipped), output a markdown table using the latest D1 values:
 
@@ -333,7 +409,8 @@ Check all active OpenSpec changes for completion using a five-dimensional model,
    | name-3 | ✓ N/N | ✓ | ✓ | ✓ | ✓ (无项目规范) | ✓ |
    ```
 
-   **Archivable logic**: A change is archivable only when ALL five dimensions pass.
+   **Archivable logic**: A selected change is archivable only when ALL five dimensions pass and final baseline
+   stability opened `ZERO_WRITE_GATE`. Unselected changes never appear in this table.
 
    If backfill was performed, output a backfill report immediately after the table:
    ```markdown
@@ -405,7 +482,13 @@ Archivable changes: <list>. Use `/opsx:archive <name>` to archive.
 ```
 
 **Guardrails**
-- May modify `tasks.md` files ONLY for changes where D3 passes and D1 fails (contradiction detected). All other change artifacts remain strictly read-only.
+- May modify `tasks.md` files ONLY for explicitly selected changes where D3 passes, D1 fails, and
+  `ZERO_WRITE_GATE=open`. All other change artifacts remain strictly read-only.
+- Parameter, selection, target-ref, ancestry, or final stability failure means zero task edits, zero stage, and
+  zero commit; frozen drifted evidence may be shown only as stale diagnostics
+- Never scan or backfill an unselected active change; different target branches require separate grouped calls
+- D3 and D5 use only `<BASE_HEAD>..<CURRENT_HEAD>`, never a moving branch name, literal `HEAD`, guessed default,
+  or substituted merge base
 - Stop on git or openspec CLI failures
 - Circular dependency: mark as anomaly, do not recurse infinitely
 - If `openspec status` fails for a change, mark D2 as error and continue with others
