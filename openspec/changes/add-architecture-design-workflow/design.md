@@ -19,12 +19,14 @@
 - 支持现有系统演进、新建系统和混合型架构设计。
 - 让 GitNexus、brainstorming 和 `openspec-explore` 在正确阶段、正确边界内组合使用。
 - 保持 Claude Code 与 Codex 使用同一份 skill 源码。
+- 让所有面向用户的工作流输出使用中文，同时保留命令、标识符和引用原文的准确性。
 
 **Non-Goals:**
 
 - 不在架构设计阶段创建或修改 OpenSpec proposal、design、specs、tasks。
 - 不实施业务代码，不创建 Git worktree，不合并分支，不归档 change。
 - 不自动创建仓库、Multica Project、研发 Issue 或 Architecture Team。
+- 不自动安装依赖 skill，也不修改 Claude Code、Codex 或插件配置。
 - 不替代目标研发项目既有的 OpenSpec 与 R&D Team 流程。
 - 不为 Architecture Team 创建 watchdog。
 
@@ -34,19 +36,32 @@
 
 skill 使用以下主流程：
 
+canonical stage 枚举固定为：
+
 ```text
-intake
-  → routed
-  → researching
-  → designing
-  → reviewing
-  → waiting_human_design
-  → approved_design_only | approved_for_spec | revision_requested | rejected
-  → publishing
-  → handed_off | completed_design_only
+intake | routed | researching | designing | reviewing | waiting_human |
+approved_design_only | approved_for_spec | publishing | handed_off |
+completed_design_only | rejected
 ```
 
-每次阶段转换必须记录在 `ARCH-CONTROL`，包括当前阶段、Owner、输入、产物版本、下一动作、阻塞原因和所需人工决定。`urgent`、`直接做` 等自然语言不能替代明确的批准状态。
+`revision_requested` 是人工决定，不是持久 stage；记录后转换到新的 `designing` 迭代。`waiting_human` 必须同时记录 `WAIT_REASON=design_approval|target_project`，避免为不同等待原因创造近义状态名。
+
+主转换矩阵为：
+
+```text
+intake → routed → researching → designing → reviewing
+reviewing + BLOCKED            → researching | designing（按 finding Owner）
+reviewing + NEEDS_REVISION     → designing
+reviewing + APPROVABLE*        → waiting_human(design_approval)
+waiting_human + revision_requested → designing
+waiting_human + rejected           → rejected（终态）
+waiting_human + approved_design_only → approved_design_only → publishing → completed_design_only（终态）
+waiting_human + approved_for_spec + target exists → approved_for_spec → publishing → handed_off（终态）
+waiting_human + approved_for_spec + target missing → waiting_human(target_project)
+waiting_human(target_project) + target selected → approved_for_spec → publishing → handed_off
+```
+
+缺少运行时依赖、证据或路由信息时保持当前 stage，并记录 `BLOCKED_REASON`；不得伪造一次状态转换。每次合法转换必须记录在 `ARCH-CONTROL`，包括当前阶段、Owner、输入、产物版本、下一动作、阻塞原因、等待原因和所需人工决定。`urgent`、`直接做` 等自然语言不能替代明确的批准状态。
 
 备选方案是只提供一组报告模板。未选择，因为模板不能阻止 Agent 跳过项目路由或把探索直接升级为 OpenSpec。
 
@@ -63,6 +78,14 @@ intake
 Solution Architect 在目标、边界、关键约束或方案空间不清晰时调用 `superpowers:brainstorming`。brainstorming 完成后必须冻结结论摘要，再以该摘要作为 `openspec-explore` 思考模式的输入。
 
 brainstorming 后续自带的 planning/implementation 逻辑不进入本工作流。`openspec-explore` 也只用于读代码、调查与比较，不得利用其“用户明确要求时可写 artifact”的通用能力创建任何 OpenSpec 文件。
+
+在开始研究前执行依赖 preflight：
+
+- `openspec-explore` 是研究阶段的必需依赖；当前 Runtime 无法解析它时，保持当前 stage、记录 `BLOCKED_REASON=missing_openspec_explore` 并停止研究。
+- `superpowers:brainstorming` 是条件依赖。输入明确时可以按规则跳过；输入存在歧义且 Runtime 无法解析该 skill 时，记录 `BLOCKED_REASON=missing_brainstorming` 并请求用户补齐依赖或澄清到可跳过 brainstorming 的程度。
+- 依赖缺失不得触发自动安装、Runtime 配置修改，也不得退化为未声明的 planning、proposal 或 implementation skill。
+
+根目录安装器仅安装 `architecture-design-workflow` 自身，因此依赖 preflight 是运行时契约，不是安装器的隐式职责。
 
 ### 4. GitNexus 是代码事实与影响分析的优先证据源
 
@@ -127,7 +150,8 @@ architecture-design-workflow/
 │   ├── solution-design.md
 │   ├── architecture-review.md
 │   ├── adr-publication.md
-│   └── rnd-handoff.md
+│   ├── rnd-handoff.md
+│   └── runtime-and-validation.md
 └── templates/
     ├── arch-control.md
     ├── arch-research.md
@@ -136,6 +160,10 @@ architecture-design-workflow/
     ├── adr.md
     ├── detailed-design.md
     └── arch-rd-handoff.md
+
+tests/
+├── architecture-design-workflow-safety.sh
+└── fixtures/architecture-design-workflow/*.md
 ```
 
 `SKILL.md` 只保留触发条件、状态机、硬门禁、角色路由和引用导航；详细规则与模板按需加载，降低上下文负担。
@@ -144,11 +172,21 @@ architecture-design-workflow/
 
 根目录 skill 会被 `scan_custom_skills()` 自动发现，现有安装器已具备 Claude Code/Codex 双端链接、幂等跳过、错误链接替换、普通目录保护和精确卸载能力。因此默认只需新增 skill 目录并运行安装器，不修改安装逻辑。
 
+测试 fixtures 固定存放在 `tests/fixtures/architecture-design-workflow/`，静态与契约 runner 固定为 `tests/architecture-design-workflow-safety.sh`。行为结果不做全文匹配，而按每个 fixture 声明的 required/forbidden markers、stage、gate、write set 和 evidence fields 归一化断言。Claude Code 与 Codex 的 smoke 结果分别记录，必须包含 Runtime、版本、fixture、结果、证据位置和限制。
+
 测试分三层：
 
 1. 静态校验：frontmatter、目录结构、Codex 元数据和引用链接。
 2. 触发测试：复杂架构设计应触发，普通 bug 修复或明确 OpenSpec 实施不应触发。
-3. 压力测试：重放“紧急跨项目”“批准后直接 proposal”“评审证据不足”等基线案例，确认新 skill 阻止越权并生成正确报告契约。
+3. 压力测试：使用 fresh Agent 重放“紧急跨项目”“探索后直接 proposal”“评审证据不足”“依赖缺失”“普通 bug 不触发”等固定 fixture，确认新 skill 阻止越权并生成正确报告契约。
+
+正式用户 HOME 不属于自动实施测试范围。实施只在临时 HOME 验证安装、幂等、冲突隔离和卸载，并生成供用户选择执行的正式安装与链接核验命令；不得为了勾选任务而修改真实 `~/.claude` 或 `~/.codex`。
+
+### 11. 中文是用户可见输出契约
+
+skill 的状态更新、澄清问题、研究摘要、评审 finding、人工门禁提示、发布摘要和研发交接报告必须使用中文。命令、路径、状态枚举、代码标识符、协议字段及权威来源原文可保持原语言，并在必要时提供中文解释。
+
+该规则同时进入 `SKILL.md`、报告模板、正向触发测试和负向/错误路径测试；不能只通过中文模板间接实现。
 
 ## Risks / Trade-offs
 
@@ -162,9 +200,9 @@ architecture-design-workflow/
 ## Migration Plan
 
 1. 按 skill-creator 规范创建目录、frontmatter、Codex 元数据、references 和 templates。
-2. 将基线压力测试整理为可重复场景，先确认无 skill 时的失败行为，再验证新 skill 的门禁。
+2. 将基线压力测试整理为固定 fixtures、归一化断言和 runner，先确认无 skill 时的失败行为，再验证新 skill 的门禁。
 3. 运行静态校验、引用检查和 Claude Code/Codex 双端触发测试。
-4. 在临时 HOME 验证安装器，再运行现有安装命令创建受管软链接。
+4. 在临时 HOME 验证安装器，并生成用户可选择执行的正式安装与链接核验命令；自动实施不写真实 HOME。
 5. 由 `uni-architecture` 项目提案同步并绑定该 skill；在依赖完成前不创建 Architecture Team。
 
 回滚时移除两个运行时中精确指向本仓库的受管链接，并删除新增 skill 目录；不影响其他 skills。

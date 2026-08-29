@@ -1,6 +1,6 @@
 # my_dev_skills - 使用指南
 
-基于 OpenSpec 工作流的 Claude Code + Codex Skills 集合，提供从需求分析、提案审查到并行实施和归档的完整开发流水线。
+面向 Claude Code 与 Codex 的研发 Skills 集合，覆盖复杂架构研究与决策，以及从 OpenSpec 需求分析、提案审查到隔离实施、合并和归档的完整开发流水线。
 
 ## 安装
 
@@ -74,6 +74,22 @@ python3 setup-iterm2-claude-notify.py --remove # 卸载受管配置
 
 > Skills 以符号链接形式安装到 `~/.claude/skills/` 和 `~/.codex/skills/`，一次安装后两个运行时的所有项目通用。
 > 前提：本仓库目录需保留在原地，不可删除或移动。
+
+### 场景 0：复杂架构设计（研究 → 评审 → 人工批准 → 发布/交接）
+
+适用于：复杂架构升级、全新系统、跨系统混合方案、独立架构评审或架构到研发的正式交接。
+
+```text
+/architecture-design-workflow    # Claude Code
+$architecture-design-workflow    # Codex
+
+→ 先确认 Subject Project、设计类型和运行时依赖
+→ 研究与架构设计阶段不创建 OpenSpec artifacts
+→ ARCH-DESIGN 经独立 ARCH-REVIEW 后等待明确的人类门禁
+→ approved_design_only 只发布 ADR/详细设计
+→ approved_for_spec 额外生成 ARCH-RD-HANDOFF，由目标 R&D Team 自行决定是否创建 OpenSpec
+→ 普通 bug、已批准 change 实施和代码 Review 不触发本流程
+```
 
 ### 场景 A：综合需求（拆分 → 并行实施）
 
@@ -155,8 +171,8 @@ Step 2: 在 worktree 中实施
 
   → `--target` 是必填项；目标必须已由 clean worktree 持有，并冻结 `TARGET_HEAD`
   → `--openspec-root twin-rag` 精确选择 `twin-rag/openspec/changes/add-user-auth`
-  → Runtime 必须证明本次是用户直接显式调用；来源 unknown、自动选择、嵌套调用或伪造 metadata 均零写失败
-  → 可信显式调用完成预检和最终复检后直接执行，不再请求第二次确认；`--dry-run` 始终只读
+  → 显式命令、明确自然语言、Team/subagent 或其他 Skill 都可传递有限实施意图；调用来源不会扩大授权范围
+  → 完整预检和最终复检稳定后直接执行，不再请求第二次确认；`--dry-run` 始终只读
   → 验证 commit 中完整仓库相对 artifacts 与预检快照完全一致
   → 从该 hash 创建 `worktree-add-user-auth` → 执行实施 → 补标记 → 提交
 
@@ -189,6 +205,7 @@ Step 5: 归档
 
 | Skill 名称 | 调用方式 | 用途 | 参数 |
 |------------|---------|------|------|
+| **architecture-design-workflow** | Claude Code: `/architecture-design-workflow`<br>Codex: `$architecture-design-workflow` | 受控架构研究、设计、评审、发布与研发交接 | 架构需求或当前 `ARCH-*` 状态 |
 | **parall-new-proposal** | `/parall-new-proposal` | 并行提案拆分 | 需求描述文本 |
 | **openspec-review-change** | Claude Code: `/openspec-review-change`<br>Codex: `$openspec-review-change` | 实施前只读提案审查 | `[change-name] [--openspec-root <repo-relative-path>]` |
 | **parall-new-worktree-apply** | `/parall-new-worktree-apply` | 并行实施多个 changes | `[--target <target-branch>]` |
@@ -205,6 +222,27 @@ Step 5: 归档
 需求描述
    │
    ▼
+┌─────────────────────────────┐
+│  是否为复杂架构决策？        │
+└──────────────┬──────────────┘
+       是      │      否/普通研发
+       │       │
+       ▼       ▼
+/architecture-design-workflow  /opsx:explore
+       │                       （可选）
+       ▼
+ARCH-RESEARCH → ARCH-DESIGN → ARCH-REVIEW
+       │
+       ▼
+明确人类门禁：approved_design_only / approved_for_spec
+       │                              │
+       ▼                              ▼
+ADR + 详细设计                 ARCH-RD-HANDOFF
+                                      │
+                                      ▼
+                         目标 R&D Team 自行决定是否创建 OpenSpec
+
+普通研发/OpenSpec 路径：
 ┌─────────────────────────────┐
 │  /opsx:explore              │  ← 可选：探索需求、分析方案
 └──────────────┬──────────────┘
@@ -264,6 +302,45 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 ---
 
 ## 各 Skill 详解与注意事项
+
+### 0. architecture-design-workflow
+
+**做什么**：把复杂架构研究、方案设计、独立评审、人工批准、架构发布和研发交接组织成独立于 OpenSpec 实施的受控流程。
+
+**适用范围**：
+
+- 复杂架构升级、全新系统、跨系统 hybrid 方案
+- 独立架构 Review、ADR/详细设计发布
+- 经批准后向目标研发项目生成 `ARCH-RD-HANDOFF`
+
+普通 bug 调查、状态跟进、已批准 OpenSpec change 的实施、源码 Review 和无架构影响的局部重构不触发本 Skill。
+
+**核心机制**：
+
+- canonical 主路径为 `intake → routed → researching → designing → reviewing → waiting_human`；评审结论可以回到研究/设计，批准后进入 `publishing`，实际发布验证完成后才进入 `completed_design_only` 或 `handed_off`
+- `openspec-explore` 是研究阶段必需依赖；只有目标、边界、约束或方案空间存在实质歧义时才要求 `superpowers:brainstorming`
+- 依赖缺失时保持当前 stage，记录稳定 `BLOCKED_REASON` 并 fail-closed；不自动安装依赖，也不修改 Runtime 配置
+- Review 只允许 `BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS`、`APPROVABLE`；Review 结论不等于人类批准
+- 人工 gate 只接受 Issue 中针对准确 `ARCH-DESIGN`/`ARCH-REVIEW` 版本明确记录的 `approved_design_only`、`approved_for_spec`、`revision_requested` 或 `rejected`
+- `approved_design_only` 只发布 ADR 和详细设计；`approved_for_spec` 额外生成 `ARCH-RD-HANDOFF`，但 Architecture workflow 本身不创建 OpenSpec proposal
+- 只读或 plan 会话可以生成完整待发布内容，但 stage 保持 `publishing`；只有产物实际持久化并验证后才能报告终态
+
+**调用与角色边界**：
+
+- Claude Code 使用 `/architecture-design-workflow`，Codex 使用 `$architecture-design-workflow`；明确自然语言架构请求也可自动路由
+- Skill 不设置模型覆盖，使用调用方当前模型；不要求 Team 驱动，普通 Codex/Claude Code 会话可以直接执行
+- Architecture Lead、Analyst、Solution Architect、Reviewer 和目标 R&D Team 是责任边界，不代表必须创建对应 Team/Agent
+- 不隐式创建仓库、Project、Issue、Team、Agent、watchdog、worktree、branch 或 commit
+- 涉及现有代码事实、调用链、影响或调试时 GitNexus-first；索引陈旧时先重建
+
+**验证**：
+
+```bash
+bash tests/architecture-design-workflow-safety.sh
+bash tests/architecture-design-workflow-safety.sh --results-dir tests/evidence/architecture-design-workflow --runtime codex
+bash tests/architecture-design-workflow-safety.sh --results-dir tests/evidence/architecture-design-workflow --runtime claude
+python3 -m unittest tests/test_architecture_design_workflow_runner.py
+```
 
 ### 1. parall-new-proposal
 
@@ -476,6 +553,11 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 
 ```
 my_dev_skills/
+├── architecture-design-workflow/
+│   ├── SKILL.md
+│   ├── agents/openai.yaml
+│   ├── references/
+│   └── templates/
 ├── parall-new-proposal/SKILL.md
 ├── openspec-review-change/
 │   ├── SKILL.md
@@ -486,6 +568,11 @@ my_dev_skills/
 ├── merge-worktree-return/SKILL.md
 ├── check-changes-completed/SKILL.md
 ├── verify-impl-consistency/SKILL.md
+├── tests/
+│   ├── architecture-design-workflow-safety.sh
+│   ├── test_architecture_design_workflow_runner.py
+│   ├── fixtures/architecture-design-workflow/
+│   └── evidence/architecture-design-workflow/
 ├── setup-skills-env.py          # 环境配置脚本
 └── setup-iterm2-claude-notify.py # iTerm2 通知配置
 ```

@@ -1,0 +1,70 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "narrative",
+    "fixture_id",
+    "runtime",
+    "runtime_version",
+    "selected",
+    "stage",
+    "gate",
+    "wait_reason",
+    "blocked_reason",
+    "planned_writes",
+    "evidence_fields",
+    "limitations"
+  ],
+  "properties": {
+    "narrative": {"type": "string"},
+    "fixture_id": {"type": "string"},
+    "runtime": {"enum": ["codex", "claude"]},
+    "runtime_version": {"type": "string", "minLength": 1},
+    "selected": {"type": "boolean"},
+    "stage": {
+      "enum": [
+        "intake", "routed", "researching", "designing", "reviewing",
+        "waiting_human", "approved_design_only", "approved_for_spec",
+        "publishing", "handed_off", "completed_design_only", "rejected",
+        "not_applicable"
+      ]
+    },
+    "gate": {
+      "enum": [
+        "none", "BLOCKED", "NEEDS_REVISION", "APPROVABLE_WITH_WARNINGS",
+        "APPROVABLE", "approved_design_only", "approved_for_spec",
+        "revision_requested", "rejected", "not_applicable"
+      ]
+    },
+    "wait_reason": {"enum": ["none", "design_approval", "target_project"]},
+    "blocked_reason": {
+      "enum": [
+        "none", "missing_subject_project", "missing_target_project",
+        "missing_openspec_explore", "missing_brainstorming",
+        "critical_evidence_gaps"
+      ]
+    },
+    "planned_writes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "issue:ARCH-CONTROL", "issue:ARCH-RESEARCH", "issue:ARCH-DESIGN",
+          "issue:ARCH-REVIEW", "issue:ARCH-RD-HANDOFF",
+          "architecture-repo:ADR", "architecture-repo:detailed-design"
+        ]
+      }
+    },
+    "evidence_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "issue", "subject_project", "design_type", "stage", "next_action",
+          "design_version", "review_version", "approval_evidence",
+          "target_project", "findings", "owner", "closure_condition",
+          "runtime", "blocked_reason", "routing_reason"
+        ]
+      }
+    },
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Architecture Design Workflow"
+  short_description: "Govern complex architecture design and handoff"
+  default_prompt: "Use $architecture-design-workflow to govern a complex architecture design from intake through review and handoff."
