@@ -1,0 +1,4 @@
+interface:
+  display_name: "Multica Architecture Approval Adapter"
+  short_description: "Deliver a verified architecture packet to an authorized Multica Issue"
+  default_prompt: "Use $multica-architecture-approval-adapter only with a compatible delivered current architecture approval packet and an explicitly scoped Multica Issue. Preflight capabilities and target-human mapping before any authorized delivery write."

@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Multica architecture approval adapter fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fixture_id", "family", "input", "expected_result"],
+  "properties": {
+    "fixture_id": {"type": "string", "minLength": 1},
+    "family": {"type": "string", "minLength": 1},
+    "input": {
+      "type": "object", "additionalProperties": false,
+      "required": ["core_contract", "multica"],
+      "properties": {
+        "core_contract": {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "core_revision"],
+          "properties": {
+            "status": {"enum": ["compatible", "absent", "incompatible"]},
+            "core_revision": {"type": "string", "minLength": 1}
+          }
+        },
+        "multica": {"type": "object"}
+      }
+    },
+    "expected_result": {"$ref": "#/$defs/normalized_result"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^(none|sha256:[0-9a-f]{64})$"},
+    "delivery_evidence_ref": {"type": "string", "pattern": "^(none|multica://issues/[^/]+/comments/[^#]+#adapter-delivery-evidence-v1)$"},
+    "workspace_sidecar_ref": {"type": "string", "pattern": "^(none|workspace://[^/]+/.+)$"},
+    "timestamp": {"type": "string", "pattern": "^(none|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)$"},
+    "packet_identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ref", "version", "digest"],
+      "properties": {
+        "ref": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "pattern": "^(none|v[1-9][0-9]*)$"},
+        "digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "durable_artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["artifact_kind", "issue_ref", "comment_ref", "attachment_ref", "media_type", "availability_scope", "expected_digest", "verified_digest", "stable_access_ref", "verifier", "verified_at", "target_human_mapping_evidence_ref"],
+      "properties": {
+        "artifact_kind": {"enum": ["design", "review", "packet"]},
+        "issue_ref": {"type": "string", "minLength": 1},
+        "comment_ref": {"type": "string", "minLength": 1},
+        "attachment_ref": {"type": "string", "minLength": 1},
+        "media_type": {"type": "string", "minLength": 1},
+        "availability_scope": {"type": "string", "minLength": 1},
+        "expected_digest": {"$ref": "#/$defs/digest"},
+        "verified_digest": {"$ref": "#/$defs/digest"},
+        "stable_access_ref": {"type": "string", "minLength": 1},
+        "verifier": {"type": "string", "minLength": 1},
+        "verified_at": {"$ref": "#/$defs/timestamp"},
+        "target_human_mapping_evidence_ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "ready_readiness": {
+      "type": "object", "additionalProperties": false,
+      "required": ["state", "packet_digest", "delivery_evidence_ref", "evidence_ref", "artifacts"],
+      "properties": {
+        "state": {"enum": ["review_packet_ready"]},
+        "packet_digest": {"$ref": "#/$defs/digest"},
+        "delivery_evidence_ref": {"$ref": "#/$defs/delivery_evidence_ref"},
+        "evidence_ref": {"$ref": "#/$defs/workspace_sidecar_ref"},
+        "artifacts": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/durable_artifact"}}
+      }
+    },
+    "observed_artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["artifact_kind", "issue_ref", "comment_ref", "attachment_id", "attachment_ref", "expected_digest", "observed_digest", "binding_status", "reread_status", "stable_access_ref"],
+      "properties": {
+        "artifact_kind": {"enum": ["design", "review", "packet"]},
+        "issue_ref": {"type": "string", "minLength": 1},
+        "comment_ref": {"type": "string", "minLength": 1},
+        "attachment_id": {"type": "string", "minLength": 1},
+        "attachment_ref": {"type": "string", "minLength": 1},
+        "expected_digest": {"$ref": "#/$defs/digest"},
+        "observed_digest": {"$ref": "#/$defs/digest"},
+        "binding_status": {"enum": ["bound", "missing", "identity_conflict", "unknown"]},
+        "reread_status": {"enum": ["not_attempted", "verified", "missing", "digest_mismatch", "identity_conflict"]},
+        "stable_access_ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "nonready_readiness": {
+      "type": "object", "additionalProperties": false,
+      "required": ["state", "packet_digest", "delivery_evidence_ref", "evidence_ref", "artifacts"],
+      "properties": {
+        "state": {"enum": ["none", "review_packet_unavailable"]},
+        "packet_digest": {"$ref": "#/$defs/digest"},
+        "delivery_evidence_ref": {"$ref": "#/$defs/delivery_evidence_ref"},
+        "evidence_ref": {"$ref": "#/$defs/workspace_sidecar_ref"},
+        "artifacts": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/observed_artifact"}}
+      }
+    },
+    "decision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["token", "evidence_status", "binding_profile", "evidence_ref", "author_id", "author_type", "issue_ref", "comment_ref", "parent_chain", "explicit_packet_identity", "comment_revision", "content_digest", "created_at", "updated_at", "recorded_at", "target_human_mapping_evidence_ref", "packet_ref", "packet_version", "packet_digest", "reread_status"],
+      "properties": {
+        "token": {"enum": ["none", "approved_design_only", "approved_for_spec", "revision_requested", "rejected"]},
+        "evidence_status": {"enum": ["none", "valid", "invalid", "noop", "superseded"]},
+        "binding_profile": {"enum": ["none", "multica_packet_comment_reply_v1", "multica_explicit_packet_reference_v1"]},
+        "evidence_ref": {"type": "string", "minLength": 1},
+        "author_id": {"type": "string", "minLength": 1},
+        "author_type": {"enum": ["none", "member", "agent", "system"]},
+        "issue_ref": {"type": "string", "minLength": 1},
+        "comment_ref": {"type": "string", "minLength": 1},
+        "parent_chain": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "explicit_packet_identity": {"$ref": "#/$defs/packet_identity"},
+        "comment_revision": {"type": "string", "minLength": 1},
+        "content_digest": {"$ref": "#/$defs/digest"},
+        "created_at": {"$ref": "#/$defs/timestamp"},
+        "updated_at": {"$ref": "#/$defs/timestamp"},
+        "recorded_at": {"$ref": "#/$defs/timestamp"},
+        "target_human_mapping_evidence_ref": {"type": "string", "minLength": 1},
+        "packet_ref": {"type": "string", "minLength": 1},
+        "packet_version": {"type": "string", "pattern": "^(none|v[1-9][0-9]*)$"},
+        "packet_digest": {"$ref": "#/$defs/digest"},
+        "reread_status": {"enum": ["not_applicable", "verified", "changed", "missing"]}
+      }
+    },
+    "normalized_result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["review", "packet", "delivery", "readiness", "target_human", "recommendation", "decision", "workflow", "fake_cli", "limitations"],
+      "properties": {
+        "review": {"type": "object", "additionalProperties": false, "required": ["conclusion"], "properties": {"conclusion": {"enum": ["none", "BLOCKED", "NEEDS_REVISION", "APPROVABLE_WITH_WARNINGS", "APPROVABLE"]}}},
+        "packet": {"$ref": "#/$defs/packet_identity"},
+        "delivery": {"type": "object", "additionalProperties": false, "required": ["state", "issue_ref", "comment_ref", "delivery_evidence_ref", "attempt_id", "fence_outcome", "reconciliation_outcome"], "properties": {"state": {"enum": ["none", "unavailable", "delivered_unverified", "ready"]}, "issue_ref": {"type": "string", "minLength": 1}, "comment_ref": {"type": "string", "minLength": 1}, "delivery_evidence_ref": {"$ref": "#/$defs/delivery_evidence_ref"}, "attempt_id": {"type": "string", "minLength": 1}, "fence_outcome": {"enum": ["none", "current", "stale", "identity_conflict", "marker_author_conflict"]}, "reconciliation_outcome": {"enum": ["none", "new_delivery", "reused_exact", "repaired_projection", "identity_conflict", "marker_author_conflict", "stale_writer"]}}},
+        "readiness": {"oneOf": [{"$ref": "#/$defs/ready_readiness"}, {"$ref": "#/$defs/nonready_readiness"}]},
+        "availability": {"type": "object", "additionalProperties": false, "required": ["core_packet", "activation"], "properties": {"core_packet": {"enum": ["available", "unavailable"]}, "activation": {"enum": ["active", "not_activated", "not_applicable"]}}},
+        "target_human": {"type": "object", "additionalProperties": false, "required": ["mapping_status", "actor_id", "mapping_evidence_ref", "access_confirmation"], "properties": {"mapping_status": {"enum": ["none", "unique", "missing", "ambiguous"]}, "actor_id": {"type": "string", "minLength": 1}, "mapping_evidence_ref": {"type": "string", "minLength": 1}, "access_confirmation": {"enum": ["none", "confirmed", "unconfirmed"]}}},
+        "recommendation": {"enum": ["none", "recommend_approved_for_spec", "recommend_approved_design_only", "recommend_revision", "no_recommendation"]},
+        "decision": {"oneOf": [{"enum": ["none"]}, {"$ref": "#/$defs/decision"}]},
+        "workflow": {"type": "object", "additionalProperties": false, "required": ["stage", "wait_reason", "blocker"], "properties": {"stage": {"enum": ["intake", "routed", "researching", "designing", "reviewing", "waiting_human", "approved_design_only", "approved_for_spec", "publishing", "handed_off", "completed_design_only", "rejected"]}, "wait_reason": {"enum": ["none", "design_approval"]}, "blocker": {"enum": ["none", "review_packet_unavailable"]}}},
+        "fake_cli": {"type": "object", "additionalProperties": false, "required": ["calls"], "properties": {"calls": {"type": "array", "items": {"type": "string", "minLength": 1}}}},
+        "limitations": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

@@ -347,6 +347,16 @@ python3 -m unittest tests/test_architecture_design_workflow_runner.py
 
 上述 core contract 使用同一仓库源、Markdown artifacts 和 portable evidence，可在没有 Multica adapter 的 Claude Code/Codex 环境通过 shared local files 独立运行；不会要求强制 renderer、附件或评论字段。
 
+### 0.1 multica-architecture-approval-adapter
+
+**做什么**：这是 `architecture-design-workflow` 的独立 sibling skill，用于把已经交付、兼容且仍为 current 的 `ARCH-APPROVAL-PACKET` 映射到一个已明确指定的既有 Multica Issue。它不改变 core 状态机，也不使 Multica 成为 core 的安装或触发依赖：只安装 core 时，standalone profile 仍可工作；adapter 只有在已提供 compatible packet、既有 workspace/Issue 以及当前任务明确要求 Issue delivery 时才触发。
+
+**审核材料**：adapter 评论只展示 packet/design/review 版本、真实 Review conclusion、Architecture Team recommendation 及中文理由/条件/风险、待确认项和四个合法决定 token。完整 `ARCH-DESIGN`、`ARCH-REVIEW`、`ARCH-APPROVAL-PACKET` 必须从评论附件逐一打开；附件冻结的 Markdown 原始字节及 SHA-256 才是权威材料。
+
+**安全边界**：能力、目标审批人、评论/附件绑定、raw-byte digest、稳定访问引用或 metadata 对账任一不确定时，adapter 输出 `review_packet_unavailable` 并保留真实 Review conclusion，不猜测、不补写 core 状态，也不删除已有平台对象。Architecture Team 的 recommendation、Review conclusion、metadata、reaction、Issue status 和 Agent/system 评论均不构成人工批准，也不授权任何平台写入。
+
+**激活不是交付副作用**：Skill import、Agent binding、Team/Project/Issue 创建、Runtime 配置和生产使用均需要另行、明确的人类授权。实施阶段仅提供可审查的本地 skill、[activation runbook](multica-architecture-approval-adapter/references/activation-runbook.md) 与 [sandbox acceptance checklist](multica-architecture-approval-adapter/references/sandbox-acceptance-checklist.md)；没有该授权时，workspace、Agent 和 sandbox 结果均为 `not_run`。
+
 ### 1. parall-new-proposal
 
 **做什么**: 将综合需求拆解为多个带依赖声明的 OpenSpec 提案。
