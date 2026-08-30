@@ -21,6 +21,21 @@
 
 设计完成只意味着可以独立 Review，不意味着获批，也不授权 Spec 或实施。
 
+## Blocking clarification output
+
+当 `critical_evidence_gaps` 的关闭需要人类选择或确认设计输入时，不得只列未知项或空白问卷。Lead 在 `ARCH-CONTROL` 或其关联澄清评论中为每个决策项填写：
+
+1. `Decision required`：当前人类可以决定的准确问题；
+2. `Candidate recommendation`：基于现有证据的具体候选值，或显式 `no_recommendation`；
+3. `Basis`：支持该候选的事实、推断或原则；
+4. `Material risks / consequences`：接受该候选的主要代价；
+5. `Missing evidence / Owner / closure condition`：不能由当前确认替代的测量或责任决定；
+6. `Editable response`：`接受 / 修改 / 拒绝` 的最小回复形式。
+
+能够给出安全默认值时应给出候选方案，并把未经测量的数值标为 provisional。不能给出可靠候选时使用 `no_recommendation`，说明哪些证据会改变选择，并给出有限选项或确定的取证路径。两种情况都必须区分事实、推断、建议和未决证据。
+
+澄清回复只关闭其明确绑定的设计输入。它不是测量证据、另一责任 Owner 的决定、Review conclusion、packet recommendation/readiness 或 packet-bound 人工批准。
+
 ## Approval packet preparation
 
 设计必须给出可冻结的 artifact ref、version、media type 和 raw-byte SHA-256 digest 输入边界。设计 revision 生成新 `ARCH-DESIGN`；只有 matching `ARCH-REVIEW` 给出 approvable conclusion 后才创建 approval packet。Reviewer `NEEDS_REVISION` 时不得预建、占号或伪造 packet。

@@ -146,6 +146,25 @@ if packet_template.is_file():
     if "review_packet_ready" in packet_text or "review_packet_unavailable" in packet_text:
         fail("packet payload embeds post-finalization evidence")
 
+control_template = skill / "templates" / "arch-control.md"
+if control_template.is_file():
+    control_text = control_template.read_text(encoding="utf-8")
+    clarification_slots = [
+        "## Reviewable clarification request",
+        "Decision required",
+        "Candidate recommendation",
+        "Basis",
+        "Material risks / consequences",
+        "Missing evidence / Owner / closure condition",
+        "Editable response",
+    ]
+    missing_slots = [slot for slot in clarification_slots if slot not in control_text]
+    if missing_slots:
+        fail(
+            "ARCH-CONTROL missing reviewable clarification slots: "
+            + ", ".join(missing_slots)
+        )
+
 
 def load_fixture(path: Path) -> tuple[dict[str, object], str]:
     text = path.read_text(encoding="utf-8")

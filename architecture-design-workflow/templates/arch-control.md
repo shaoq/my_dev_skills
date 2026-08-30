@@ -29,6 +29,19 @@
 - Next action：
 - Next Owner：
 
+## Reviewable clarification request
+
+仅当下一动作要求可识别人类补充一个或多个设计决定时填写；没有澄清请求时写 `n/a`。每个决策项复制以下结构：
+
+- Decision required：
+- Candidate recommendation：具体候选值；或 `no_recommendation` 及原因
+- Basis：事实、推断或适用原则
+- Material risks / consequences：
+- Missing evidence / Owner / closure condition：
+- Editable response：`接受：<item>` / `修改：<item>=<value>` / `拒绝：<item>，原因=<reason>`
+
+评论中同时声明：候选建议及 `接受 / 修改 / 拒绝` 回复只处理这里列出的设计输入，属于非批准信息；不得替代测量证据、其他责任 Owner 的决定、Review conclusion、packet readiness、`ARCHITECTURE_RECOMMENDATION` 或准确 packet ref/version/digest 的 human decision。
+
 ## Role assignment
 
 | Role | Owner | Handoff evidence |

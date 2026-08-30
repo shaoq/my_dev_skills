@@ -94,6 +94,10 @@ completed_design_only | rejected
 
 读取 [solution design](references/solution-design.md)，用 [ARCH-DESIGN 模板](templates/arch-design.md)发布独立 `ARCH-DESIGN vN`。它必须绑定输入 `ARCH-RESEARCH` 版本，不依附 OpenSpec。
 
+当研究或设计因 `critical_evidence_gaps` 需要可识别人类提供决定时，Architecture Lead 必须使用 [ARCH-CONTROL 模板](templates/arch-control.md)中的 `Reviewable clarification request`。每个决策项都要给出具体候选建议或显式 `no_recommendation`、依据、主要风险/后果、仍缺证据及 Owner/关闭条件，以及可直接接受、修改或拒绝的回复格式；不得只列问题或写“等待确认”。候选数值必须标记证据状态，不能用未经验证的精确值替代测量。
+
+澄清建议与正式 `ARCHITECTURE_RECOMMENDATION` 分离。人类对候选建议的回复只改变明确列出的设计输入，不替代测量证据、其他责任 Owner 的决定、Review conclusion、packet readiness 或准确 packet ref/version/digest 的人工批准。
+
 Reviewer 随后读取 [architecture review](references/architecture-review.md)，保持被审设计只读，并用 [ARCH-REVIEW 模板](templates/arch-review.md)输出唯一结论：`BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS` 或 `APPROVABLE`。每个 finding 都绑定准确设计版本并包含证据、影响、Owner 和关闭条件。
 
 评审结论同时驱动控制状态计算，即使当前会话只读、无法持久化，也必须报告计算后的 canonical stage：`BLOCKED` 且关键事实/安全证据缺失时回到 `researching`；设计内容需修订时回到 `designing`。不得因“本次没有写入”而继续报告旧的 `reviewing`。
@@ -112,6 +116,8 @@ Reviewer 随后读取 [architecture review](references/architecture-review.md)�
 - `rejected`
 
 不存在明确绑定时保持 `waiting_human`。不得把 Reviewer conclusion、readiness、`ARCHITECTURE_RECOMMENDATION`、引用文本、fixture、Agent 输出、紧急措辞、任务分派或模糊肯定当成人工批准。绑定 superseded packet 的合法决定保留审计但对当前 gate no-op。
+
+预批准澄清请求中的候选建议及其接受、修改或拒绝不是本节的 human decision。即使同一可识别人类接受全部候选值，也必须等准确 design/review、current ready packet 和单独的 packet-bound 决定齐备后才改变批准 gate。
 
 升级前已经持久化为 `waiting_human` 且没有新 design/review version 或显式 refresh 的记录保持原 stage，不伪造 readiness、不自动降级；一旦 refresh 或版本变化则执行当前 packet gate。
 

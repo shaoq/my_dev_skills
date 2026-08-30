@@ -252,6 +252,28 @@ class ArchitectureWorkflowRunnerSafetyTest(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("packet payload embeds post-finalization evidence", result.stdout)
 
+    def test_static_contract_accepts_repository_skill(self) -> None:
+        result = self.run_runner()
+
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("architecture workflow safety: PASS", result.stdout)
+
+    def test_rejects_incomplete_reviewable_clarification_contract(self) -> None:
+        control_template = self.root / "architecture-design-workflow" / "templates" / "arch-control.md"
+        control_template.write_text(
+            control_template.read_text(encoding="utf-8").replace(
+                "- Candidate recommendation：",
+                "",
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+        result = self.run_runner()
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("ARCH-CONTROL missing reviewable clarification slots", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
