@@ -9,7 +9,7 @@ absent → delivering → delivered_unverified → ready
                     ↘ unavailable
 ```
 
-`absent` permits only preflight reads and reconciliation scans. `delivering` permits the one new packet-comment write only after the pre-write fence passes. `delivered_unverified` permits re-reads, raw-byte checks, and at most the one `arch.packet.current` projection replacement after a complete canonical delivery verifies. `ready` is terminal for that attempt and permits no further platform write. `unavailable` is terminal for that attempt and permits no repair, deletion, editing, or later write. A later, separately authorized attempt can reconcile retained objects.
+`absent` permits only preflight reads and reconciliation scans. `delivering` permits the one new packet-comment write only after the pre-write fence and exact operational authorization pass. `delivered_unverified` permits re-reads, raw-byte checks, and at most the one expressly authorized `arch.packet.current` projection replacement after a complete canonical delivery verifies. `ready` is terminal for that attempt and permits no further platform write. `unavailable` is terminal for that attempt and permits no repair, deletion, editing, or later write. A later attempt requires a new operational authorization that lists retained objects and only the exact incremental write.
 
 Neither a comment nor metadata alone is delivery/readiness/approval authority. Preserve superseded, duplicate, partial, failed, and conflicting objects for audit; never auto-delete or edit them.
 
@@ -64,5 +64,11 @@ Only emit `review_packet_ready` using [the readiness template](../templates/mult
 6. the target-human mapping evidence re-verifies for this exact packet/Issue/workspace; and
 7. the projection read-back and final no-more-writes scan remain current and canonical.
 8. after that final scan, the complete readiness envelope has been atomically written and reread as a `shared_workspace_sidecar_v1` record with a non-`none` self `evidence_ref`, as defined in [durable evidence records](durable-evidence-records.md).
+
+The readiness brief check additionally requires a current Human Action Request ref/version, decision-first summary, Team recommendation and non-approval boundary, option-specific consequences, accepted-risk summary or explicit `none`, exact response guidance, After-response projection, and stable Design/Review/Packet refs. Each artifact's requested desktop/mobile access confirmation must be individually `opened`; an incomplete or superseded rendering closes as unavailable with `failed_checks=brief_rendering_status|per_artifact_access_confirmation` as applicable.
+
+## Retry authorization after partial failure
+
+Before any later reconciliation attempt that may write, scan and list every retained comment, attachment, projection and sidecar from earlier attempts. Render a new `operational_authorization` request containing those exact identities, current canonical packet, no-clobber behavior and the one incremental write that remains possible. The old authority is insufficient because the observed object set changed. Denial, ambiguity, stale scope or any unlisted repair keeps the new attempt read-only; never edit, relabel, attach to or delete retained objects.
 
 Any missing attachment, digest mismatch, durable-ref absence, shared-sidecar authorization/readback failure, access or mapping uncertainty, metadata failure, marker/comment author mismatch (`marker_author_conflict`), metadata/comment identity conflict (`identity_conflict`), capability failure, stale writer, or canonical-delivery change emits `review_packet_unavailable`. Preserve the supplied Review conclusion and all existing objects, name ordered failed checks plus Owner and an observable closing condition, and never modify the frozen packet to compensate.

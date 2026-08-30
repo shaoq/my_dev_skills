@@ -23,15 +23,34 @@
 - `ARCHITECTURE_RECOMMENDATION`：`none|recommend_approved_for_spec|recommend_approved_design_only|recommend_revision|no_recommendation`
 - Human gate：`none|approved_design_only|approved_for_spec|revision_requested|rejected`
 - Human decision evidence：actor、packet ref/version/digest、binding profile、evidence ref、recorded_at
+- Revision scope：`n/a|missing|provided`
+- Revision brief ref / access evidence：
 - 输入版本：
 - 预期产物：
 - Evidence：
 - Next action：
 - Next Owner：
 
+## Current human actions
+
+没有人工动作时写 `n/a`。每个原子动作重复一份条目；不得合并不同 Decision Owner：
+
+- Human Action Request ref / action ID：
+- Action type：`design_input|risk_acceptance|design_approval|routing|access_confirmation`
+- Decision Owner / authority scope：
+- Why now：
+- Atomic decision：
+- Candidate recommendation：
+- Stable human-accessible evidence refs：
+- Exact response ref：
+- After-response projection：next stage / remaining blockers / Next Owner / planned writes
+- Current / superseded：`current|superseded`
+
+Human Action Request 不新增 canonical artifact type 或 `planned_writes` 目标；随控制评论呈现时 normalized write 仍为 `issue:ARCH-CONTROL`。
+
 ## Reviewable clarification request
 
-仅当下一动作要求可识别人类补充一个或多个设计决定时填写；没有澄清请求时写 `n/a`。每个决策项复制以下结构：
+仅作为历史兼容投影；新的人工动作以独立 Human Action Request 为准。下一动作要求可识别人类补充一个或多个设计决定时填写；没有澄清请求时写 `n/a`。每个决策项复制以下结构：
 
 - Decision required：
 - Candidate recommendation：具体候选值；或 `no_recommendation` 及原因

@@ -45,12 +45,23 @@
 
 ## Human review brief
 
-- 审核对象：
+- Decision Owner / authority scope：
+- Why now：
+- 审核对象与 Stable human-accessible evidence refs：
 - 关键决定：
+- Candidate recommendation：
 - 风险与条件：
 - 待确认项：
-- 合法决定：`approved_design_only|approved_for_spec|revision_requested|rejected`
-- 当前 packet binding 提示：决定必须包含本 packet ref/version 及外部计算的 packet digest
+
+| 合法决定 | 中文后果 | Next stage / remaining blockers / Next Owner / planned writes | OpenSpec / implementation boundary | Irreversible impact |
+|---|---|---|---|---|
+| `approved_design_only` | 只发布批准文档，完成 design-only 流程 |  | 不产生研发授权 |  |
+| `approved_for_spec` | 发布批准文档并在目标存在时交接 R&D |  | R&D Team 独立分析；不自动创建 OpenSpec 或实现 |  |
+| `revision_requested` | 进入新设计迭代，旧 packet 保持不变 |  | revision brief 不是批准；新 packet 需重新 Review |  |
+| `rejected` | current work item 进入终态 |  | 不授权后续工作 | rejected 终态 |
+
+- Exact response：必须包含本 packet ref/version 及外部计算的 packet digest
+- Human Action Request ref：
 
 ## External verification boundary
 

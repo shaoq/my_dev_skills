@@ -18,6 +18,10 @@ compatibility 的 exact markers、frozen inputs 和 raw-byte digests 会在相�
 
 本 adapter 的可交付 evidence 只映射回 portable core fields；不得改变 canonical stage、Review conclusion、`ARCHITECTURE_RECOMMENDATION` enum、packet bytes 或 legal human decision value。readiness 与 recommendation 都不构成人工批准。
 
+当 compatible core 输出 current Human Action Request 时，使用 [Multica Human Action Request template](templates/multica-human-action-request.md)忠实渲染，不重定义其 Owner、原子决定、备选、后果或 canonical projection。评论首屏先展示为什么现在需要动作、推荐、主要后果、准确 Decision Owner、Exact response 与 After response；marker、digest、sidecar 和 reconciliation 审计信息后置。
+
+任何新的 delivery、target-human/shared-scope 写入、activation、conflict strategy、sandbox 或 retry 权限，都必须先读取 [operational authorization protocol](references/operational-authorization.md)并使用 [Multica Operational Authorization template](templates/multica-operational-authorization.md)。运维授权与架构内容决定是不同 authority：它只覆盖所列 existing identities、exact planned writes 和 path scope，不能被 recommendation、批准 comment 或模糊肯定推断，也不能成为 core human decision。
+
 ## Fixed core compatibility contract
 
 仅消费 `architecture-design-workflow` implementation revision `1d4b860b48e15f678d78a71bf2c38557ab9c2951` 的 portable contract。开始任何 Multica I/O 前，按 [core compatibility](references/core-contract-compatibility.md) 验证 exact markers、required fields 和 immutable raw-byte digest contract。
@@ -41,7 +45,7 @@ closing_condition=provide a current delivered packet compatible with core revisi
 
 在写入前读取 [capability preflight and write authorization](references/capability-preflight-and-write-authorization.md)。每个 check 必须记录 deterministic evidence（check、observed command/profile、result、owner、closing condition）。对 unknown、unsupported、错误输出或无法重读的行为一律失败关闭为 `review_packet_unavailable`，保留真实 Review conclusion，并且不写入。
 
-只有同时满足“当前任务明确要求该 Issue delivery”与完整 preflight 通过时，才可对该既有 Issue 执行最小必要的 comment、attachment 与 `arch.packet.current` metadata projection 写入。comment-triggered 任务必须使用实际 trigger comment ID：`multica issue comment add <issue> --parent <trigger-comment-id> --attachment <path> --output json`；未由 comment 触发时才可顶层评论。不得假设 packet comment 是 thread root。
+只有同时满足 current `operational_authorization` 明确覆盖该 Issue delivery、所有 input/path scope 和完整 preflight 通过时，才可对该既有 Issue 执行最小必要的 comment、attachment 与 `arch.packet.current` metadata projection 写入。comment-triggered 任务必须使用实际 trigger comment ID：`multica issue comment add <issue> --parent <trigger-comment-id> --attachment <path> --output json`；未由 comment 触发时才可顶层评论。不得假设 packet comment 是 thread root。
 
 以下操作不属于 Issue delivery，也不得作为本 skill 的隐式副作用：Skill import、Agent binding、Team/Project/Issue 创建、Runtime 配置、CLI install/upgrade、私有/未文档化 API、缺失 resource 创建。它们要求单独、明确的人类授权；没有该授权时停止并报告 owner 与 closing condition。不得以 preflight 失败为理由安装、升级、配置或绕过平台接口。
 
@@ -70,12 +74,12 @@ closing_condition=provide a current delivered packet compatible with core revisi
 
 ## Delivery, readiness, and decision routes
 
-- 审核评论、单次三附件交付、stable marker、JSON durable refs 与 PDF 非权威边界：读取 [delivery mapping and marker](references/delivery-mapping-and-marker.md) 和 [approval-comment template](templates/multica-approval-comment.md)。
+- 审核评论、单次三附件交付、stable marker、JSON durable refs 与 PDF 非权威边界：读取 [delivery mapping and marker](references/delivery-mapping-and-marker.md)、[Multica Human Action Request template](templates/multica-human-action-request.md) 和 [approval-comment template](templates/multica-approval-comment.md)。
 - delivery states、reconciliation、`arch.packet.current` projection、raw-byte reread 和 readiness/unavailable envelope：读取 [reconciliation, projection, and readiness](references/reconciliation-projection-and-readiness.md)、[durable evidence records](references/durable-evidence-records.md) 和 [readiness-evidence template](templates/multica-readiness-evidence.md)。
-- packet-comment reply / explicit-reference 人工决定、reread、编辑失效、同 actor replacement 与跨 actor conflict：读取 [human decision binding](references/human-decision-binding.md) 和 [decision-evidence template](templates/multica-decision-evidence.md)。
+- packet-comment reply / explicit-reference 人工决定、token/context 分离、reread、编辑失效、同 actor replacement 与跨 actor conflict：读取 [human decision binding](references/human-decision-binding.md) 和 [decision-evidence template](templates/multica-decision-evidence.md)。
 
 ## Activation and sandbox boundary
 
-本 skill 的安装、workspace import 与 Agent binding 不属于 Issue delivery，也不是 apply 的副作用。仅在人类另行明确授权并指定**既有**目标 workspace 和 Architecture Agent 后，才可按 [activation runbook](references/activation-runbook.md) 操作；runbook 使用 safe conflict handling、additive `agent skills add` 与最终只读 `agent skills list`，绝不自动创建缺失资源。
+本 skill 的安装、workspace import 与 Agent binding 不属于 Issue delivery，也不是 apply 的副作用。仅在人类通过 current operational authorization 指定**既有**目标 workspace、Architecture Agent、两份 skill identity 和准确 planned writes 后，才可按 [activation runbook](references/activation-runbook.md) 操作；runbook 使用 safe conflict handling、additive `agent skills add` 与最终只读 `agent skills list`，绝不自动创建缺失资源。same-name conflict、sandbox 和 partial-failure retry 都需要绑定新事实的新授权，旧授权不自动扩展。
 
 静态安装、临时 HOME 链接或本地 archive 检查都不等于生产可用。实际激活后仍须在专用 sandbox Issue 完成 [sandbox acceptance checklist](references/sandbox-acceptance-checklist.md) 的桌面/手机附件打开、raw-byte digest、短 token reply、supersession、retry 与失败关闭验收；未获单独授权或尚未执行时，activation 和 sandbox acceptance 必须记录为 `not_run`。

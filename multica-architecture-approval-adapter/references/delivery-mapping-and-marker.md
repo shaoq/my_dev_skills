@@ -2,11 +2,11 @@
 
 ## Scope and write boundary
 
-Apply this reference only after the core compatibility, target-human mapping, and capability preflight references have all passed and the current task explicitly authorizes delivery to the named existing Issue. The adapter never performs an independent upload: one packet-comment creation carries the three verified frozen Markdown files.
+Apply this reference only after the core compatibility, target-human mapping, capability preflight and current operational authorization have all passed for the exact named existing Issue, packet, input paths, comment/attachment/projection and sidecar scope. The adapter never performs an independent upload: one packet-comment creation carries the three verified frozen Markdown files. Missing, ambiguous, stale or narrower authorization means no write and a new operational request with the observable closing condition.
 
 Before constructing a comment, calculate SHA-256 over the raw bytes of the exact delivered `ARCH-DESIGN`, `ARCH-REVIEW`, and `ARCH-APPROVAL-PACKET`. Preserve bytes, encoding, filenames, media types, whitespace, and newlines. The brief is a new concise comment, not a copy or reserialization of the attachments.
 
-Render [the approval-comment template](../templates/multica-approval-comment.md) with the actual core values. It must visibly include only packet/design/review versions, real Review conclusion, recommendation with Chinese rationale/conditions/risks, review object, open confirmations, legal decisions, the non-approval disclaimer, and the instruction to open all three attachments. Do not put full design/review/packet bodies in the comment.
+Render [the approval-comment template](../templates/multica-approval-comment.md) with the actual core Human Action Request and packet values. Its first screen must identify the Decision Owner, why the decision is ready, Team recommendation/reason, accepted warnings and four legal outcomes with Chinese consequences; accurate reply instructions and three stable attachment refs follow. Full marker, digest and reconciliation audit detail stays below those sections. Do not put full design/review/packet bodies in the comment.
 
 Create a fresh `delivery_attempt_id` before reconciliation. If a task was triggered by comment `T`, use `T` as `--parent`; do not substitute the root of its thread. Record the returned packet-comment ID, not a trigger or thread-root ID, as the packet binding identity.
 
@@ -49,6 +49,8 @@ artifact_ref=multica://issues/<issue-id>/comments/<comment-id>/attachments/<atta
 ```
 
 Persist `attachment_id`, `artifact_ref`, and only a returned `markdown_url` or documented stable attachment endpoint as `stable_access_ref`. Never persist `download_url`, query-string bearer token, signed URL, or an inferred browser path. A re-read can ask the platform for a fresh transient download URL solely to stream raw bytes and verify SHA-256.
+
+Present those exact three stable refs to the canonical target member through an `access_confirmation` action. The response must identify each `design|review|packet` artifact and each requested `desktop|mobile` scope as opened or unavailable. Do not collapse results into one generic confirmation, and do not treat successful Agent download as human access.
 
 For each record also retain media type, expected/verified digest, Issue/workspace availability scope, canonical target member UUID, packet-bound mapping evidence ref, verifier, and RFC3339 UTC verification time. Once the comment marker and all three attachment bindings can be re-read, deterministically construct the pre-projection delivery evidence ref:
 

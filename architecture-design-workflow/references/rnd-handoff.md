@@ -17,6 +17,8 @@
 
 多项目 handoff 为每个目标项目列独立范围、Owner、依赖和验收条件，并保留一个共同架构版本。
 
+目标项目、R&D Owner 或必要交接风险尚需人类动作时，分别创建原子 `routing` 或 `risk_acceptance` Human Action Request。不同项目或 Owner 不合并授权；请求列明候选、有限备选、材料引用、准确回复以及回复后是否仍停留在 `waiting_human|publishing`。路由或风险回复不得扩大 packet-bound `approved_for_spec` 的范围。
+
 Handoff 只授权目标 R&D Team 开始自身需求分析和 OpenSpec 流程，不代表 proposal、Issue、branch 或代码已经创建。Architecture workflow 不替目标 Team 执行这些动作。
 
 handoff 前再次确认 packet/design/review 原始 bytes 与 frozen digests；若不可用，保持 `publishing` 并设置 `approved_artifact_unavailable`，不得根据 decision brief 生成近似交接内容。

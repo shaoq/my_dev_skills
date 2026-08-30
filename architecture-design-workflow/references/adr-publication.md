@@ -13,6 +13,8 @@
 5. 用模板生成 ADR 和 detailed design，保留批准技术内容，不在发布时重新设计。
 6. 写入后记录路径、版本、取代关系和提交/发布证据；无写入能力时输出完整待发布内容，不声称已落库。
 
+若发布前需要人类选择目标架构仓库、处理未决发布风险或确认材料访问，分别使用 `routing`、`risk_acceptance` 或 `access_confirmation` Human Action Request。每个请求必须提前展示选择后的 stage、remaining blockers、Owner 和 planned writes；它们不改变已经记录的正式批准，也不扩展批准范围。
+
 `approved_design_only` 发布后进入 `completed_design_only`，不得生成 handoff。`approved_for_spec` 发布后才可按 R&D handoff reference 继续。
 
 对已成为正式记录的 ADR 使用 supersede/revoke，不删除历史决定。回滚文档发布不等于回滚业务系统。

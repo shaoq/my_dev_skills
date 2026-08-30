@@ -1,0 +1,14 @@
+{
+  "fixture_id": "partial-failure-retry",
+  "family": "retry_authorization",
+  "input": {"retained_objects": ["comment:C-1", "attachment:A-1"], "prior_attempt": "unavailable"},
+  "expected": {
+    "action_type": "operational_authorization",
+    "first_screen": "authorization_first",
+    "decision_authority": "not_architecture_approval",
+    "artifact_checks": [],
+    "write_outcome": "authorized_only",
+    "retry_scope": "incremental_only",
+    "required_markers": ["保留对象", "增量写入", "no-clobber", "新授权"]
+  }
+}

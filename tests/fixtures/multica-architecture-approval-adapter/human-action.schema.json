@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fixture_id", "family", "input", "expected"],
+  "properties": {
+    "fixture_id": {"type": "string", "minLength": 1},
+    "family": {"type": "string", "minLength": 1},
+    "input": {"type": "object"},
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_type", "first_screen", "decision_authority", "artifact_checks", "write_outcome", "retry_scope", "required_markers"],
+      "properties": {
+        "action_type": {"enum": ["design_approval", "access_confirmation", "operational_authorization"]},
+        "first_screen": {"enum": ["decision_first", "authorization_first"]},
+        "decision_authority": {"enum": ["unchanged", "non_binding_fresh_token_required", "not_architecture_approval"]},
+        "artifact_checks": {"type": "array", "items": {"enum": ["design", "review", "packet"]}},
+        "write_outcome": {"enum": ["none", "no_write", "authorized_only"]},
+        "retry_scope": {"enum": ["none", "incremental_only"]},
+        "required_markers": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}

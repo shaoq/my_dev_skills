@@ -1,0 +1,14 @@
+{
+  "fixture_id": "per-artifact-mobile-access",
+  "family": "per_artifact_access",
+  "input": {"target_member": "member-1", "clients": ["desktop", "mobile"], "generic_reply": "可以访问"},
+  "expected": {
+    "action_type": "access_confirmation",
+    "first_screen": "decision_first",
+    "decision_authority": "not_architecture_approval",
+    "artifact_checks": ["design", "review", "packet"],
+    "write_outcome": "none",
+    "retry_scope": "none",
+    "required_markers": ["逐项打开", "desktop", "mobile", "稳定引用"]
+  }
+}

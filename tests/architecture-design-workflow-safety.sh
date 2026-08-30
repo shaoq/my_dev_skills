@@ -77,6 +77,7 @@ required_skill_files = [
     "references/research-hybrid.md",
     "references/solution-design.md",
     "references/architecture-review.md",
+    "references/human-action-request.md",
     "references/approval-packet-and-human-gate.md",
     "references/adr-publication.md",
     "references/rnd-handoff.md",
@@ -85,6 +86,7 @@ required_skill_files = [
     "templates/arch-research.md",
     "templates/arch-design.md",
     "templates/arch-review.md",
+    "templates/human-action-request.md",
     "templates/arch-approval-packet.md",
     "templates/adr.md",
     "templates/detailed-design.md",
@@ -149,8 +151,12 @@ if packet_template.is_file():
 control_template = skill / "templates" / "arch-control.md"
 if control_template.is_file():
     control_text = control_template.read_text(encoding="utf-8")
+    clarification_match = re.search(
+        r"(?ms)^## Reviewable clarification request\n(.*?)(?=^## |\Z)",
+        control_text,
+    )
+    clarification_text = clarification_match.group(1) if clarification_match else ""
     clarification_slots = [
-        "## Reviewable clarification request",
         "Decision required",
         "Candidate recommendation",
         "Basis",
@@ -158,11 +164,48 @@ if control_template.is_file():
         "Missing evidence / Owner / closure condition",
         "Editable response",
     ]
-    missing_slots = [slot for slot in clarification_slots if slot not in control_text]
+    missing_slots = [slot for slot in clarification_slots if slot not in clarification_text]
+    if not clarification_match:
+        missing_slots.insert(0, "## Reviewable clarification request")
     if missing_slots:
         fail(
             "ARCH-CONTROL missing reviewable clarification slots: "
             + ", ".join(missing_slots)
+        )
+
+human_action_template = skill / "templates" / "human-action-request.md"
+if human_action_template.is_file():
+    human_action_text = human_action_template.read_text(encoding="utf-8")
+    human_action_slots = [
+        "## Action summary",
+        "Action ID / type / current status",
+        "Why now",
+        "Decision Owner / authority scope",
+        "## Decision context",
+        "Decision required",
+        "Candidate recommendation",
+        "Bounded alternatives",
+        "Basis — facts / inferences / principles",
+        "Option consequences / material risks",
+        "## Evidence and unresolved items",
+        "Stable human-accessible evidence refs",
+        "Missing evidence / Owner / closure condition",
+        "## Exact response",
+        "## After response",
+        "Next stage / remaining blockers / Next Owner / planned writes",
+        "## Authority boundary",
+        "Does not authorize",
+        "## Audit binding",
+        "Bound artifact or routing version",
+        "Current / superseded",
+    ]
+    missing_human_action_slots = [
+        slot for slot in human_action_slots if slot not in human_action_text
+    ]
+    if missing_human_action_slots:
+        fail(
+            "Human Action Request missing required slots: "
+            + ", ".join(missing_human_action_slots)
         )
 
 

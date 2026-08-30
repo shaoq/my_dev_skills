@@ -55,11 +55,15 @@ completed_design_only | rejected
 
 每次合法转换都更新 [ARCH-CONTROL 模板](templates/arch-control.md)中的 Issue、Owner、输入版本、证据、下一动作和转换记录。
 
+任何下一步需要人类选择、确认、接受风险、批准或补充信息时，先读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；不同 Owner 的风险或决定必须拆开，`ARCH-CONTROL` 可同时列出多个 current action refs。首屏先给 action summary、建议与有限备选、逐项后果、稳定材料引用、准确回复和回复后的 stage/blockers/Owner/writes，审计字段后置。该请求是平台无关的决策界面，不创造新的 canonical enum、artifact type 或 `planned_writes` 目标，也不扩大任何授权；core normalized `planned_writes` 仍只记录直接更新的既有架构 artifact，例如请求发布在控制评论时记录 `issue:ARCH-CONTROL`。
+
 ## Workflow
 
 ### 1. Intake and route
 
 读取 [intake and project routing](references/intake-and-project-routing.md)，判断请求是否属于本 skill，确认架构类型、Subject Project、Issue、角色和当前 stage。普通工程请求应明确路由到适用流程并停止本 skill。
+
+Subject Project 或已批准交接的 Target Project 缺失时，使用 `action_type=routing` 的 Human Action Request：给出基于现有归属事实的候选建议或 `no_recommendation`、有限的既有项目备选、每项长期归档与责任后果、稳定证据引用、准确选择格式和选择后的状态。不得只写“请选择项目”，也不得授权创建缺失资源。
 
 不适用时使用稳定说明 `普通工程，不触发 architecture-design-workflow`，并报告 `stage=not_applicable`、`gate=not_applicable`、`planned_writes=[]`；不得创建 `ARCH-CONTROL`。
 
@@ -94,11 +98,13 @@ completed_design_only | rejected
 
 读取 [solution design](references/solution-design.md)，用 [ARCH-DESIGN 模板](templates/arch-design.md)发布独立 `ARCH-DESIGN vN`。它必须绑定输入 `ARCH-RESEARCH` 版本，不依附 OpenSpec。
 
-当研究或设计因 `critical_evidence_gaps` 需要可识别人类提供决定时，Architecture Lead 必须使用 [ARCH-CONTROL 模板](templates/arch-control.md)中的 `Reviewable clarification request`。每个决策项都要给出具体候选建议或显式 `no_recommendation`、依据、主要风险/后果、仍缺证据及 Owner/关闭条件，以及可直接接受、修改或拒绝的回复格式；不得只列问题或写“等待确认”。候选数值必须标记证据状态，不能用未经验证的精确值替代测量。
+当研究或设计因 `critical_evidence_gaps` 需要可识别人类提供决定时，Architecture Lead 必须创建 `action_type=design_input` 的 Human Action Request，并在 [ARCH-CONTROL 模板](templates/arch-control.md)中记录其投影。每个决策项都要给出具体候选建议或显式 `no_recommendation`、依据、主要风险/后果、仍缺证据及 Owner/关闭条件，以及可直接接受、修改或拒绝的回复格式；不得只列问题或写“等待确认”。候选数值必须标记证据状态，不能用未经验证的精确值替代测量。
 
 澄清建议与正式 `ARCHITECTURE_RECOMMENDATION` 分离。人类对候选建议的回复只改变明确列出的设计输入，不替代测量证据、其他责任 Owner 的决定、Review conclusion、packet readiness 或准确 packet ref/version/digest 的人工批准。
 
 Reviewer 随后读取 [architecture review](references/architecture-review.md)，保持被审设计只读，并用 [ARCH-REVIEW 模板](templates/arch-review.md)输出唯一结论：`BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS` 或 `APPROVABLE`。每个 finding 都绑定准确设计版本并包含证据、影响、Owner 和关闭条件。
+
+Review 若识别出必须由不同 Owner 分别接受的非阻断风险，在结论依赖这些接受时，为每个 Risk ID 创建独立 `action_type=risk_acceptance` 请求。每份请求必须列出风险条件、接受/修改/拒绝的逐项后果和准确回复，且明确属于非批准信息；不得用一次“接受全部”跨越权限域，也不得在所需证据齐备前生成依赖它的 approvable conclusion 或 packet。
 
 评审结论同时驱动控制状态计算，即使当前会话只读、无法持久化，也必须报告计算后的 canonical stage：`BLOCKED` 且关键事实/安全证据缺失时回到 `researching`；设计内容需修订时回到 `designing`。不得因“本次没有写入”而继续报告旧的 `reviewing`。
 
@@ -115,7 +121,11 @@ Reviewer 随后读取 [architecture review](references/architecture-review.md)�
 - `revision_requested`
 - `rejected`
 
+等待正式决定时创建 `action_type=design_approval` 请求。开头必须直接说明 Decision Owner、推荐（如有）和四种合法决定的中文后果；每种决定都列出立即 stage、remaining blockers、Next Owner、planned writes、OpenSpec/实施边界及不可逆影响，再提供稳定 design/review/packet refs 和可复制的 packet-bound 准确回复。不得只列四个 token，也不得先用 digest 和审计字段淹没决策摘要。
+
 不存在明确绑定时保持 `waiting_human`。不得把 Reviewer conclusion、readiness、`ARCHITECTURE_RECOMMENDATION`、引用文本、fixture、Agent 输出、紧急措辞、任务分派或模糊肯定当成人工批准。绑定 superseded packet 的合法决定保留审计但对当前 gate no-op。
+
+有效 `revision_requested` 即使没有修订说明，仍按决定进入新版本 `designing`。若缺少可执行 revision brief，记录 `revision_scope=missing` 并另建 `action_type=design_input` 请求，由原决定人或明确的 Design Decision Owner 补充范围；brief ref 单独保存且属于 non-authoritative context。范围补齐并验证后记录 `revision_scope=provided`。不得把 token 推断为完整修订内容，不得改写旧 packet，也不得在 replacement design/review approvable 前创建新 packet。
 
 预批准澄清请求中的候选建议及其接受、修改或拒绝不是本节的 human decision。即使同一可识别人类接受全部候选值，也必须等准确 design/review、current ready packet 和单独的 packet-bound 决定齐备后才改变批准 gate。
 
@@ -148,7 +158,7 @@ Normalized 字段保持正交：`packet_ref` 只记录稳定 artifact ref（例�
 
 ## Progressive disclosure
 
-只读取当前阶段需要的一个 reference 和对应模板。例外：`ARCH-CONTROL` 在每次转换时加载；approvable review 后同时读取 approval packet reference/template；进入发布/交接时可同时读取 approval packet、ADR publication、R&D handoff 及其模板。运行时与安装验证才读取 [runtime and validation](references/runtime-and-validation.md)。
+只读取当前阶段需要的一个 reference 和对应模板。例外：需要人类动作时同时读取 Human Action Request reference/template；`ARCH-CONTROL` 在每次转换时加载；approvable review 后同时读取 approval packet reference/template；进入发布/交接时可同时读取 approval packet、ADR publication、R&D handoff 及其模板。运行时与安装验证才读取 [runtime and validation](references/runtime-and-validation.md)。
 
 ## Common mistakes
 
@@ -161,3 +171,4 @@ Normalized 字段保持正交：`packet_ref` 只记录稳定 artifact ref（例�
 - 在缺失 `openspec-explore` 时自行分析并补写“等价结论”。
 - 一次性加载所有 references/templates，掩盖当前阶段的判断。
 - 没有 Issue/仓库写入能力却声称报告已经发布。
+- 只写“等待确认”、只列批准 token，或让不同权限 Owner 用一次“接受全部”作决定。

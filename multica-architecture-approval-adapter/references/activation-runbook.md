@@ -2,11 +2,13 @@
 
 ## Authorization gate
 
-This runbook is operational guidance, not an implicit authorization. Before any real Multica command, obtain a separate, explicit human instruction that names:
+This runbook is operational guidance, not an implicit authorization. Before any real Multica command, render [the operational authorization request](../templates/multica-operational-authorization.md) and obtain its exact current authorize response. The request names:
 
 - the existing target workspace by stable identity;
 - the existing Architecture Agent by stable identity; and
 - the requested activation scope for the independently installed core and adapter skills.
+
+It also lists the exact import/additive-binding commands, existing skill identities, planned writes, excluded resource creation/replace-all/configuration, overwrite and availability risks, verification readback and stop behavior. Architecture content approval, an adapter delivery request or a generic instruction to activate cannot substitute.
 
 Repository implementation, local packaging, temporary-HOME link checks, an adapter delivery request, a recommendation, or a Review conclusion do not authorize workspace import or Agent binding. Never create a missing Skill, Agent, Team, Project, Issue, or fallback binding. If the named workspace or Agent cannot be resolved, stop, report the missing identity, and request new human direction.
 
@@ -19,7 +21,7 @@ Repository implementation, local packaging, temporary-HOME link checks, an adapt
    multica skill import --file <adapter.skill-or-zip> --on-conflict fail --output json
    ```
 
-   If the import reports a same-name conflict, stop. Record the existing skill identity and the platform-supported choices. Do not overwrite, replace, rename around, or delete the existing skill unless the human separately authorizes a specific conflict strategy.
+   If the import reports a same-name conflict, stop. Record the existing skill identity and the platform-supported choices. The observed target changed, so the prior activation authority is exhausted. Render a new `operation variant=conflict_strategy` request explaining `fail|platform-supported overwrite` consequences, exact target, retained object and risk. Do not overwrite, replace, rename around, or delete the existing skill unless the new exact authorization selects a supported strategy.
 3. Resolve the human-named existing Architecture Agent again, then bind skills additively. Do not use a replace-all or `set` operation:
 
    ```bash
@@ -43,3 +45,4 @@ Repository implementation, local packaging, temporary-HOME link checks, an adapt
 - Import conflict: stop with `activation=not_run`; request a separately authorized platform-supported conflict strategy.
 - Missing core/adapter ID in final list: stop with `activation=not_run`; do not compensate by creating or replacing resources.
 - Any command requiring credentials, network access, workspace mutation, or configuration change: execute only after the authorization gate above; otherwise retain `activation=not_run`.
+- Superseded or incomplete operational request: retain `activation=not_run`; identify the current request and exact authorize/deny response.

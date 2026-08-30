@@ -6,6 +6,8 @@ Read the frozen packet's design and review `Target human actor` values before ev
 
 The adapter must never infer a target from display names, email fragments, Issue assignee, comment author, prior author, workspace membership, Agent identity, reactions, or any fuzzy lookup. Zero matches and multiple matches are equally unavailable.
 
+When a user-confirmed mapping or shared-scope mapping sidecar needs a new human choice/write authority, first render a current `operational_authorization` request naming the exact portable actor, candidate member UUID, existing Issue/workspace, sidecar final/temporary path scope, no-clobber behavior, planned write and exclusions. Mapping authorization is not access confirmation and neither is architecture approval.
+
 ## Allowed resolution forms
 
 Only one of the following is acceptable:
@@ -52,7 +54,29 @@ The mapping must be re-verifiable, must bind the exact current packet identity, 
 
 ## Result and failure
 
-On success, readiness uses only the canonical member UUID as `human_actor`. For the direct canonical branch, `human_actor_binding_ref` is the direct-canonical sidecar `evidence_ref`; for the user-confirmed branch, it is the re-verifiable packet-bound user-confirmed sidecar `evidence_ref`. Confirm that this target member can access the Issue/workspace and durable attachment refs; the Agent's own access does not prove human access. Without an explicitly authorized durable shared scope and reread sidecar, mapping is unavailable.
+On success, readiness uses only the canonical member UUID as `human_actor`. For the direct canonical branch, `human_actor_binding_ref` is the direct-canonical sidecar `evidence_ref`; for the user-confirmed branch, it is the re-verifiable packet-bound user-confirmed sidecar `evidence_ref`. Confirm that this target member can access the Issue/workspace and durable attachment refs; the Agent's own access does not prove human access. Use an `access_confirmation` Human Action Request that lists exact stable Design, Review and Packet refs and the requested `desktop|mobile` client scopes.
+
+For a three-artifact desktop/mobile request, the canonical member replies with exactly these fifteen LF-separated, fixed-order lines and no extras:
+
+```text
+access_profile=multica_artifact_access_confirmation_v1
+packet_ref=<canonical-percent-escaped-current-ref>
+packet_version=vN
+packet_digest=sha256:<64-lowercase-hex>
+human_actor=<canonical-percent-escaped-member-uuid>
+availability_scope=<canonical-percent-escaped-workspace-and-issue-scope>
+design_ref=<canonical-percent-escaped-stable-ref>
+design_desktop=opened|unavailable
+design_mobile=opened|unavailable
+review_ref=<canonical-percent-escaped-stable-ref>
+review_desktop=opened|unavailable
+review_mobile=opened|unavailable
+packet_access_ref=<canonical-percent-escaped-stable-ref>
+packet_desktop=opened|unavailable
+packet_mobile=opened|unavailable
+```
+
+Use the delivery marker's canonical percent encoding. All refs and packet/member/scope fields must exactly match current readiness inputs, and the adapter rereads this unedited comment before recording confirmation. Missing response remains `unconfirmed`; any explicit `unavailable` fails that item. A generic acknowledgement, reordered/unknown field, attachment card, Agent download, or one client result cannot close another artifact/scope. Without current operational authority for the sidecar, an explicitly authorized durable shared scope, all required `opened` values and reread sidecar, mapping/readiness is unavailable.
 
 On empty/different actors, malformed canonical form, absent/stale/mismatched evidence, non-human confirmer, scope mismatch, zero/multiple member matches, or unavailable target-member access, emit deterministic unavailable evidence:
 

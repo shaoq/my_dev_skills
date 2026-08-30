@@ -46,6 +46,11 @@
 
 ## Open decisions and blockers
 
+- Current Human Action Request refs：
+- 每项 action 的 Decision Owner / authority scope：
+- Stable human-accessible evidence refs：
+- Exact response / After response projection：
+
 ## Evidence limitations
 
 ## Next action

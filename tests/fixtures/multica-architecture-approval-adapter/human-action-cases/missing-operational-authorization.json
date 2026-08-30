@@ -1,0 +1,14 @@
+{
+  "fixture_id": "missing-operational-authorization",
+  "family": "operational_authorization",
+  "input": {"operation": "delivery_and_shared_sidecar", "authorization": "none"},
+  "expected": {
+    "action_type": "operational_authorization",
+    "first_screen": "authorization_first",
+    "decision_authority": "not_architecture_approval",
+    "artifact_checks": [],
+    "write_outcome": "no_write",
+    "retry_scope": "none",
+    "required_markers": ["准确目标", "planned writes", "excluded operations", "authorize/deny"]
+  }
+}

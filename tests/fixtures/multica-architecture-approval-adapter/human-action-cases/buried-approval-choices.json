@@ -1,0 +1,14 @@
+{
+  "fixture_id": "buried-approval-choices",
+  "family": "decision_first_approval",
+  "input": {"packet": "v19", "current_comment": "technical_fields_then_tokens"},
+  "expected": {
+    "action_type": "design_approval",
+    "first_screen": "decision_first",
+    "decision_authority": "unchanged",
+    "artifact_checks": ["design", "review", "packet"],
+    "write_outcome": "none",
+    "retry_scope": "none",
+    "required_markers": ["四种中文后果", "推荐不是批准", "准确回复", "审计后置"]
+  }
+}

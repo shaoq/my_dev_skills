@@ -62,6 +62,9 @@ packet_marker_digest={{packet_digest}}
 delivery_evidence_ref={{deterministic_comment_fragment_or_none}}
 comment_reread_status={{verified|missing|identity_conflict}}
 brief_reread_status={{verified|missing|identity_conflict}}
+human_action_request_ref={{current_human_action_request_ref_or_none}}
+human_action_request_version={{current_human_action_request_version_or_none}}
+brief_rendering_status={{verified|missing|superseded|incomplete}}
 ```
 
 ## Required durable artifacts
@@ -79,7 +82,12 @@ stable_access_ref={{markdown_url_or_stable_attachment_endpoint}}
 availability_scope=multica_workspace:{{workspace_id}}/issue:{{issue_id}}
 attachment_bound_to_comment={{verified|missing|identity_conflict}}
 raw_byte_reread_status={{verified|missing|digest_mismatch}}
+design_access_confirmation={{desktop:opened|unavailable|unconfirmed;mobile:opened|unavailable|unconfirmed}}
+review_access_confirmation={{desktop:opened|unavailable|unconfirmed;mobile:opened|unavailable|unconfirmed}}
+packet_access_confirmation={{desktop:opened|unavailable|unconfirmed;mobile:opened|unavailable|unconfirmed}}
 ```
+
+三个 access confirmation 字段按相应 `artifact_kind` 使用：每个 artifact、每个请求的 client scope 单独记录 canonical target member 的 `opened|unavailable|unconfirmed`。通用“可以访问”、附件卡片存在、Agent 下载或只完成 desktop 都不能把 mobile 或其他 artifact 记为 confirmed。
 
 Never persist a signed or expiring `download_url`. `stable_access_ref` is only `markdown_url` or a stable attachment endpoint; raw-byte re-download may obtain a fresh transient URL at read time.
 

@@ -1,0 +1,70 @@
+# Multica Operational Authorization Request
+
+## 现在需要授权什么
+
+- `action_type=operational_authorization`
+- Authorization ID / current status：`{{authorization_id}}` / `current|superseded`
+- Operation variant：`delivery|target_human_mapping|shared_sidecar|activation|conflict_strategy|sandbox|retry`
+- Decision Owner：`{{authorized_human_actor}}`
+- Why now：{{why_now_zh}}
+
+## Existing target identities
+
+- Workspace：`{{existing_workspace_identity}}`
+- Issue：`{{existing_issue_identity_or_na}}`
+- Agent：`{{existing_agent_identity_or_na}}`
+- Skill / packet / attempt：`{{existing_bound_identities}}`
+
+## Exact planned writes
+
+| Order | Operation / command profile | Exact target | New or reused |
+|---|---|---|---|
+| {{order}} | {{operation_or_command_profile}} | {{exact_target}} | {{new_or_reused}} |
+
+- Authorized paths / scope：`{{exact_authorized_paths_and_scope}}`
+- Incremental retry scope：`{{incremental_writes_or_na}}`
+- No-clobber / conflict strategy：`{{no_clobber_or_explicit_strategy}}`
+- Scope profile：`scope_profile=multica_operational_scope_v1`
+- Canonical scope payload ref：`{{canonical_scope_payload_ref}}`
+- Scope digest：`scope_digest=sha256:{{canonical_scope_payload_raw_utf8_sha256}}`
+
+## Retained objects and failure behavior
+
+- Retained objects：`{{existing_objects_preserved_on_success_or_failure}}`
+- Failure behavior：{{fail_closed_behavior_zh}}
+- Stop / rollback boundary：{{stop_or_rollback_boundary_zh}}
+
+## Risks and exclusions
+
+- Risks：{{operational_risks_zh}}
+- Excluded operations：{{unlisted_writes_resource_creation_delete_overwrite_or_configuration}}
+- Does not authorize：任何架构内容决定、Review conclusion、packet gate、发布范围扩大或未列出的写入。
+
+## Exact authorize / deny response
+
+授权：
+
+```text
+AUTHORIZE OPERATION {{authorization_id}} scope=sha256:{{canonical_scope_payload_raw_utf8_sha256}}
+```
+
+拒绝：
+
+```text
+DENY OPERATION {{authorization_id}} reason={{canonical_percent_escaped_reason}}
+```
+
+仅当前、由准确 Decision Owner 作出并绑定 exact scope 的回复有效；模糊肯定、旧请求回复或范围不完整的授权都不允许执行写入。
+
+## After response
+
+| Response | Allowed next operation | Remaining blockers | Next Owner | Evidence / planned writes |
+|---|---|---|---|---|
+| authorize | {{exact_allowed_next_operation}} | {{remaining_blockers}} | {{next_owner}} | {{authorization_evidence_and_writes}} |
+| deny | no write | authorization denied | {{next_owner}} | retain existing objects |
+
+## Audit binding
+
+- Bound request / target digest：`{{bound_request_or_target_digest}}`
+- Current / superseded：`current|superseded`
+- Recorded evidence / time：`{{evidence_ref_or_pending}}` / `{{recorded_at_or_pending}}`

@@ -17,6 +17,8 @@ rejected
 
 `OK`, `继续`, emojis, prose containing a token, quotations, Markdown code/quote/fence content, multiple tokens, or an edited existing comment are never a replacement decision. Mapping missing/changed/ambiguous or readiness not current is fail-closed: retain evidence, keep `waiting_human`, and request a newly established unique mapping/readiness as applicable.
 
+Human-readable option consequences and revision instructions are rendering context only. If a canonical member writes a legal token plus prose in one candidate comment, retain that text as non-authoritative audit/context, record `fresh_token_required=yes`, and ask for a new independent token-only comment. Never strip prose and consume the embedded token.
+
 ## Profile: `multica_packet_comment_reply_v1`
 
 Re-read the full thread and construct `parent_chain_ids` from candidate comment to root using each actual `parent_id`. Detect a missing parent or cycle as invalid. A candidate binds through this profile only when its chain contains the exact reread-verified **current packet comment ID**; it may be nested beneath that packet comment, which itself may be nested under a trigger comment. A thread-root match is insufficient.
@@ -24,6 +26,20 @@ Re-read the full thread and construct `parent_chain_ids` from candidate comment 
 After Unicode-safe string trimming of only leading/trailing whitespace, the full candidate content must be exactly one legal token and nothing else. No marker, identity fields, quote prefix, code fence, punctuation, mention, or explanatory sentence is allowed. The packet ref/version/digest are inherited solely from the exact verified packet comment marker and attached readiness evidence—not from root comments, metadata, or textual claims in the reply.
 
 For an exact authorized reply to a superseded packet comment, record the inherited old identity in decision evidence with `decision_evidence_status=noop`; it is auditable but has no current-gate effect.
+
+For revision guidance, accept a separate member comment only as `decision_context_ref` when it is authored by the same canonical target member, descends from the exact current packet comment and has exactly these seven LF-separated, fixed-order lines with no extra blank line, field, prose, quote or code syntax:
+
+```text
+context_profile=multica_revision_context_v1
+packet_ref=<canonical-percent-escaped-current-ref>
+packet_version=vN
+packet_digest=sha256:<64-lowercase-hex>
+packet_comment_id=<canonical-percent-escaped-current-comment-id>
+revision_brief_ref=<canonical-percent-escaped-stable-ref>
+revision_brief_digest=sha256:<64-lowercase-hex>
+```
+
+Use the marker profile's canonical percent encoding. The adapter rereads the context comment and the stable brief ref, hashes both raw UTF-8 byte sequences and requires the brief digest to match. The context comment ref becomes `decision_context_ref`; record its own content digest, author, parent chain and reread status. This profile is never parsed as a decision, never permits an inline token, and never supplies authority when the separate token-only decision is absent.
 
 ## Profile: `multica_explicit_packet_reference_v1`
 
@@ -43,6 +59,8 @@ Decode `packet_ref` using the marker's canonical percent-decoding rules. Reject 
 For every accepted or audited candidate, record the fields in [the decision-evidence template](../templates/multica-decision-evidence.md): Issue/comment refs and IDs, full parent-chain IDs, author ID/type, revision when supplied (otherwise `not_provided`), SHA-256 of raw UTF-8 comment content, created/updated/recorded UTC timestamps, packet identity, profile, mapping/readiness sidecar refs, mapping/readiness/comment reread statuses, and evidence status. This is a platform-read-only route: it never writes Multica. Create the decision sidecar only after the readiness and comment rereads and only under a separately explicit current-task authorization to write that existing shared scope, according to [durable evidence records](durable-evidence-records.md); absent authorization or authorized/re-readable shared scope makes the decision non-effective audit text.
 
 Immediately before core consumption, re-read current readiness, mapping evidence, and the decision comment by its ID. If revision changes (when supplied), content digest changes, identity becomes unavailable, or reread fails, set captured evidence to `invalid`, retain it for audit, and require a new independent comment. An edit never becomes a replacement.
+
+For a valid token-only `revision_requested`, separately re-read `decision_context_ref`. A current matching brief records `revision_scope=provided`; no readable brief records `revision_scope=missing`; changed bytes/identity record `revision_scope=changed`. Missing or changed context never creates, replaces, invalidates or edits the legal token evidence; it only asks core for a new `design_input` action or refreshed context.
 
 For replacement, an independent comment means a distinct comment ID from the same canonical actor whose content independently satisfies one profile; a candidate that merely quotes, forwards, or edits a prior decision is not independent. For distinct valid independent comments from the one canonical actor and exact current packet, order lexicographically by `(created_at, comment_id)` using server values. Mark the latest as `valid`/effective and every earlier one `superseded`; retain all records and their original decision values. If legacy/corrupt/mapping-drift evidence identifies more than one actor as effective for the current packet, do not choose by timestamp: keep `waiting_human`, report all refs, invalidate the effective set for consumption, and require a fresh uniquely bound mapping plus a new decision.
 

@@ -1,0 +1,14 @@
+{
+  "fixture_id": "token-plus-prose-revision",
+  "family": "decision_context_separation",
+  "input": {"comment": "revision_requested 请改成双区", "binding_profile": "multica_packet_comment_reply_v1"},
+  "expected": {
+    "action_type": "design_approval",
+    "first_screen": "decision_first",
+    "decision_authority": "non_binding_fresh_token_required",
+    "artifact_checks": [],
+    "write_outcome": "none",
+    "retry_scope": "none",
+    "required_markers": ["token-only", "decision_context_ref", "fresh_token_required"]
+  }
+}

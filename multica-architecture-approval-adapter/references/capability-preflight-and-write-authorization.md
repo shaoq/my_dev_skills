@@ -2,11 +2,13 @@
 
 ## Authorization boundary
 
-Issue delivery is permitted only when the current task explicitly names the existing Multica workspace and Issue and explicitly requests delivery of the verified current packet. The task scope must also authorize the packet files' paths; paths outside the task workdir require separate explicit human authorization.
+Issue delivery is permitted only when a current `operational_authorization` Human Action Request response explicitly names the existing Multica workspace and Issue, exact verified packet, planned comment/attachment/projection/sidecar writes and authorized input/final/temporary paths. Paths outside the exact scope require a separate new authorization. Build and verify its canonical digest with [the operational authorization protocol](operational-authorization.md), then render [the operational authorization template](../templates/multica-operational-authorization.md); a task request or architecture approval alone is not sufficient write authority.
 
 The following are outside Issue delivery and are forbidden without separate explicit human authorization: Skill import, Agent binding, Team/Project/Issue creation, Runtime configuration, CLI installation or upgrade, private/undocumented API use, and creation of a missing workspace, Issue, Agent, Team, Project, Skill, independent attachment resource, or other platform resource. Do not use any of these to repair a failed preflight.
 
 For an explicitly authorized delivery only, uploading the three verified frozen Markdown artifacts as `--attachment` inputs on the single packet-comment write is an allowed minimal Issue delivery write. It is not permission for an independent upload, an orphan attachment, a standalone attachment resource, or creation of an attachment to fill a missing platform resource. Any attachment write outside that packet-comment delivery needs separate explicit human authorization.
+
+The operational request must show `Existing target identities`, `Exact planned writes`, `Authorized paths / scope`, `Retained objects`, `Failure behavior`, `Excluded operations`, `Risks`, the exact authorize/deny reply and After-response behavior before any write. It is not an architecture approval and must not contain or solicit architecture decision tokens.
 
 ## Two-phase, fail-closed delivery capability contract
 
@@ -33,6 +35,6 @@ The authorized first packet-comment write is the live proof boundary. Its parsea
 
 ## Preflight result
 
-Record the observed CLI/profile identity, workspace ID, Issue ID/ref, execution time in RFC3339 UTC, each pre-write check, and each postcondition. Only a completely passed pre-write gate authorizes the minimal first write belonging to this explicit task: packet-comment creation with attachments. The later metadata projection is authorized only after its preceding delivery postconditions verify. This does not authorize activation, configuration, resource creation, platform repair, or writes after a final fence scan.
+Record the observed CLI/profile identity, workspace ID, Issue ID/ref, execution time in RFC3339 UTC, each pre-write check, and each postcondition. Only a completely passed pre-write gate plus matching current operational authorization permits the minimal first write: packet-comment creation with attachments. The later metadata projection and shared sidecar writes must be expressly listed in the same exact scope and remain gated by their preceding postconditions. This does not authorize activation, configuration, resource creation, platform repair, retry, overwrite/conflict resolution or writes after a final fence scan.
 
 Use durable attachment identity and `markdown_url`/stable endpoint in evidence. Never persist a time-limited signed `download_url` as stable access evidence. If a target member's Issue/workspace scope cannot be confirmed, or only the Agent can download material, fail closed as unavailable.

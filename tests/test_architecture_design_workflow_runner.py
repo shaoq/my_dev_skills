@@ -262,7 +262,7 @@ class ArchitectureWorkflowRunnerSafetyTest(unittest.TestCase):
         control_template = self.root / "architecture-design-workflow" / "templates" / "arch-control.md"
         control_template.write_text(
             control_template.read_text(encoding="utf-8").replace(
-                "- Candidate recommendation：",
+                "- Candidate recommendation：具体候选值；或 `no_recommendation` 及原因",
                 "",
                 1,
             ),
@@ -273,6 +273,24 @@ class ArchitectureWorkflowRunnerSafetyTest(unittest.TestCase):
 
         self.assertEqual(1, result.returncode)
         self.assertIn("ARCH-CONTROL missing reviewable clarification slots", result.stdout)
+
+    def test_rejects_incomplete_human_action_contract(self) -> None:
+        action_template = (
+            self.root
+            / "architecture-design-workflow"
+            / "templates"
+            / "human-action-request.md"
+        )
+        action_template.parent.mkdir(parents=True, exist_ok=True)
+        action_template.write_text(
+            "# Human Action Request\n\n## Action summary\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_runner()
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("Human Action Request missing required slots", result.stdout)
 
 
 if __name__ == "__main__":

@@ -22,8 +22,10 @@
 
 ## Accepted non-blocking risks
 
-| Risk | Acceptance evidence | Owner |
-|---|---|---|
+| Risk ID | Condition / review point | Acceptance evidence | Decision Owner / authority scope | Human Action Request ref / status |
+|---|---|---|---|---|
+
+未取得 acceptance evidence 时不得写入“已接受”。每个不同 Owner 的风险使用独立 `action_type=risk_acceptance` 请求；不得提供跨 Owner 的“接受全部”。
 
 ## Traceability and evidence limitations
 
@@ -32,5 +34,6 @@
 - Next stage：
 - Next Owner：
 - Human decision required：
+- Current Human Action Request refs：
 - Approval packet action：`none for BLOCKED|NEEDS_REVISION`；`create new delivered packet for APPROVABLE_WITH_WARNINGS|APPROVABLE`
 - Review conclusion 与 packet readiness、recommendation、human decision、`BLOCKED_REASON` 必须分字段记录。

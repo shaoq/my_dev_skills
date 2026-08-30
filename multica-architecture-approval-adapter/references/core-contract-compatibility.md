@@ -19,6 +19,8 @@ The current packet must be an immutable `ARCH-APPROVAL-PACKET vN` with these exa
 
 The adapter must obtain the exact current `ARCH-DESIGN`, `ARCH-REVIEW`, and `ARCH-APPROVAL-PACKET` bytes and verify their SHA-256 values over raw bytes. It must not change character encoding, Unicode, whitespace, newlines, media types, or any frozen content. A superseded packet remains immutable and cannot substitute for the current packet.
 
+When the adapter receives a portable Human Action Request in addition to the packet, it verifies the required core fields without adding Multica fields: stable action ID/type/status, bound artifact or routing version, Decision Owner/authority scope, one atomic decision, recommendation or `no_recommendation`, bounded alternatives, separated basis, option consequences, stable human-accessible evidence refs, exact response, After-response canonical projection and non-authorization boundary. Missing or unknown fields make that action rendering incompatible; they do not invalidate an otherwise compatible frozen packet or permit the adapter to invent content.
+
 ## Compatibility decision
 
 Before platform reads or writes, verify all markers above, the pinned revision, identity consistency between packet and frozen inputs, and that the target packet is current/delivered. Do not treat an apparently approvable review alone as a packet.

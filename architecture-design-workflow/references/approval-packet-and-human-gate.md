@@ -85,6 +85,23 @@ decision evidence 必须包含 decision、可识别 `human_actor`、当前 packe
 
 绑定 superseded packet 的合法决定保留审计但对当前 gate no-op。`revision_requested` 开始新 `ARCH-DESIGN`，并只在 replacement design/review 再次 approvable 后创建新 packet。`rejected` 仅在绑定 current ready packet 时进入终态。
 
+## Human-facing approval action
+
+current ready packet 等待决定时，生成一个 `action_type=design_approval` Human Action Request。请求首屏先给 Decision Owner、为什么现在可决定、candidate recommendation（若有）和四个选项的中文对比；稳定 design/review/packet refs 放在随后可打开的位置，完整 digest/audit binding 后置。
+
+四个选项必须分别说明：
+
+- `approved_design_only`：只发布 ADR/详细设计，进入 design-only 完成路径；不生成研发授权；
+- `approved_for_spec`：发布批准文档，目标项目存在时生成 R&D handoff；不自动创建 OpenSpec、Issue、branch 或代码；
+- `revision_requested`：进入新设计迭代，不修改旧 packet；修订说明作为独立非授权 context，缺失时另建 `design_input` 请求；
+- `rejected`：current work item 进入 `rejected` 终态，具有明确不可逆流程影响。
+
+每项同时列出立即 stage、remaining blockers、Next Owner、planned writes 和不可逆影响。Exact response 必须包含决定值与 current packet ref/version/digest；说明性文字和 recommendation 均不能替代该准确绑定。
+
+## Revision context
+
+正式 decision evidence 与 revision brief 分开记录。有效 `revision_requested` 不因 brief 缺失而失效；状态进入新版本 `designing`，并记录 `revision_scope=missing`。随后由原决定人或明确的 Design Decision Owner 通过 `action_type=design_input` 补齐范围、优先级、约束和验收变化。旧 packet 永不改写，replacement packet 只能在新 design/review 再次 approvable 后创建。
+
 ## Compatibility and publication
 
 升级前已持久化在 `waiting_human` 且本次没有新 design/review version 或显式 refresh 的记录保持原 stage；不得伪造 readiness 或自动降级。显式 refresh 后执行新 packet gate。

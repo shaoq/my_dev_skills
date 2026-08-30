@@ -12,16 +12,28 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_ROOT = REPOSITORY_ROOT / "tests" / "fixtures" / "multica-architecture-approval-adapter"
 CASES_ROOT = FIXTURE_ROOT / "cases"
 SCHEMA_PATH = FIXTURE_ROOT / "result.schema.json"
+HUMAN_ACTION_CASES_ROOT = FIXTURE_ROOT / "human-action-cases"
+HUMAN_ACTION_SCHEMA_PATH = FIXTURE_ROOT / "human-action.schema.json"
 REQUIRED_ADAPTER_SURFACES = (
     "multica-architecture-approval-adapter/SKILL.md",
     "multica-architecture-approval-adapter/templates/multica-approval-comment.md",
     "multica-architecture-approval-adapter/templates/multica-readiness-evidence.md",
     "multica-architecture-approval-adapter/templates/multica-decision-evidence.md",
+    "multica-architecture-approval-adapter/templates/multica-human-action-request.md",
+    "multica-architecture-approval-adapter/templates/multica-operational-authorization.md",
     "multica-architecture-approval-adapter/references/delivery-mapping-and-marker.md",
     "multica-architecture-approval-adapter/references/reconciliation-projection-and-readiness.md",
     "multica-architecture-approval-adapter/references/human-decision-binding.md",
     "multica-architecture-approval-adapter/references/durable-evidence-records.md",
+    "multica-architecture-approval-adapter/references/operational-authorization.md",
 )
+EXPECTED_HUMAN_ACTION_FAMILIES = {
+    "buried-approval-choices": "decision_first_approval",
+    "missing-operational-authorization": "operational_authorization",
+    "partial-failure-retry": "retry_authorization",
+    "per-artifact-mobile-access": "per_artifact_access",
+    "token-plus-prose-revision": "decision_context_separation",
+}
 EXPECTED_FAMILIES = {
     "activation-boundary": "activation_boundary",
     "capability-missing": "capability_missing",
@@ -193,6 +205,15 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             for path in sorted(CASES_ROOT.glob("*.json"))
         }
 
+    def load_human_action_schema(self) -> dict[str, Any]:
+        return json.loads(HUMAN_ACTION_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    def load_human_action_cases(self) -> dict[str, dict[str, Any]]:
+        return {
+            path.stem: json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted(HUMAN_ACTION_CASES_ROOT.glob("*.json"))
+        }
+
     def test_each_case_preserves_its_required_failure_or_success_boundary(self) -> None:
         cases = self.load_cases()
         results = {name: case["expected_result"] for name, case in cases.items()}
@@ -299,6 +320,124 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
     def test_required_adapter_production_surfaces_are_present(self) -> None:
         missing = [surface for surface in REQUIRED_ADAPTER_SURFACES if not (REPOSITORY_ROOT / surface).is_file()]
         self.assertFalse(missing, "missing required adapter production surface(s): " + ", ".join(missing))
+
+    def test_human_action_fixtures_match_contract(self) -> None:
+        schema = self.load_human_action_schema()
+        cases = self.load_human_action_cases()
+        self.assertEqual(
+            EXPECTED_HUMAN_ACTION_FAMILIES,
+            {name: case["family"] for name, case in cases.items()},
+        )
+        for name, case in cases.items():
+            with self.subTest(case=name):
+                self.assertEqual(name, case["fixture_id"])
+                validate_json_schema(case, schema, schema)
+
+        self.assertEqual(
+            "non_binding_fresh_token_required",
+            cases["token-plus-prose-revision"]["expected"]["decision_authority"],
+        )
+        self.assertEqual(
+            ["design", "review", "packet"],
+            cases["per-artifact-mobile-access"]["expected"]["artifact_checks"],
+        )
+        self.assertEqual(
+            "no_write",
+            cases["missing-operational-authorization"]["expected"]["write_outcome"],
+        )
+        self.assertEqual(
+            "incremental_only",
+            cases["partial-failure-retry"]["expected"]["retry_scope"],
+        )
+
+    def test_human_action_rendering_contract_is_present(self) -> None:
+        human_action = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-human-action-request.md"
+        operational = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-operational-authorization.md"
+        approval = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-approval-comment.md"
+        decision = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-decision-evidence.md"
+        readiness = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-readiness-evidence.md"
+
+        missing_files = [str(path.relative_to(REPOSITORY_ROOT)) for path in (human_action, operational) if not path.is_file()]
+        self.assertFalse(missing_files, "missing human action template(s): " + ", ".join(missing_files))
+
+        required_slots = {
+            human_action: (
+                "## 现在需要什么", "action_type={{action_type}}", "Decision Owner",
+                "Candidate recommendation", "Bounded alternatives", "Option consequences",
+                "Stable human-accessible evidence refs", "Exact response", "After response",
+                "Does not authorize", "Current / superseded",
+            ),
+            operational: (
+                "action_type=operational_authorization", "Existing target identities",
+                "Exact planned writes", "Authorized paths / scope", "Retained objects",
+                "Failure behavior", "Excluded operations", "Risks",
+                "Exact authorize / deny response", "canonical_percent_escaped_reason",
+            ),
+            approval: (
+                "## 现在需要你决定", "只发布批准文档", "R&D handoff",
+                "新设计迭代", "终态", "Stable Design ref", "Stable Review ref",
+                "Stable Packet ref", "推荐不是批准", "Remaining blockers", "Next Owner",
+                "none|approved_artifact_unavailable", "## 准确回复", "## 审计信息",
+            ),
+            decision: (
+                "decision_context_ref", "decision_context_digest", "revision_scope",
+                "non_authoritative_context", "fresh_token_required",
+            ),
+            readiness: (
+                "human_action_request_ref", "human_action_request_version",
+                "brief_rendering_status", "design_access_confirmation",
+                "review_access_confirmation", "packet_access_confirmation",
+                "desktop", "mobile",
+            ),
+        }
+        failures: list[str] = []
+        for path, slots in required_slots.items():
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8")
+            failures.extend(
+                f"{path.relative_to(REPOSITORY_ROOT)} missing {slot}"
+                for slot in slots
+                if slot not in text
+            )
+        self.assertFalse(failures, "human action rendering contract incomplete:\n" + "\n".join(failures))
+
+        operational_text = operational.read_text(encoding="utf-8")
+        for token in ("approved_design_only", "approved_for_spec", "revision_requested", "rejected"):
+            self.assertNotIn(token, operational_text, f"operational authorization must not contain approval token {token}")
+
+        protocol_slots = {
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-decision-binding.md": (
+                "context_profile=multica_revision_context_v1",
+                "revision_brief_ref=",
+                "revision_brief_digest=sha256:",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/target-human-mapping.md": (
+                "access_profile=multica_artifact_access_confirmation_v1",
+                "design_desktop=opened|unavailable",
+                "review_mobile=opened|unavailable",
+                "packet_mobile=opened|unavailable",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/operational-authorization.md": (
+                "scope_profile=multica_operational_scope_v1",
+                "scope_digest=sha256:",
+                "raw UTF-8 bytes",
+                "LF",
+                "canonical percent encoding",
+            ),
+        }
+        protocol_failures: list[str] = []
+        for path, slots in protocol_slots.items():
+            if not path.is_file():
+                protocol_failures.append(f"missing {path.relative_to(REPOSITORY_ROOT)}")
+                continue
+            text = path.read_text(encoding="utf-8")
+            protocol_failures.extend(
+                f"{path.relative_to(REPOSITORY_ROOT)} missing {slot}"
+                for slot in slots
+                if slot not in text
+            )
+        self.assertFalse(protocol_failures, "human action protocol incomplete:\n" + "\n".join(protocol_failures))
 
 
 if __name__ == "__main__":
