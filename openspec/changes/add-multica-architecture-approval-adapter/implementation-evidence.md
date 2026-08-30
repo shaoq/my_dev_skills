@@ -2,13 +2,14 @@
 
 ## Revisions and scope
 
-- Adapter implementation revision: `not_committed` on current branch `main`.
+- Adapter implementation commit: `112cbcb933155124ae4975d6df3440b25cbea22e` on branch `main`.
 - Working-tree baseline HEAD: `7c38ab42c6b490e4ffd1eb2c31646c5357e04002`.
 - Consumed portable core implementation: `1d4b860b48e15f678d78a71bf2c38557ab9c2951`.
 - Observed Multica source revision: `5fa65bd12585e29c2b52c44007ba3046a06c246b`.
 - Observed `uni-architecture` revision: `c93270735ee71fcef065570f8d03d55a43608310`.
 - The implementation changed only this repository's adapter source, OpenSpec artifacts, minimal normalized contract fixtures/test, and README. It did not modify `architecture-design-workflow`, Multica, `uni-architecture`, a real Runtime HOME, or a Multica workspace.
 - Per the implementation-stage user decision, fake `multica` CLI, dual-Runtime behavior evidence, an adapter safety runner, and additional regression tests are outside this change.
+- The implementation itself was completed without a commit; the user subsequently gave an explicit `commit and push` instruction, authorizing the implementation commit above and this evidence-recording follow-up.
 
 ## Observed Multica capability matrix
 
