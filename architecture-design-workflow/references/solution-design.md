@@ -20,3 +20,7 @@
 评分必须解释尺度和证据；不得用未经证实的数字制造精确感。缺少会改变推荐结果的事实、关键边界或验证路径时，留在 `researching|designing` 并记录 blocker。
 
 设计完成只意味着可以独立 Review，不意味着获批，也不授权 Spec 或实施。
+
+## Approval packet preparation
+
+设计必须给出可冻结的 artifact ref、version、media type 和 raw-byte SHA-256 digest 输入边界。设计 revision 生成新 `ARCH-DESIGN`；只有 matching `ARCH-REVIEW` 给出 approvable conclusion 后才创建 approval packet。Reviewer `NEEDS_REVISION` 时不得预建、占号或伪造 packet。

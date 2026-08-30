@@ -39,7 +39,13 @@ Issue 未提供时不得伪造。可以在回复中生成待发布的 `ARCH-CONT
 | `missing_openspec_explore` | 研究必需依赖不可用 |
 | `missing_brainstorming` | 输入有实质歧义且澄清依赖不可用 |
 | `critical_evidence_gaps` | Review 无法裁决的关键证据缺失 |
+| `review_packet_unavailable` | approvable design/review 尚无绑定 current packet digest 的完整 readiness，或 human access/digest 检查失败 |
+| `approved_artifact_unavailable` | 发布阶段无法从 refs 恢复匹配已批准 packet 的准确原始 bytes |
 
 不得使用 `blocked` 作为 stage，也不得为同一含义临时创造新的 blocker 字符串。
 
 `BLOCKED_REASON` 不等于 Review gate。路由或依赖预检失败时只设置 blocker，gate 保持 `none`；`BLOCKED` 仅是完成架构评审后允许出现的结论。
+
+`review_packet_unavailable` 不得覆盖 `APPROVABLE_WITH_WARNINGS|APPROVABLE`，并保持 stage=`reviewing`。`approved_artifact_unavailable` 不得撤销已验证 readiness 或 human decision，并保持 stage=`publishing`。两者都必须记录 failed checks、Owner 和 deterministic closing condition。
+
+升级前已持久化为 `waiting_human` 的记录仅在产生新 design/review version 或显式 refresh 后进入新 packet gate；否则保持历史 stage 和 evidence，不伪造 readiness。

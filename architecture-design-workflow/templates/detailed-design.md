@@ -8,7 +8,11 @@
 - Owner：
 - `ARCH-DESIGN` version：
 - `ARCH-REVIEW` version：
-- Approval and evidence：
+- Approval packet ref / version / digest：
+- Design / review digests：
+- Readiness evidence ref：
+- Human decision / evidence ref：
+- Approved bytes re-verification：
 - ADR：
 - Supersedes：
 - R&D tracking：
@@ -30,5 +34,7 @@
 ## Validation and acceptance
 
 ## Evidence and open items
+
+- 正文必须来自与 frozen digest 匹配的 approved design bytes，不得从 decision brief 近似重建。
 
 ## Next action

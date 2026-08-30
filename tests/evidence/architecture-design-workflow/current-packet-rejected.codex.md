@@ -1,0 +1,5 @@
+当前人类已明确针对 ARCH-APPROVAL-PACKET v13 记录 rejected。该决定不改变 Review conclusion APPROVABLE，但 canonical stage 和 gate 均进入 rejected；不得发布 ADR、详细设计或研发交接。
+
+<!-- ARCH-TEST-RESULT
+{"fixture_id":"current-packet-rejected","runtime":"codex","runtime_version":"codex-cli 0.151.0","selected":true,"stage":"rejected","gate":"rejected","review_conclusion":"APPROVABLE","packet_readiness":"review_packet_ready","packet_ref":"ARCH-APPROVAL-PACKET","packet_version":"v13","packet_digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","access_confirmation":"confirmed","recommendation":"no_recommendation","human_decision":"rejected","decision_evidence_status":"valid","evidence_recorded_at":"2026-08-30T08:45:00Z","wait_reason":"none","blocked_reason":"none","planned_writes":["issue:ARCH-CONTROL"],"evidence_fields":["stage","next_action","review_conclusion","approval_evidence","packet_ref","packet_version","packet_digest","packet_readiness","access_confirmation","recommendation","human_decision","decision_evidence","evidence_recorded_at","runtime","blocked_reason"],"limitations":["本次只生成拒绝决定的只读控制投影。","不得生成或发布任何批准产物及研发交接。"]}
+ARCH-TEST-RESULT -->

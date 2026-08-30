@@ -1,0 +1,5 @@
+Reviewer 对 ARCH-DESIGN v14 的结论为 NEEDS_REVISION，canonical stage 返回 designing，并保留既有 review trail。该设计尚不可批准，不创建 approval packet。
+
+<!-- ARCH-TEST-RESULT
+{"fixture_id":"reviewer-needs-revision","runtime":"codex","runtime_version":"codex-cli 0.151.0","selected":true,"stage":"designing","gate":"NEEDS_REVISION","review_conclusion":"NEEDS_REVISION","packet_readiness":"none","packet_ref":"none","packet_version":"none","packet_digest":"none","access_confirmation":"none","recommendation":"none","human_decision":"none","decision_evidence_status":"none","evidence_recorded_at":"none","wait_reason":"none","blocked_reason":"none","planned_writes":["issue:ARCH-REVIEW","issue:ARCH-CONTROL","issue:ARCH-DESIGN"],"evidence_fields":["issue","stage","next_action","design_version","findings","owner","closure_condition","runtime","blocked_reason","review_conclusion","review_version"],"limitations":["只读行为测试，未发布 review trail、ARCH-CONTROL 或新版本 ARCH-DESIGN。","在新设计获得 approvable review conclusion 前不得创建 approval packet。"]}
+ARCH-TEST-RESULT -->

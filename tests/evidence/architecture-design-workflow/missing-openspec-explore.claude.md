@@ -1,5 +1,5 @@
-当前 Runtime 无法解析 `openspec-explore`。项目路由成功后保持 `routed`，`BLOCKED_REASON=missing_openspec_explore`，gate 为 none；不得以 planning 替代，当前仅允许生成待人工发布的 ARCH-CONTROL。
+跨系统身份平台属 hybrid 架构设计，Subject Project、目标、边界与决策标准已明确，但 openspec-explore 是研究阶段必需依赖且当前 Runtime 无法解析。依赖预检停止：保持 stage=routed，记录 BLOCKED_REASON=missing_openspec_explore，gate=none，零研究/零仓库实际写入；“只是形式要求”、用普通分析或 planning skill 替代、当天必须交方案等压力均不接受，也不自行补写等价结论。planned_writes 仅含待人工发布的 issue:ARCH-CONTROL。
 
 <!-- ARCH-TEST-RESULT
-{"fixture_id":"missing-openspec-explore","runtime":"claude","runtime_version":"Claude Code 2.1.206","selected":true,"stage":"routed","gate":"none","wait_reason":"none","blocked_reason":"missing_openspec_explore","planned_writes":["issue:ARCH-CONTROL"],"evidence_fields":["runtime","blocked_reason","next_action","routing_reason"],"limitations":["缺失必需依赖；只读测试未写入。"]}
+{"fixture_id":"missing-openspec-explore","runtime":"claude","runtime_version":"Claude Code 2.1.14","selected":true,"stage":"routed","gate":"none","review_conclusion":"none","packet_readiness":"none","packet_ref":"none","packet_version":"none","packet_digest":"none","access_confirmation":"none","recommendation":"none","human_decision":"none","decision_evidence_status":"none","evidence_recorded_at":"none","wait_reason":"none","blocked_reason":"missing_openspec_explore","planned_writes":["issue:ARCH-CONTROL"],"evidence_fields":["issue","subject_project","design_type","stage","next_action","routing_reason","runtime","blocked_reason"],"limitations":["零研究/零仓库实际写入","未用普通分析或 planning skill 补写等价研究结论"]}
 ARCH-TEST-RESULT -->

@@ -176,6 +176,82 @@ class ArchitectureWorkflowRunnerSafetyTest(unittest.TestCase):
         self.assertIn("evidence_fields must be a list of strings", result.stdout)
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_rejects_noncanonical_packet_digest(self) -> None:
+        result_file = (
+            self.root
+            / "tests"
+            / "evidence"
+            / "architecture-design-workflow"
+            / "routine-bug.codex.md"
+        )
+        result_file.write_text(
+            re.sub(
+                r'"packet_digest":"none"',
+                '"packet_digest":"SHA256:not-canonical"',
+                result_file.read_text(encoding="utf-8"),
+                count=1,
+            ),
+            encoding="utf-8",
+        )
+
+        result = self.run_runner(*self.behavior_arguments())
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("packet_digest must be none or canonical sha256", result.stdout)
+
+    def test_rejects_noncanonical_evidence_timestamp(self) -> None:
+        result_file = (
+            self.root
+            / "tests"
+            / "evidence"
+            / "architecture-design-workflow"
+            / "routine-bug.codex.md"
+        )
+        result_file.write_text(
+            re.sub(
+                r'"evidence_recorded_at":"none"',
+                '"evidence_recorded_at":"2026-08-30 12:00"',
+                result_file.read_text(encoding="utf-8"),
+                count=1,
+            ),
+            encoding="utf-8",
+        )
+
+        result = self.run_runner(*self.behavior_arguments())
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("evidence_recorded_at must be none or RFC 3339 UTC", result.stdout)
+
+    def test_rejects_platform_specific_core_marker(self) -> None:
+        control_template = self.root / "architecture-design-workflow" / "templates" / "arch-control.md"
+        control_template.write_text(
+            control_template.read_text(encoding="utf-8") + "\n- parent_id: forbidden\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_runner()
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("platform-specific core marker", result.stdout)
+
+    def test_rejects_readiness_embedded_in_packet_payload(self) -> None:
+        packet_template = (
+            self.root
+            / "architecture-design-workflow"
+            / "templates"
+            / "arch-approval-packet.md"
+        )
+        packet_template.parent.mkdir(parents=True, exist_ok=True)
+        packet_template.write_text(
+            "# ARCH-APPROVAL-PACKET vN\n\n- review_packet_ready: true\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_runner()
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("packet payload embeds post-finalization evidence", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

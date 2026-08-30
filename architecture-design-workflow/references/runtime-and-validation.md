@@ -16,6 +16,7 @@ Automatic discovery remains enabled. Human gates authorize publication/handoff, 
 - Ambiguous intake additionally requires `superpowers:brainstorming`.
 - GitNexus is preferred for existing-code evidence; unavailable时记录限制并做有界调查。
 - Missing dependencies are reported; this skill never installs them or changes Runtime configuration.
+- Approval packet core uses Markdown, raw-byte SHA-256 and portable evidence only; it remains executable with shared local files and current-session human confirmation, without a separate adapter.
 
 ## Repository validation
 
@@ -25,7 +26,7 @@ Run from repository root:
 uv run --with pyyaml python "$CODEX_HOME/skills/.system/skill-creator/scripts/quick_validate.py" architecture-design-workflow
 bash tests/architecture-design-workflow-safety.sh
 python3 -m unittest tests/test_setup_skills_env.py
-openspec validate add-architecture-design-workflow --type change --strict --json
+openspec validate add-portable-architecture-approval-packets --type change --strict --json
 git diff --check
 ```
 
@@ -51,6 +52,8 @@ readlink ~/.codex/skills/architecture-design-workflow
 ```
 
 Both links must resolve to the same source. A regular file/directory conflict is preserved and warned.
+
+Existing persisted `waiting_human` records are not rewritten during installation. New packet rules apply after explicit refresh or a new design/review version.
 
 ## Downstream version contract
 

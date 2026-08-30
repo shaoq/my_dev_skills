@@ -317,13 +317,16 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 
 **核心机制**：
 
-- canonical 主路径为 `intake → routed → researching → designing → reviewing → waiting_human`；评审结论可以回到研究/设计，批准后进入 `publishing`，实际发布验证完成后才进入 `completed_design_only` 或 `handed_off`
+- canonical 主路径为 `intake → routed → researching → designing → reviewing → waiting_human`；Reviewer approvable 后必须先生成 immutable `ARCH-APPROVAL-PACKET` 并取得绑定准确 digest 的外部 readiness evidence，批准后进入 `publishing`，实际发布验证完成后才进入 `completed_design_only` 或 `handed_off`
 - `openspec-explore` 是研究阶段必需依赖；只有目标、边界、约束或方案空间存在实质歧义时才要求 `superpowers:brainstorming`
 - 依赖缺失时保持当前 stage，记录稳定 `BLOCKED_REASON` 并 fail-closed；不自动安装依赖，也不修改 Runtime 配置
-- Review 只允许 `BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS`、`APPROVABLE`；Review 结论不等于人类批准
-- 人工 gate 只接受 Issue 中针对准确 `ARCH-DESIGN`/`ARCH-REVIEW` 版本明确记录的 `approved_design_only`、`approved_for_spec`、`revision_requested` 或 `rejected`
+- Review 只允许 `BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS`、`APPROVABLE`；Review 结论、packet readiness 和 `ARCHITECTURE_RECOMMENDATION` 都不等于人类批准
+- 人工 gate 只接受当前 user-role 针对 current ready packet ref/version/raw-byte SHA-256 digest 明确记录的 `approved_design_only`、`approved_for_spec`、`revision_requested` 或 `rejected`
+- standalone `local_file` profile 要求当前人类确认 shared workspace scope；仅 Agent 能读取本地路径时保持 `reviewing` 并记录 `review_packet_unavailable`
+- 发布前重新验证 packet/design/review 原始 bytes；不匹配时保持 `publishing` 和原批准，记录 `approved_artifact_unavailable`，禁止从审核简报重建近似正文
 - `approved_design_only` 只发布 ADR 和详细设计；`approved_for_spec` 额外生成 `ARCH-RD-HANDOFF`，但 Architecture workflow 本身不创建 OpenSpec proposal
 - 只读或 plan 会话可以生成完整待发布内容，但 stage 保持 `publishing`；只有产物实际持久化并验证后才能报告终态
+- 升级前已经持久化的 `waiting_human` 记录不自动降级或伪造 readiness；显式 refresh 或新 design/review version 后执行新 packet gate
 
 **调用与角色边界**：
 
@@ -341,6 +344,8 @@ bash tests/architecture-design-workflow-safety.sh --results-dir tests/evidence/a
 bash tests/architecture-design-workflow-safety.sh --results-dir tests/evidence/architecture-design-workflow --runtime claude
 python3 -m unittest tests/test_architecture_design_workflow_runner.py
 ```
+
+上述 core contract 使用同一仓库源、Markdown artifacts 和 portable evidence，可在没有 Multica adapter 的 Claude Code/Codex 环境通过 shared local files 独立运行；不会要求强制 renderer、附件或评论字段。
 
 ### 1. parall-new-proposal
 

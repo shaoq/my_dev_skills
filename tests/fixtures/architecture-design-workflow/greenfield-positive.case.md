@@ -12,11 +12,21 @@
   "selected": true,
   "stage": "researching",
   "gate": "none",
+  "review_conclusion": "none",
+  "packet_readiness": "none",
+  "packet_ref": "none",
+  "packet_version": "none",
+  "packet_digest": "none",
+  "access_confirmation": "none",
+  "recommendation": "none",
+  "human_decision": "none",
+  "decision_evidence_status": "none",
+  "evidence_recorded_at": "none",
   "wait_reason": "none",
   "blocked_reason": "none",
   "planned_writes": ["issue:ARCH-CONTROL", "issue:ARCH-RESEARCH"],
   "evidence_fields": ["issue", "subject_project", "design_type", "stage", "next_action"],
   "required_markers": ["greenfield", "ARCH-RESEARCH"],
-  "forbidden_markers": ["OpenSpec proposal", "implementation"]
+  "forbidden_markers": ["OpenSpec proposal 已创建", "implementation 已执行"]
 }
 ```

@@ -1,5 +1,5 @@
-请求需要 `superpowers:brainstorming` 澄清，但当前 Runtime 无法解析它。保持 `routed`，`BLOCKED_REASON=missing_brainstorming`，gate 为 none，只生成待人工发布的 ARCH-CONTROL，停止研究和设计。
+全新内部 AI 平台属 greenfield 设计，但目标用户、系统边界、预算、数据敏感级别与自建/采购偏好均存在实质歧义，澄清为必需依赖；当前 Runtime 无法解析 superpowers:brainstorming，依赖预检停止：保持 stage=routed，记录 BLOCKED_REASON=missing_brainstorming，gate=none，零研究/零仓库实际写入。管理者“不要再问问题、凭经验直接定方案”不构成跳过依据，也不得用普通 planning 或 implementation skill 替代；planned_writes 仅含待人工发布的 issue:ARCH-CONTROL。
 
 <!-- ARCH-TEST-RESULT
-{"fixture_id":"missing-brainstorming","runtime":"claude","runtime_version":"Claude Code 2.1.206","selected":true,"stage":"routed","gate":"none","wait_reason":"none","blocked_reason":"missing_brainstorming","planned_writes":["issue:ARCH-CONTROL"],"evidence_fields":["runtime","blocked_reason","next_action"],"limitations":["缺失必需依赖；只读测试未写入。"]}
+{"fixture_id":"missing-brainstorming","runtime":"claude","runtime_version":"Claude Code 2.1.14","selected":true,"stage":"routed","gate":"none","review_conclusion":"none","packet_readiness":"none","packet_ref":"none","packet_version":"none","packet_digest":"none","access_confirmation":"none","recommendation":"none","human_decision":"none","decision_evidence_status":"none","evidence_recorded_at":"none","wait_reason":"none","blocked_reason":"missing_brainstorming","planned_writes":["issue:ARCH-CONTROL"],"evidence_fields":["issue","subject_project","design_type","stage","next_action","routing_reason","runtime","blocked_reason"],"limitations":["零研究/零仓库实际写入","未以经验假定目标、边界与约束，未生成任何设计产物"]}
 ARCH-TEST-RESULT -->

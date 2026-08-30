@@ -8,6 +8,7 @@
 - Subject Project：
 - `ARCH-RESEARCH` 输入版本：
 - Evidence snapshot：
+- Artifact ref / media type / raw-byte digest：
 - Supersedes：
 
 ## Summary
@@ -51,3 +52,4 @@
 
 - Reviewer：
 - Review entry criteria：
+- 若 Review approvable：由 Lead 创建新的 immutable approval packet；本设计不得预写 packet readiness 或 human decision。

@@ -60,6 +60,14 @@ def fail(message: str) -> None:
     failures.append(message)
 
 
+result_schema_path = fixtures_dir / "result.schema.json"
+try:
+    result_schema = json.loads(result_schema_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as exc:
+    result_schema = {}
+    fail(f"invalid result schema: {exc}")
+
+
 required_skill_files = [
     "SKILL.md",
     "agents/openai.yaml",
@@ -69,6 +77,7 @@ required_skill_files = [
     "references/research-hybrid.md",
     "references/solution-design.md",
     "references/architecture-review.md",
+    "references/approval-packet-and-human-gate.md",
     "references/adr-publication.md",
     "references/rnd-handoff.md",
     "references/runtime-and-validation.md",
@@ -76,6 +85,7 @@ required_skill_files = [
     "templates/arch-research.md",
     "templates/arch-design.md",
     "templates/arch-review.md",
+    "templates/arch-approval-packet.md",
     "templates/adr.md",
     "templates/detailed-design.md",
     "templates/arch-rd-handoff.md",
@@ -115,6 +125,27 @@ if openai_yaml.is_file():
     if "$architecture-design-workflow" not in metadata:
         fail("agents/openai.yaml default prompt does not invoke $architecture-design-workflow")
 
+portable_core_paths = [
+    skill / "SKILL.md",
+    skill / "references" / "approval-packet-and-human-gate.md",
+    skill / "templates" / "arch-control.md",
+    skill / "templates" / "arch-design.md",
+    skill / "templates" / "arch-review.md",
+    skill / "templates" / "arch-approval-packet.md",
+]
+platform_marker = re.compile(
+    r"(?i)(?:\bmultica\b|\bpdf\b|\bparent_id\b|\bcomment_id\b|\battachment_id\b|\bmobile\b)"
+)
+for path in portable_core_paths:
+    if path.is_file() and platform_marker.search(path.read_text(encoding="utf-8")):
+        fail(f"platform-specific core marker: {path.relative_to(root)}")
+
+packet_template = skill / "templates" / "arch-approval-packet.md"
+if packet_template.is_file():
+    packet_text = packet_template.read_text(encoding="utf-8")
+    if "review_packet_ready" in packet_text or "review_packet_unavailable" in packet_text:
+        fail("packet payload embeds post-finalization evidence")
+
 
 def load_fixture(path: Path) -> tuple[dict[str, object], str]:
     text = path.read_text(encoding="utf-8")
@@ -129,14 +160,28 @@ def load_fixture(path: Path) -> tuple[dict[str, object], str]:
 
 
 fixture_paths = sorted(fixtures_dir.glob("*.case.md"))
-if len(fixture_paths) < 9:
-    fail(f"expected at least 9 fixtures, found {len(fixture_paths)}")
+if len(fixture_paths) < 21:
+    fail(f"expected at least 21 fixtures, found {len(fixture_paths)}")
+
+for path in fixture_paths:
+    if platform_marker.search(path.read_text(encoding="utf-8")):
+        fail(f"platform-specific core marker: {path.relative_to(root)}")
 
 fixture_required = {
     "fixture_id",
     "selected",
     "stage",
     "gate",
+    "review_conclusion",
+    "packet_readiness",
+    "packet_ref",
+    "packet_version",
+    "packet_digest",
+    "access_confirmation",
+    "recommendation",
+    "human_decision",
+    "decision_evidence_status",
+    "evidence_recorded_at",
     "wait_reason",
     "blocked_reason",
     "planned_writes",
@@ -197,6 +242,16 @@ if results_arg:
             "selected",
             "stage",
             "gate",
+            "review_conclusion",
+            "packet_readiness",
+            "packet_ref",
+            "packet_version",
+            "packet_digest",
+            "access_confirmation",
+            "recommendation",
+            "human_decision",
+            "decision_evidence_status",
+            "evidence_recorded_at",
             "wait_reason",
             "blocked_reason",
         ):
@@ -225,6 +280,102 @@ if results_arg:
             fail(f"{result_path.name}: missing runtime_version")
         if "limitations" not in actual:
             fail(f"{result_path.name}: missing limitations")
+
+        schema_required = set(result_schema.get("required", [])) - {"narrative"}
+        missing_result_fields = schema_required - actual.keys()
+        if missing_result_fields:
+            fail(
+                f"{result_path.name}: missing normalized fields "
+                f"{sorted(missing_result_fields)}"
+            )
+
+        packet_version = actual.get("packet_version", "none")
+        if not isinstance(packet_version, str) or not re.fullmatch(
+            r"none|v[1-9][0-9]*", packet_version
+        ):
+            fail(f"{result_path.name}: packet_version must be none or monotonic vN")
+
+        packet_digest = actual.get("packet_digest", "none")
+        if packet_digest != "none" and not (
+            isinstance(packet_digest, str)
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", packet_digest)
+        ):
+            fail(
+                f"{result_path.name}: packet_digest must be none or canonical sha256"
+            )
+
+        evidence_recorded_at = actual.get("evidence_recorded_at", "none")
+        if evidence_recorded_at != "none" and not (
+            isinstance(evidence_recorded_at, str)
+            and re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z",
+                evidence_recorded_at,
+            )
+        ):
+            fail(
+                f"{result_path.name}: evidence_recorded_at must be none or RFC 3339 UTC"
+            )
+
+        allowed_values = {
+            "review_conclusion": {
+                "none",
+                "BLOCKED",
+                "NEEDS_REVISION",
+                "APPROVABLE_WITH_WARNINGS",
+                "APPROVABLE",
+            },
+            "packet_readiness": {
+                "none",
+                "review_packet_ready",
+                "review_packet_unavailable",
+            },
+            "access_confirmation": {
+                "none",
+                "confirmed",
+                "unconfirmed",
+                "not_applicable",
+            },
+            "recommendation": {
+                "none",
+                "recommend_approved_for_spec",
+                "recommend_approved_design_only",
+                "recommend_revision",
+                "no_recommendation",
+            },
+            "human_decision": {
+                "none",
+                "approved_design_only",
+                "approved_for_spec",
+                "revision_requested",
+                "rejected",
+            },
+            "decision_evidence_status": {"none", "valid", "invalid", "noop"},
+        }
+        for key, allowed in allowed_values.items():
+            if actual.get(key) not in allowed:
+                fail(f"{result_path.name}: invalid {key} {actual.get(key)!r}")
+
+        packet_readiness = actual.get("packet_readiness")
+        human_decision = actual.get("human_decision")
+        decision_status = actual.get("decision_evidence_status")
+        if packet_readiness == "review_packet_ready" and (
+            packet_version == "none"
+            or packet_digest == "none"
+            or actual.get("access_confirmation") != "confirmed"
+        ):
+            fail(
+                f"{result_path.name}: ready packet requires version, digest and confirmed access"
+            )
+        if human_decision != "none" and decision_status not in {"valid", "noop"}:
+            fail(
+                f"{result_path.name}: human decision requires valid or noop evidence"
+            )
+        if decision_status == "valid" and (
+            packet_version == "none" or packet_digest == "none"
+        ):
+            fail(
+                f"{result_path.name}: valid decision evidence requires current packet binding"
+            )
 
         evidence_fields = actual.get("evidence_fields", [])
         if not isinstance(evidence_fields, list) or any(

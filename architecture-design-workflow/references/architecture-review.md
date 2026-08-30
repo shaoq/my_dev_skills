@@ -24,4 +24,6 @@ Reviewer 不修改 `ARCH-DESIGN`，不补写缺失证据，也不批准自己的
 
 不得输出 `NO-GO`、`有条件待批准` 等新门禁值。`APPROVABLE*` 只表示版本可交给人类裁决，不等于 `approved_design_only` 或 `approved_for_spec`。
 
+`APPROVABLE*` 也不直接进入 `waiting_human`。它触发 current approval packet 的生成与独立 readiness 验证；packet/access/digest 未验证时保持真实 Review conclusion，stage=`reviewing`，`BLOCKED_REASON=review_packet_unavailable`。`NEEDS_REVISION` 不创建 packet。
+
 结论必须同时给出转换后的 canonical stage。关键事实或安全证据缺失的 `BLOCKED` 回到 `researching`；已有证据但设计本身必须修改的 `BLOCKED` 或 `NEEDS_REVISION` 回到 `designing`。只读测试或缺少持久化权限只限制实际写入，不改变应报告的状态转换。

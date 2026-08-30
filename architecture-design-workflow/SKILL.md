@@ -7,7 +7,7 @@ description: "Use when a substantial architecture upgrade, greenfield system, hy
 
 ## Overview
 
-把复杂架构工作作为独立于 OpenSpec 实施的受控流程。先路由和研究，再形成可独立评审的版本化设计；只有可识别的人类针对准确版本记录明确门禁后，才能发布批准产物或生成研发交接。
+把复杂架构工作作为独立于 OpenSpec 实施的受控流程。先路由和研究，再形成可独立评审的版本化设计；Reviewer approvable conclusion 之后还必须生成并验证 immutable portable approval packet，只有可识别的人类针对准确 packet ref/version/digest 记录明确门禁后，才能发布批准产物或生成研发交接。
 
 所有面向用户的说明、问题、状态、评审和报告使用中文。命令、路径、canonical state、代码标识符、协议字段及引用原文保持准确原文。
 
@@ -18,6 +18,7 @@ description: "Use when a substantial architecture upgrade, greenfield system, hy
 - 不隐式创建仓库、Project、Team、Agent、watchdog、研发 Issue、worktree、branch 或 commit。
 - 不自动安装依赖 skill，不修改 Runtime 配置。
 - Architecture workflow 只生成 `ARCH-RD-HANDOFF`；目标项目既有 R&D Team 自行分析需求并决定是否创建 OpenSpec change。
+- 不把 recommendation、readiness、引用文本、Agent 输出或仅进程可读的本地路径当作人工批准或 human-readable access。
 
 ## Canonical control model
 
@@ -31,7 +32,7 @@ completed_design_only | rejected
 
 `revision_requested` 是决定，不是 stage。`waiting_human` 必须记录 `WAIT_REASON=design_approval|target_project`。依赖、证据或路由缺失时保持当前 stage，并记录 `BLOCKED_REASON`，不得创造 `blocked` 等近义 stage。
 
-本工作流使用以下稳定 blocker：`missing_subject_project`、`missing_target_project`、`missing_openspec_explore`、`missing_brainstorming`、`critical_evidence_gaps`。没有 blocker 时记录 `none`；新的原因必须在控制契约中先定义，不能临时造同义值。
+本工作流使用以下稳定 blocker：`missing_subject_project`、`missing_target_project`、`missing_openspec_explore`、`missing_brainstorming`、`critical_evidence_gaps`、`review_packet_unavailable`、`approved_artifact_unavailable`。没有 blocker 时记录 `none`；新的原因必须在控制契约中先定义，不能临时造同义值。
 
 `BLOCKED_REASON` 与 Review conclusion 是两套独立字段。依赖、路由或证据 blocker 不得把 gate 改成 `BLOCKED`；只有实际完成一次架构评审并给出 canonical Review conclusion 时，gate 才能是 `BLOCKED|NEEDS_REVISION|APPROVABLE_WITH_WARNINGS|APPROVABLE`。依赖预检停止时 gate 保持 `none`。
 
@@ -43,12 +44,14 @@ completed_design_only | rejected
 | `intake → routed → researching → designing → reviewing` | 正常主链 |
 | `reviewing + BLOCKED` | 按 finding Owner 回到 `researching` 或 `designing` |
 | `reviewing + NEEDS_REVISION` | 新版本 `designing` |
-| `reviewing + APPROVABLE_WITH_WARNINGS|APPROVABLE` | `waiting_human`, `WAIT_REASON=design_approval` |
+| `reviewing + APPROVABLE_WITH_WARNINGS|APPROVABLE + no current readiness` | 保持 `reviewing`, `BLOCKED_REASON=review_packet_unavailable` |
+| `reviewing + APPROVABLE_WITH_WARNINGS|APPROVABLE + current readiness` | `waiting_human`, `WAIT_REASON=design_approval`, `BLOCKED_REASON=none` |
 | `waiting_human + revision_requested` | 新版本 `designing` |
 | `waiting_human + rejected` | `rejected`，终态 |
 | `waiting_human + approved_design_only` | `approved_design_only → publishing → completed_design_only` |
 | `waiting_human + approved_for_spec + target exists` | `approved_for_spec → publishing → handed_off` |
 | `waiting_human + approved_for_spec + target missing` | 保留批准，`waiting_human`, `WAIT_REASON=target_project` |
+| `publishing + approved bytes unavailable` | 保持 `publishing` 和原批准，`BLOCKED_REASON=approved_artifact_unavailable` |
 
 每次合法转换都更新 [ARCH-CONTROL 模板](templates/arch-control.md)中的 Issue、Owner、输入版本、证据、下一动作和转换记录。
 
@@ -95,23 +98,35 @@ Reviewer 随后读取 [architecture review](references/architecture-review.md)�
 
 评审结论同时驱动控制状态计算，即使当前会话只读、无法持久化，也必须报告计算后的 canonical stage：`BLOCKED` 且关键事实/安全证据缺失时回到 `researching`；设计内容需修订时回到 `designing`。不得因“本次没有写入”而继续报告旧的 `reviewing`。
 
+`NEEDS_REVISION` 不创建 approval packet。只有 conclusion 为 `APPROVABLE_WITH_WARNINGS|APPROVABLE` 时，Architecture Lead 才读取 [approval packet and human gate](references/approval-packet-and-human-gate.md)，使用 [ARCH-APPROVAL-PACKET 模板](templates/arch-approval-packet.md)从准确 design/review 原始 bytes 生成 delivered immutable payload。packet digest 在 payload 冻结后外部计算；readiness/unavailable evidence 只通过 ref/version/digest 绑定，不得写回 packet。
+
+缺少当前 readiness、digest/access 验证失败或只有 Agent 进程可读时，保留真实 Review conclusion，保持 `reviewing` 并设置 `BLOCKED_REASON=review_packet_unavailable`。只有外部 `review_packet_ready` envelope 同时绑定准确 refs/versions/digests、confirmed human access、verifier 和 UTC verification time 后才进入 `waiting_human`。
+
 ### 6. Human gate
 
-只有当前 Issue 中可识别的人类针对准确 `ARCH-DESIGN`/`ARCH-REVIEW` 版本明确记录以下值之一，才改变 gate：
+只有当前 user-role 中可识别的人类针对 current ready `ARCH-APPROVAL-PACKET` ref/version/digest 明确记录以下值之一，且 decision evidence 包含 binding profile、evidence ref 和 UTC recorded time，才改变 gate：
 
 - `approved_design_only`
 - `approved_for_spec`
 - `revision_requested`
 - `rejected`
 
-不存在明确值时保持 `waiting_human`。不得把 Reviewer 的 approvable 结论当成人工批准。
+不存在明确绑定时保持 `waiting_human`。不得把 Reviewer conclusion、readiness、`ARCHITECTURE_RECOMMENDATION`、引用文本、fixture、Agent 输出、紧急措辞、任务分派或模糊肯定当成人工批准。绑定 superseded packet 的合法决定保留审计但对当前 gate no-op。
+
+升级前已经持久化为 `waiting_human` 且没有新 design/review version 或显式 refresh 的记录保持原 stage，不伪造 readiness、不自动降级；一旦 refresh 或版本变化则执行当前 packet gate。
 
 ### 7. Publish or hand off
 
 - `approved_design_only`：读取 [ADR publication](references/adr-publication.md)，使用 [ADR](templates/adr.md)和 [detailed design](templates/detailed-design.md)沉淀批准内容，然后进入 `completed_design_only`；不得生成研发授权。
 - `approved_for_spec`：先发布批准内容；目标项目存在时读取 [R&D handoff](references/rnd-handoff.md)，使用 [ARCH-RD-HANDOFF 模板](templates/arch-rd-handoff.md)交接并进入 `handed_off`。目标缺失时等待项目路由，不创建任何项目资源。
 
+发布前从 refs 重新读取 packet、design、review 原始 bytes 并验证 frozen digests。失败时保持 `publishing` 和原 human decision/readiness，设置 `BLOCKED_REASON=approved_artifact_unavailable`，记录 Owner/closing condition，且不得从审核简报重建近似正文；准确 bytes 恢复后清除 blocker 并继续同一批准。
+
 Issue 或架构仓库写入仍受当前 Runtime 的正常权限和用户授权约束。若没有相应写入能力，在回复中生成完整报告并明确标注待人工发布，不能声称已持久化。
+
+只读行为报告中的 `planned_writes` 只列当前 canonical transition 直接产生的目标，不提前列出解除 blocker、完成正式 Review 或进入后续 stage 后才会产生的 artifact。已有设计但尚无 canonical Review conclusion 时，当前只报告 `issue:ARCH-CONTROL` 和下一动作，不把未来 `ARCH-REVIEW` 当作已经生成的待发布目标；已完成 `BLOCKED` Review 的转换报告 `issue:ARCH-REVIEW` 与 `issue:ARCH-CONTROL`，研究产物要等补证实际开始后再列；`NEEDS_REVISION` 另外列出直接启动的新 `issue:ARCH-DESIGN`。已交付 packet 的 readiness/digest/access 验证失败只更新 `issue:ARCH-CONTROL`，不把已有 Review 或 packet 重列为新目标。历史 `waiting_human` 兼容判断报告 `issue:ARCH-CONTROL` 的 no-op projection，但不改写已持久化 stage/evidence，并保持 `packet_readiness=none`。
+
+Normalized 字段保持正交：`packet_ref` 只记录稳定 artifact ref（例如 `ARCH-APPROVAL-PACKET`），版本只写入 `packet_version`；没有 packet 的适用场景使用 `access_confirmation=none`、`recommendation=none`，仅 Agent 可读、或 packet 已存在但人类访问尚未确认时使用 `unconfirmed`，只有本工作流不适用时使用 `access_confirmation=not_applicable`。`no_recommendation` 只用于已存在 packet 的显式 recommendation 值，不能代替“没有 packet”。`decision_evidence_status` 只描述 human decision evidence：没有任何 human decision evidence 时必须是 `none`；readiness/digest 验证失败不等于 invalid decision，历史 no-op control projection 也不等于 noop decision。
 
 `completed_design_only` 与 `handed_off` 只能在对应 ADR、详细设计以及（如适用）`ARCH-RD-HANDOFF` 已实际持久化并验证后报告。只读、plan 或行为测试会话即使能生成完整待发布内容，canonical stage 也停在 `publishing`；`planned_writes` 列出当前待发布目标，不得把“逻辑上可完成”写成终态。
 
@@ -119,7 +134,7 @@ Issue 或架构仓库写入仍受当前 Runtime 的正常权限和用户授权�
 
 | Role | Owns | Must not do |
 |---|---|---|
-| Architecture Lead | intake、路由、`ARCH-CONTROL`、人工决定记录 | 代替用户批准 |
+| Architecture Lead | intake、路由、`ARCH-CONTROL`、approval packet、readiness 与人工决定记录 | 代替用户批准或改写 delivered packet |
 | Architecture Analyst | `ARCH-RESEARCH` 与证据限制 | 把建议伪装成事实 |
 | Solution Architect | `ARCH-DESIGN vN` | 创建 OpenSpec 或实施 |
 | Architecture Reviewer | 只读 `ARCH-REVIEW` | 修改被审版本或批准自身方案 |
@@ -127,12 +142,15 @@ Issue 或架构仓库写入仍受当前 Runtime 的正常权限和用户授权�
 
 ## Progressive disclosure
 
-只读取当前阶段需要的一个 reference 和对应模板。例外：`ARCH-CONTROL` 在每次转换时加载；进入发布/交接时可同时读取 ADR publication、R&D handoff 及其三个模板。运行时与安装验证才读取 [runtime and validation](references/runtime-and-validation.md)。
+只读取当前阶段需要的一个 reference 和对应模板。例外：`ARCH-CONTROL` 在每次转换时加载；approvable review 后同时读取 approval packet reference/template；进入发布/交接时可同时读取 approval packet、ADR publication、R&D handoff 及其模板。运行时与安装验证才读取 [runtime and validation](references/runtime-and-validation.md)。
 
 ## Common mistakes
 
 - 使用 `blocked`、`waiting_human_design` 或 `NO-GO` 等非 canonical 状态/结论。
 - 把 `APPROVABLE` 当作 `approved_for_spec`。
+- 把 readiness 或 `ARCHITECTURE_RECOMMENDATION` 当作批准。
+- 把验证 packet digest 的 evidence 写回 packet，或通过修改旧 packet 表示 supersession。
+- 仅因 Agent 能读取本地路径就声称目标人类可访问。
 - 批准后由 Architecture workflow 自己创建 OpenSpec，而不是交给目标 R&D Team。
 - 在缺失 `openspec-explore` 时自行分析并补写“等价结论”。
 - 一次性加载所有 references/templates，掩盖当前阶段的判断。

@@ -1,5 +1,5 @@
-已选中架构设计工作流。ARCH-DESIGN v2 只有 Reviewer 的非正式可行意见，没有 canonical Review conclusion，也没有人类 `approved_for_spec`；stage 保持 `reviewing`，不得直接创建 OpenSpec proposal，仅允许生成待人工发布的 ARCH-CONTROL 更新。
+当前 canonical stage 保持 reviewing。ARCH-DESIGN v2 尚未获得 canonical approvable review，也没有绑定当前 packet 的 approved_for_spec 人工决定；紧急要求不能绕过正式评审和人工门禁，当前不得为目标研发项目创建 OpenSpec proposal。
 
 <!-- ARCH-TEST-RESULT
-{"fixture_id":"explore-direct-proposal","runtime":"codex","runtime_version":"codex-cli 0.148.0","selected":true,"stage":"reviewing","gate":"none","wait_reason":"none","blocked_reason":"none","planned_writes":["issue:ARCH-CONTROL"],"evidence_fields":["issue","design_version","stage","next_action"],"limitations":["未提供正式 ARCH-REVIEW；只读测试未写入。"]}
+{"fixture_id":"explore-direct-proposal","runtime":"codex","runtime_version":"codex-cli 0.151.0","selected":true,"stage":"reviewing","gate":"none","review_conclusion":"none","packet_readiness":"none","packet_ref":"none","packet_version":"none","packet_digest":"none","access_confirmation":"none","recommendation":"none","human_decision":"none","decision_evidence_status":"none","evidence_recorded_at":"none","wait_reason":"none","blocked_reason":"none","planned_writes":["issue:ARCH-CONTROL"],"evidence_fields":["issue","subject_project","stage","next_action","design_version","review_conclusion","runtime","blocked_reason"],"limitations":["“方向基本可行”不是 canonical Review conclusion。","负责人催促不能替代绑定 current ready packet 的人类批准。","Architecture workflow 不直接创建 OpenSpec proposal。"]}
 ARCH-TEST-RESULT -->

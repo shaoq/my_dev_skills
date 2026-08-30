@@ -1,0 +1,5 @@
+Reviewer 对 ARCH-DESIGN v14 给出唯一 canonical 结论 NEEDS_REVISION。NEEDS_REVISION 不创建 approval packet，保留完整 review trail（findings 绑定 v14，各含证据、影响、Owner 和关闭条件），workflow 返回 designing 迭代新版本设计；packet 相关字段保持 none。
+
+<!-- ARCH-TEST-RESULT
+{"fixture_id":"reviewer-needs-revision","runtime":"claude","runtime_version":"Claude Code 2.1.14","selected":true,"stage":"designing","gate":"NEEDS_REVISION","review_conclusion":"NEEDS_REVISION","packet_readiness":"none","packet_ref":"none","packet_version":"none","packet_digest":"none","access_confirmation":"none","recommendation":"none","human_decision":"none","decision_evidence_status":"none","evidence_recorded_at":"none","wait_reason":"none","blocked_reason":"none","planned_writes":["issue:ARCH-REVIEW","issue:ARCH-CONTROL","issue:ARCH-DESIGN"],"evidence_fields":["issue","subject_project","design_type","stage","next_action","design_version","review_version","review_conclusion","findings","owner","closure_condition","blocked_reason","runtime"],"limitations":["只读行为测试：未写入任何 issue 或架构仓库","NEEDS_REVISION 不创建 approval packet；新版本设计须绑定相同 ARCH-RESEARCH 输入并保留 review trail"]}
+ARCH-TEST-RESULT -->

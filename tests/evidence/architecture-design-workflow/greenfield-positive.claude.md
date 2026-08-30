@@ -1,5 +1,5 @@
-请求属于 `greenfield` 架构设计。Subject Project 与约束明确，当前会话可解析 openspec-explore，无需 brainstorming；完成路由后进入 `researching`，下一目标是 ARCH-RESEARCH，全程不进入 OpenSpec。
+请求属于 greenfield 全新系统架构设计：Subject Project、目标、边界、预算、安全等级与决策标准均已明确，澄清依赖可跳过，openspec-explore 可用，预检通过。当前 canonical stage=researching，按 new-system research 路径启动只读架构研究并产出 ARCH-RESEARCH，gate=none、blocked_reason=none，且不创建任何 OpenSpec proposal、design、specs、tasks 或实现产物。
 
 <!-- ARCH-TEST-RESULT
-{"fixture_id":"greenfield-positive","runtime":"claude","runtime_version":"Claude Code 2.1.206","selected":true,"stage":"researching","gate":"none","wait_reason":"none","blocked_reason":"none","planned_writes":["issue:ARCH-CONTROL","issue:ARCH-RESEARCH"],"evidence_fields":["issue","subject_project","design_type","stage","next_action"],"limitations":["Issue 编号未提供；只读测试未实际开展研究。"]}
+{"fixture_id":"greenfield-positive","runtime":"claude","runtime_version":"Claude Code 2.1.14","selected":true,"stage":"researching","gate":"none","review_conclusion":"none","packet_readiness":"none","packet_ref":"none","packet_version":"none","packet_digest":"none","access_confirmation":"none","recommendation":"none","human_decision":"none","decision_evidence_status":"none","evidence_recorded_at":"none","wait_reason":"none","blocked_reason":"none","planned_writes":["issue:ARCH-CONTROL","issue:ARCH-RESEARCH"],"evidence_fields":["issue","subject_project","design_type","stage","next_action","routing_reason","runtime","blocked_reason"],"limitations":["只读行为测试会话：planned_writes 为待人工发布目标，未实际写入 issue 或仓库","GitNexus 证据调查尚未执行，研究结论待研究阶段完成后形成"]}
 ARCH-TEST-RESULT -->

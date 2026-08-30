@@ -7,8 +7,12 @@
 - Status：
 - Approved `ARCH-DESIGN`：
 - `ARCH-REVIEW`：
+- Approval packet ref / version / digest：
+- Design / review digests：
+- Readiness evidence ref：
 - ADR / detailed design：
-- Approval evidence：
+- Human decision / evidence ref：
+- Approved bytes re-verification：
 - `AUTHORIZATION_STATE=approved_for_spec`
 
 ## Target routing
