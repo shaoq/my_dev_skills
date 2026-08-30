@@ -36,8 +36,8 @@
 ## Delivery boundary
 
 - Branch: `main`.
-- Implementation commit: not created; the implementation remains an uncommitted working-tree change based on `ec7b7fd87f742404e3f61c1ccf7e0c836ece5392`. This is recorded instead of inventing a commit or committing while required GitNexus change detection is unavailable.
-- Core contract revision for a later adapter change: OpenSpec change `add-portable-architecture-approval-packets`, working-tree revision on the baseline above. A downstream adapter must consume the eventual repository commit containing this change rather than this transient label.
+- Implementation payload commit: `1d4b860b48e15f678d78a71bf2c38557ab9c2951` on `main`. GitNexus change detection remained unavailable, so the commit was created only after the recorded bounded source audit and complete validation matrix passed.
+- Core contract revision for a later adapter change: OpenSpec change `add-portable-architecture-approval-packets` at implementation payload commit `1d4b860b48e15f678d78a71bf2c38557ab9c2951`. The evidence-only follow-up commit does not change the portable core contract.
 - Behavior evidence: 22 shared fixtures and 44 normalized evidence files across Codex and Claude Code.
 - Installation tests redirected both Runtime links and settings to temporary directories; real HOME and Runtime configuration were not modified.
 - Repository scope contains Markdown instructions/templates, OpenSpec artifacts, fixtures, evidence, and test-runner changes only. No service, database, network dependency, platform adapter skill, or external Agent/Team/Project/Issue was created.
