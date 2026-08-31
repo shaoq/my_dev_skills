@@ -1,0 +1,59 @@
+[
+  {
+    "case_id": "orphaned-in-progress",
+    "platform_status_intent": "agent_working",
+    "wait_reason": "none",
+    "handoff_surface": "none",
+    "task_status": "none",
+    "expected": "fail_closed"
+  },
+  {
+    "case_id": "arch-control-self-mention",
+    "platform_status_intent": "agent_working",
+    "wait_reason": "none",
+    "handoff_surface": "arch_control",
+    "executor_relation": "self",
+    "task_status": "none",
+    "expected": "no_trigger"
+  },
+  {
+    "case_id": "cross-member-queued",
+    "platform_status_intent": "agent_working",
+    "wait_reason": "none",
+    "handoff_surface": "dedicated_comment",
+    "executor_relation": "other_member",
+    "task_status": "queued",
+    "expected": "accepted"
+  },
+  {
+    "case_id": "cross-member-waiting-local-directory",
+    "platform_status_intent": "agent_working",
+    "wait_reason": "none",
+    "handoff_surface": "dedicated_comment",
+    "executor_relation": "other_member",
+    "task_status": "waiting_local_directory",
+    "runtime_status": "online",
+    "task_attribution": "exact",
+    "directory_lock_owner": "predecessor_task",
+    "expected": "accepted"
+  },
+  {
+    "case_id": "dedicated-self-handoff-running",
+    "platform_status_intent": "agent_working",
+    "wait_reason": "none",
+    "handoff_surface": "dedicated_comment",
+    "executor_relation": "self",
+    "task_status": "running",
+    "expected": "active"
+  },
+  {
+    "case_id": "replayed-handoff",
+    "platform_status_intent": "agent_working",
+    "wait_reason": "none",
+    "handoff_surface": "dedicated_comment",
+    "executor_relation": "other_member",
+    "task_status": "completed",
+    "existing_consumption": true,
+    "expected": "reconciliation_noop"
+  }
+]

@@ -27,7 +27,7 @@ postconditions=<frozen checks>
 invalidates_on=<identity, stage, version, digest, owner, target or scope drift>
 ```
 
-允许操作只能来自：`read`、`prepare_materials`、`validate_materials`、`deliver_review_materials`、`verify_access`、`project_status`、`record_task_evidence`、`consume_valid_review_response`、`bounded_retry`。这组名称是 portable category，不代表任何平台命令。
+允许操作只能来自：`read`、`prepare_materials`、`validate_materials`、`deliver_review_materials`、`verify_access`、`project_status`、`record_task_evidence`、`consume_valid_review_response`、`continue_agent_work`、`bounded_retry`。这组名称是 portable category，不代表任何平台命令。
 
 以下情况使 mandate 失效：work item/stage/attempt/Agent 改变；输入、artifact version/digest 或 Decision Owner 漂移；目标不再唯一；重试耗尽；需要创建资源、跨 work item 写入或进入实现/部署/采购；人类发出替代或取消指令。失效后停止并用自然语言说明需要什么新的任务指令，不生成 operational authorization token。
 
@@ -63,6 +63,12 @@ platform_status_intent=agent_working|human_review|hard_blocked|terminal
 - `requires_human_review=true` 且完整 current request 已交付给唯一 Owner：`awaiting_response + human_review`。
 - 有效 current 回复通过 actor/action/version/digest/supersession 验证后：先记 `received + agent_working`，再处理决定。
 - 只有不存在 Agent 自动路径、可执行方案 Review 或明确的新任务关闭路径时才是 `hard_blocked`。
+
+### `execution_continuation_v1`
+
+`agent_working` 只描述意图，不能单独证明 Agent 正在执行。任何非终结 current task 结束前都必须按 [portable execution continuation](execution-continuation.md)生成 `execution_continuation_v1`，绑定唯一下一执行者、单项 action、输入 artifact/version 和 completion condition，并从执行环境回读 `state=accepted|active` 与准确 evidence ref。只有 Next Owner、角色名、任务建议或 planned trigger 时不得报告完成。
+
+无法取得 `accepted|active` evidence 时，当前执行者必须继续可用的确定性恢复；若下一步是真实方案决定则使用 `waiting_human`，若没有 Agent/human 执行路径则使用 `blocked`，已终结则使用 `terminal`。continuation handoff 为 `requires_human_review=false`，不生成 operational authorization。
 
 ### `current_action_reference_v1`
 

@@ -16,6 +16,7 @@ description: "Use to project a current portable architecture workflow mandate an
 1. **A0 — Decision Brief material route**：current portable action 绑定完整 standalone Design、Research、Control、唯一 Decision Owner，且 current mandate 允许在准确既有 Issue 内完成准备、交付、可访问性验证和状态投影。
 2. **A — packet delivery route**：current compatible delivered `ARCH-APPROVAL-PACKET vN`、准确 Design/Review 和 current mandate 均存在，目标 workspace/Issue/member 唯一。
 3. **B — decision consumption route**：current Human Action Request 或 packet readiness、target-human binding 和 exact Review reply 可重读；具名 `current_action_reference_v1` 可来自同一 Issue 最新位置，packet token-only 路径保留原绑定。读取本身无平台写入；current Action task/control evidence、packet decision sidecar 和 `in_progress` projection 作为 current mandate 内的自动操作。
+4. **C — execution continuation route**：current portable `execution_continuation_v1` 唯一指向现有 Architecture Agent，且 mandate 允许在同一 Issue 内自动发布一次独立 handoff、触发并回读下一 task。
 
 任一路由的 identity、digest、Owner、stage、attempt 或 target 不唯一时 fail closed。不得从 Issue status、最近评论、显示名、Agent recommendation、旧 authorization token 或模糊肯定构造 core state。
 
@@ -30,7 +31,7 @@ requires_human_review=true
 
 方案 Review 评论必须使用 [Multica Human Action Request template](templates/multica-human-action-request.md)，首行以 canonical member UUID 渲染 `[@<display-name>](mention://member/<member-id>)`。首屏按固定顺序呈现：方案摘要、简化架构图、Team 建议/理由/置信度、已确定/未确定、关键备选后果、当前读者唯一决定、回复后行为、完整 Design/Research/Control（以及 gate 所需 Review/Packet）入口、准确回复与最小审计绑定。完整设计作为 canonical Markdown attachment，不复制正文。
 
-preparation、delivery、attachment/access verification、task-result、status projection、relay、retry、sidecar、reconciliation 和 postcondition check 的 `requires_human_review` 必须为 `false`。它们在 current mandate 内自动执行，不发布或等待 `AUTHORIZE OPERATION`、relay authorization、access confirmation 或逐状态授权。
+preparation、delivery、attachment/access verification、task-result、status projection、relay、retry、sidecar、reconciliation、execution handoff 和 postcondition check 的 `requires_human_review` 必须为 `false`。它们在 current mandate 内自动执行，不发布或等待 `AUTHORIZE OPERATION`、relay authorization、access confirmation 或逐状态授权。
 
 ## Workflow mandate and derived manifest
 
@@ -56,6 +57,7 @@ current mandate 和 manifest 可以覆盖：
 - 已确认既有 shared scope 中的 no-clobber evidence sidecar；
 - bounded reconciliation/retry 和旧 request supersession；
 - 有效 current Review 回复的读取、sidecar 和后续处理启动。
+- 按 [execution handoff and task readback](references/execution-handoff-and-task-readback.md)发布一个独立的 `multica_execution_handoff_v1`、精确 mention 下一 Agent，并回读准确 task ID/status。
 
 禁止：创建 workspace/Project/Team/Agent/Issue/Skill/shared scope，跨 Issue/workspace 写入，私有 API，overwrite/delete/edit 历史对象，replace-all binding，业务实现、部署、采购或未列入 manifest 的写入。范围扩大时停止并说明需要新的任务指令，不生成 operational token。
 
@@ -63,10 +65,10 @@ current mandate 和 manifest 可以覆盖：
 
 Issue status 只是 portable intent 的平台投影：
 
-- Agent 准备、交付、自动验证、retry 或处理有效回复：`in_progress`；
+- Agent 准备、交付、自动验证、retry 或处理有效回复，且当前 task 尚未结束：`in_progress`；
 - current Decision Brief/完整材料/mention/access postconditions 成功，且 `requires_human_review=true`：自动 `in_review --no-start`；
 - 唯一 Owner 的具名 current Action 回复通过 actor/work item/Action ID/继承的 version-digest/created-after-request/revision/supersession/task attribution 后：自动 `in_progress --no-start`，再处理决定；其 Multica parent/thread 只作审计；
-- 非 Review 步骤成功：自动进入下一合法 stage 或完成当前步骤；
+- 非 Review 步骤成功：自动进入下一合法 stage；当前 task 若将结束，必须先由独立 handoff 回读下一 task 为 `queued|running`，或证明其 `waiting_local_directory` 仅等待当前前序 task 持有的同一 `in_place` 目录锁；否则不得保留 `in_progress + WAIT_REASON=none`；
 - 仅在没有 Agent 或 human 可执行路径时：`blocked`；`critical_evidence_gaps` 与可执行方案 Review 共存时仍为 `in_review`。
 
 无效、编辑、错误 Owner、错误/重复/superseded Action、未授权 mention 规范化或错误 task attribution 的回复不改变 status。packet token-only reply 的错误 parent/identity 仍无效。
@@ -96,6 +98,14 @@ Issue status 只是 portable intent 的平台投影：
 3. `design_input|architecture_review` 把 decision evidence 写入 manifest-bound platform task/ARCH-CONTROL 并回读；正式 packet approval 继续使用既有 shared-scope no-clobber sidecar。证据通过后恢复 `in_progress` 处理 portable decision。
 4. 具名 Action 的错误/重复/过期 identity、edited、wrong actor、非法 mention/附加正文，以及 packet route 的 token+prose、wrong parent/旧 packet/mapping drift，只保留审计，不改变 gate/status。
 
+## Route C — execution continuation
+
+1. 读取 core [execution continuation](../architecture-design-workflow/references/execution-continuation.md)，确认 work item/stage/attempt、下一角色、action、输入版本、关闭条件和 continuation identity current 且唯一。
+2. 动态读取既有 Team member/Agent 目录，按稳定 Agent identity 唯一映射下一执行者；不得用显示名、Team assignee、最近作者或空闲状态猜测。
+3. 按 [execution handoff and task readback](references/execution-handoff-and-task-readback.md)派生 `multica_execution_handoff_v1`。handoff 必须是独立评论；不得在普通 `ARCH-CONTROL` 中嵌入可触发的下一成员或 self mention。
+4. 写入后按准确 Issue、Agent、handoff ID 和 attempt 回读 task。`queued` 或满足 runtime online、准确 attribution、current `predecessor_task_id` 和同一 `in_place` 目录锁证据的 `waiting_local_directory` 映射为 `accepted`；`running` 映射为 `active`。其他状态不得允许当前 task 完成。
+5. 重复 handoff 回读既有 consumption/task 后 reconciliation no-op；未入队、目标漂移或 evidence 不可重读时失败关闭，不重复触发、不伪造执行者。
+
 ## Failure, retry, and legacy migration
 
 失败时不编辑、删除、relabel、append 或覆盖已创建对象。仍有确定性恢复路径且未耗尽上限时，自动生成 new attempt/new manifest 并把 retained set 和 supersedes 冻结进去；同一 current identity 不得重复 delivery。没有可执行路径时才投影 `blocked` 并给出自然语言恢复条件。
@@ -112,4 +122,5 @@ Skill package/import/binding 本身不是 Issue Review。只有明确的实施�
 - A0 再读 material bundle、human-accessible links、target-human mapping 和 human-action template。
 - A 再读 compatibility、preflight、delivery mapping、reconciliation/readiness、durable evidence 和 approval template。
 - B 再读 human-decision binding、durable evidence 和 decision template。
+- C 再读 execution handoff and task readback。
 - activation/sandbox 只在明确任务指令覆盖该阶段时读取对应 runbook/checklist。

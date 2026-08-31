@@ -33,6 +33,21 @@
 - Next action：
 - Next Owner：
 
+## Execution continuation
+
+终结状态或当前正在等待真实人工决定时填写相应 `terminal|waiting_human`；其他非终结工作不得只写 Next Owner：
+
+- Continuation profile / ID：`execution_continuation_v1` / `<id>`
+- Next executor ref / role：
+- Action：
+- Input artifact ref / version：
+- Completion condition：
+- Continuation state：`planned|accepted|active|waiting_human|blocked|terminal`
+- Continuation evidence：`<rereadable-ref>|none`
+- Supersedes：`<continuation-id>|none`
+
+当 `platform_status_intent=agent_working` 且当前 task 将结束时，Continuation state 必须为 `accepted|active` 且 Continuation evidence 可重读。Next Owner、普通控制文本或 planned 状态均不能代替已接收的下一执行任务。
+
 ## Current human actions
 
 没有人工动作时写 `n/a`。每个原子动作重复一份条目；不得合并不同 Decision Owner：

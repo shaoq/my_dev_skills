@@ -23,6 +23,11 @@ core_skill_identity=<name-and-aggregate-digest>
 adapter_skill_identity=<name-and-aggregate-digest>
 input_identities=<sorted-identities-and-raw-byte-digests>
 output_identities=<ordered-filenames-and-raw-byte-digests>
+handoff_id=<current-execution-handoff-id-or-none>
+queued_task_id=<readback-task-id-or-none>
+queued_task_status=<queued|waiting_local_directory|running|none>
+predecessor_task_id=<current-task-id-or-none>
+directory_lock_evidence_ref=<same-in-place-lock-ref-or-none>
 planned_writes=<zero-padded-ordered-writes>
 postconditions=<ordered-readback-checks>
 retained_objects=<sorted-existing-object-identities-or-none>
@@ -31,7 +36,7 @@ supersedes=<legacy-request-or-attempt-identities-or-none>
 invalidates_on=<frozen-drift-conditions>
 ```
 
-字段值使用既有 canonical UTF-8 percent encoding；路径必须是已解析且位于 mandate 授权输入根下的相对路径。`planned_writes` 只允许当前 stage 所需的最小集合：work-start `in_progress --no-start`（当前状态不同时）、一条 Decision Brief+附件评论、task evidence、交付成功后的 `in_review --no-start`（仅 `requires_human_review=true`）、以及有效 current 回复后的 `in_progress --no-start`。packet route 还可包含既有 `arch.packet.current` projection 和既有 shared-scope sidecar no-clobber publish。
+字段值使用既有 canonical UTF-8 percent encoding；路径必须是已解析且位于 mandate 授权输入根下的相对路径。`planned_writes` 只允许当前 stage 所需的最小集合：work-start `in_progress --no-start`（当前状态不同时）、一条 Decision Brief+附件评论、一个独立 execution handoff comment、task evidence、交付成功后的 `in_review --no-start`（仅 `requires_human_review=true`）、以及有效 current 回复后的 `in_progress --no-start`。packet route 还可包含既有 `arch.packet.current` projection 和既有 shared-scope sidecar no-clobber publish。execution handoff 必须符合 `multica_execution_handoff_v1`，且其 postconditions 包含准确 `queued_task_id`、实际 `queued_task_status` 与适用的 predecessor/directory-lock 回读。
 
 ## Derivation and pre-write fence
 
@@ -42,7 +47,8 @@ Adapter 必须从 mandate 和当前只读事实确定性生成 manifest，不接
 3. 重验唯一 Decision Owner、current action、`requires_human_review` 和 candidate/task attribution；`current_action_reference_v1` 的 parent chain 只作审计，packet/delivery parent selector 继续按各自 profile 校验；
 4. 扫描 retained comments/attachments/projections/sidecars 与 current/superseded identity；
 5. 证明 planned writes 是 mandate 允许操作的有序子集，且没有创建资源、跨 Issue/workspace、实现或部署；
-6. 计算 manifest raw-byte SHA-256，并写入机器可读 task evidence。
+6. 对 execution continuation 重验 dedicated handoff comment、唯一 `handoff_id`、准确下一 Agent、task selector 和 single-consumption；普通 `ARCH-CONTROL` 自 mention 不得进入 planned writes；
+7. 计算 manifest raw-byte SHA-256，并写入机器可读 task evidence。
 
 任何 unknown、重复、漂移、缺失或额外写入使 manifest 不可消费。不得为了继续而请求 operational authorization、挑选最近评论、猜 UUID、编辑历史或补写诊断评论。
 
@@ -55,6 +61,7 @@ Adapter 必须从 mandate 和当前只读事实确定性生成 manifest，不接
 - 成功对象加入 retained set；
 - 一个 manifest 只允许一个 current consumption record；重复触发先 reconciliation，不能重复发布 current delivery；
 - 自动 retry 只能在 `retry_limit` 内生成新 attempt/new manifest，并必须冻结新的 retained set；旧 manifest 永不修改或再次消费。
+- 当前 task 将结束且 portable intent 仍为 Agent working 时，必须按准确 handoff_id 回读 queued_task_id 与 queued_task_status；`queued` 满足 accepted，`running` 满足 active。`waiting_local_directory` 只有在 runtime 在线、attribution 准确、predecessor 是当前 task 且同一 `in_place` 目录锁 evidence 可重读时才满足 accepted，避免前序 task 等待下游 running、下游又等待前序释放目录的死锁。
 
 Decision Brief 首行必须准确 mention 唯一 Decision Owner。只有 `requires_human_review=true` 且评论、附件、完整材料入口、mention 和 client access postconditions 全部通过后，才自动写 `in_review --no-start`。非 Review 步骤自动进入下一 stage 或完成当前步骤，不停留等待用户。
 
@@ -64,7 +71,7 @@ Decision Brief 首行必须准确 mention 唯一 Decision Owner。只有 `requir
 
 postcondition 失败时保留所有已创建对象，停止未执行写入，把完整 manifest、命令结果、digest、timeline 和失败检查放入 task evidence。用户可见结果只说明发生了什么、当前状态、影响、自动重试是否仍可用和可观察恢复路径。
 
-仍有确定性恢复路径且未耗尽 retry 时自动重试并保持 `in_progress`。没有 Agent 自动路径但存在真正的方案决定时交付/保持 `in_review`。只有没有 Agent 或 human 可执行路径时使用 `blocked`。
+仍有确定性恢复路径且未耗尽 retry 时自动重试并保持当前 task 执行。没有 Agent 自动路径但存在真正的方案决定时交付/保持 `in_review`。只有没有 Agent 或 human 可执行路径时使用 `blocked`。当前 task 已结束但没有可回读的 accepted/active 下一 task 时，不得保留 `in_progress + WAIT_REASON=none`。
 
 需要新资源、跨范围目标、实现/部署、未在 activation mandate 中准确绑定的 overwrite/conflict strategy 或超出 retry limit 时停止并说明“需要新的任务指令”；不得生成 operational token。明确要求用新版 package 更新准确既有同名 Skill 的 activation mandate 可以冻结 exact existing Skill ID/package digest 与平台 `overwrite` operation，不再拆分 conflict 授权。其他新指令形成新 mandate 后才能生成新 manifest。
 
