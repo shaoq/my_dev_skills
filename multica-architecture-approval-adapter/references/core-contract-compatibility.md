@@ -2,14 +2,14 @@
 
 ## Producer boundary
 
-The immutable packet route consumes `architecture-design-workflow` revision `1d4b860b48e15f678d78a71bf2c38557ab9c2951`. The pre-packet Human Action material route consumes the portable `architecture_decision_brief_v1` contract and records the actual activated core package aggregate, including the exact `SKILL.md`, Human Action/solution-design references and templates used to produce the action. It MUST NOT invent a Git revision for uncommitted bytes. The adapter is a portable-evidence consumer: it must not change that skill, add Multica-specific required core fields, or redefine its canonical state machine.
+Current routes consume `architecture-design-workflow` contract `architecture_workflow_operation_automation_v1` and record the exact activated core package aggregate, including `SKILL.md`、workflow-mandate/Human-Action/solution-design references and templates. The legacy immutable packet route may continue to read packets produced by revision `1d4b860b48e15f678d78a71bf2c38557ab9c2951`, but legacy operational requests remain audit-only. The adapter MUST NOT invent a Git revision for uncommitted bytes, add platform-specific required core fields, or redefine the portable state machine.
 
 ## Exact compatible Human Action and Design markers
 
 The `architecture_decision_brief_v1` material route requires:
 
-- one current portable Human Action Request with stable action ID/type/status, bound artifact/routing version, one Decision Owner and authority scope, and exactly one atomic current-reader action;
-- a unique target-human binding for a content action, or a routing/owner-binding action when the Owner is absent or ambiguous;
+- one current portable Human Action Request with `action_type=design_input|architecture_review|architecture_approval`、`requires_human_review=true`、stable action ID/version/status、one Decision Owner/authority scope and exactly one atomic current-reader action;
+- a unique target-human binding; an absent/ambiguous Owner stops the mandate and requires a new task instruction rather than a routing Review action;
 - the fixed Decision Brief order: solution summary, simplified architecture, Team recommendation/rationale/confidence, determined/undetermined matters, alternatives/consequences, one authorized decision, post-response behavior, complete Design/Research/Control entries, exact response and minimal current/superseded audit binding;
 - one complete standalone canonical UTF-8 `ARCH-DESIGN-vN.md`, its strictly positive version and externally computed raw-byte SHA-256 digest;
 - Design readiness that accurately distinguishes incomplete, draft-complete, decision-ready and review-ready states; an incomplete design cannot request a content decision;
@@ -37,7 +37,7 @@ When the adapter receives a portable Human Action Request in addition to the pac
 
 ## Compatibility decision
 
-Before platform reads or writes, select exactly one route. For the material route, verify its current action, actual core package aggregate, standalone Design and exact Research/Control bindings; a packet is not required and MUST NOT be synthesized. For the packet route, verify the packet markers above, the pinned packet revision, identity consistency between packet and frozen inputs, and that the target packet is current/delivered. Do not treat an apparently approvable review alone as a packet.
+Before platform reads or writes, select exactly one route. For the material route, verify current mandate/action、actual core package aggregate、standalone Design and exact Research/Control bindings; a packet is not required and MUST NOT be synthesized. For the packet route, verify packet markers、producer profile/package aggregate、identity consistency and current/delivered state. Do not treat an apparently approvable review alone as a packet.
 
 An incompatible material route emits:
 
@@ -62,7 +62,7 @@ review_ref/review_version/review_digest=<known values or none>
 review_conclusion=<actual supplied conclusion or none>
 failed_checks=core_contract_compatible
 owner=Architecture Lead
-closing_condition=provide and verify the current delivered pinned-core packet and frozen inputs
+closing_condition=provide and verify a current delivered compatible-core packet and frozen inputs
 ```
 
 The unavailable evidence preserves the actual Review conclusion. It does not synthesize a packet, alter `ARCH-CONTROL`, replace the conclusion with `BLOCKED`, or create a Multica comment, attachment, metadata value, Skill, Agent, Team, Project, or Issue.

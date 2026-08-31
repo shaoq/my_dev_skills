@@ -13,6 +13,8 @@
 ## Control fields
 
 - `WAIT_REASON`：`none|design_approval|target_project`
+- Workflow mandate ref / profile：`<ref>|none` / `architecture_workflow_mandate_v1|none`
+- Workflow attempt / allowed operations / invalidation：
 - `BLOCKED_REASON`：`none|missing_subject_project|missing_target_project|missing_openspec_explore|missing_brainstorming|critical_evidence_gaps|review_packet_unavailable|approved_artifact_unavailable`
 - Review conclusion：`none|BLOCKED|NEEDS_REVISION|APPROVABLE_WITH_WARNINGS|APPROVABLE`
 - Current packet ref / version / digest：
@@ -36,7 +38,8 @@
 没有人工动作时写 `n/a`。每个原子动作重复一份条目；不得合并不同 Decision Owner：
 
 - Human Action Request ref / action ID：
-- Action type：`design_input|risk_acceptance|design_approval|routing|access_confirmation`
+- Action type：`design_input|architecture_review|architecture_approval`
+- Requires human review：`true`
 - Decision Owner / authority scope：
 - Why now：
 - Atomic decision：

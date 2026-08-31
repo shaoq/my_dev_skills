@@ -318,6 +318,7 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 **核心机制**：
 
 - canonical 主路径为 `intake → routed → researching → designing → reviewing → waiting_human`；Reviewer approvable 后必须先生成 immutable `ARCH-APPROVAL-PACKET` 并取得绑定准确 digest 的外部 readiness evidence，批准后进入 `publishing`，实际发布验证完成后才进入 `completed_design_only` 或 `handed_off`
+- 用户明确开始、继续或重试当前阶段时建立平台无关的 `architecture_workflow_mandate_v1`；准备、交付、访问验证、状态、relay、retry 和审计自动完成，只有 `design_input|architecture_review|architecture_approval` 的真实方案决定暂停等待人类
 - `openspec-explore` 是研究阶段必需依赖；只有目标、边界、约束或方案空间存在实质歧义时才要求 `superpowers:brainstorming`
 - 依赖缺失时保持当前 stage，记录稳定 `BLOCKED_REASON` 并 fail-closed；不自动安装依赖，也不修改 Runtime 配置
 - Review 只允许 `BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS`、`APPROVABLE`；Review 结论、packet readiness 和 `ARCHITECTURE_RECOMMENDATION` 都不等于人类批准
@@ -353,9 +354,9 @@ python3 -m unittest tests/test_architecture_design_workflow_runner.py
 
 **审核材料**：adapter 评论只展示 packet/design/review 版本、真实 Review conclusion、Architecture Team recommendation 及中文理由/条件/风险、待确认项和四个合法决定 token。完整 `ARCH-DESIGN`、`ARCH-REVIEW`、`ARCH-APPROVAL-PACKET` 必须从评论附件逐一打开；附件冻结的 Markdown 原始字节及 SHA-256 才是权威材料。
 
-**安全边界**：能力、目标审批人、评论/附件绑定、raw-byte digest、稳定访问引用或 metadata 对账任一不确定时，adapter 输出 `review_packet_unavailable` 并保留真实 Review conclusion，不猜测、不补写 core 状态，也不删除已有平台对象。Architecture Team 的 recommendation、Review conclusion、metadata、reaction、Issue status 和 Agent/system 评论均不构成人工批准，也不授权任何平台写入。
+**安全边界**：adapter 从 current mandate 自动派生 immutable `architecture_operation_manifest_v1`，冻结目标、输入/输出 digest、ordered writes、postconditions、retained objects 与 retry/supersession。任一事实不确定时输出 unavailable evidence 并保留对象；不猜测、不删除、不编辑历史，也不要求用户批准内部操作。Recommendation、Review conclusion、metadata、reaction、Issue status 和 Agent/system 评论均不构成人工批准。
 
-**激活不是交付副作用**：Skill import、Agent binding、Team/Project/Issue 创建、Runtime 配置和生产使用均需要另行、明确的人类授权。实施阶段仅提供可审查的本地 skill、[activation runbook](multica-architecture-approval-adapter/references/activation-runbook.md) 与 [sandbox acceptance checklist](multica-architecture-approval-adapter/references/sandbox-acceptance-checklist.md)；没有该授权时，workspace、Agent 和 sandbox 结果均为 `not_run`。
+**激活不是普通 Issue delivery 的副作用**：只有用户明确要求“实施并激活”或等价任务时才建立 activation mandate，对指定既有 workspace/Agent 自动执行 conflict-safe import、additive binding 和 readback；不再拆分 activation/conflict authorization。缺失资源、overwrite/delete、Runtime 配置或范围扩大仍停止并要求新的任务指令。详见 [activation runbook](multica-architecture-approval-adapter/references/activation-runbook.md) 与 [sandbox acceptance checklist](multica-architecture-approval-adapter/references/sandbox-acceptance-checklist.md)。
 
 ### 1. parall-new-proposal
 

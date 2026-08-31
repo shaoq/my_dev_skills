@@ -6,7 +6,7 @@ Read the frozen packet's design and review `Target human actor` values before ev
 
 The adapter must never infer a target from display names, email fragments, Issue assignee, comment author, prior author, workspace membership, Agent identity, reactions, or any fuzzy lookup. Zero matches and multiple matches are equally unavailable.
 
-When a user-confirmed mapping or shared-scope mapping sidecar needs a new human choice/write authority, first render a current `operational_authorization` request naming the exact portable actor, candidate member UUID, existing Issue/workspace, sidecar final/temporary path scope, no-clobber behavior, planned write and exclusions. Mapping authorization is not access confirmation and neither is architecture approval.
+When mapping can be derived uniquely from current portable actor and existing Issue/workspace facts, include the candidate member UUID、sidecar final/temporary paths、no-clobber behavior、planned write and exclusions in the current derived manifest and execute automatically. If a human choice is required because zero/multiple candidates remain, stop the mandate and request a new task instruction; do not render operational authorization. Mapping evidence、access evidence and architecture approval remain distinct.
 
 ## Allowed resolution forms
 
@@ -54,9 +54,9 @@ The mapping must be re-verifiable, must bind the exact current packet identity, 
 
 ## Result and failure
 
-On success, readiness uses only the canonical member UUID as `human_actor`. For the direct canonical branch, `human_actor_binding_ref` is the direct-canonical sidecar `evidence_ref`; for the user-confirmed branch, it is the re-verifiable packet-bound user-confirmed sidecar `evidence_ref`. Confirm that this target member can access the Issue/workspace and durable attachment refs; the Agent's own access does not prove human access. Use an `access_confirmation` Human Action Request that lists exact stable Design, Review and Packet refs and the requested `desktop|mobile` client scopes.
+On success, readiness uses only the canonical member UUID as `human_actor`. For the direct canonical branch, `human_actor_binding_ref` is the direct-canonical sidecar `evidence_ref`; for a historical user-confirmed branch, it is the re-verifiable packet-bound sidecar `evidence_ref`. Verify Issue/workspace and durable attachment access separately for each requested `desktop|mobile` scope under the current manifest; Agent access does not prove human access. New workflows do not generate an `access_confirmation` Human Action.
 
-For a three-artifact desktop/mobile request, the canonical member replies with exactly these fifteen LF-separated, fixed-order lines and no extras:
+The following exact fifteen-line desktop/mobile payload is retained only for historical access-evidence parsing. New workflows record automated per-client evidence in task/readiness records and do not ask the user to submit it:
 
 ```text
 access_profile=multica_artifact_access_confirmation_v1

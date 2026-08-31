@@ -1,4 +1,6 @@
-# Multica Operational Authorization Request
+# Legacy Multica Operational Authorization Record — audit only
+
+> 禁止用于新请求。此模板只渲染历史 `multica_operational_scope_v1` 记录与 supersession 证据；current workflow 使用自动派生的 `architecture_operation_manifest_v1`，不得要求用户复制 `AUTHORIZE OPERATION`。
 
 ## 现在需要授权什么
 

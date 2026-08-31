@@ -6,7 +6,8 @@
 evidence_type=human_decision_evidence
 evidence_profile=shared_workspace_sidecar_v1
 evidence_ref={{shared_workspace_sidecar_ref_or_none}}
-shared_scope_write_authorization={{explicit_current_task_authorization_or_none}}
+workflow_mandate_ref={{current_workflow_mandate_ref_or_none}}
+operation_manifest_ref={{current_operation_manifest_ref_or_none}}
 decision_evidence_status=valid|invalid|noop|superseded
 binding_profile=multica_packet_comment_reply_v1|multica_explicit_packet_reference_v1
 decision={{approved_design_only|approved_for_spec|revision_requested|rejected}}
@@ -59,4 +60,4 @@ closing_condition={{none|re-read exact current readiness and submit one new inde
 
 `decision_context_ref` 永远与 token authority 分离。只有 exact token-only candidate 能进入 binding parser；token 与 prose 混写时记录 `decision_evidence_status=invalid`、`context_authority=non_authoritative_context`、`fresh_token_required=yes`，保留原评论供审计并要求新的独立 token-only 评论。有效 `revision_requested` 没有可重读 context 时保持决定有效并记录 `revision_scope=missing`；context changed 只触发 core follow-up，不改写或撤销已验证 token evidence。
 
-The record is not proof by itself. Before every consumption, re-read current readiness, its target-human mapping, the packet comment/attachments, and the decision comment; any revision or raw UTF-8 content-digest drift invalidates captured evidence. The platform-read-only decision route never writes Multica. This record becomes effective only after its own `shared_workspace_sidecar_v1` write/reread under a separately explicit current-task shared-scope authorization; without it, keep the candidate as audit text and do not consume it. A valid decision for a superseded packet is retained with `decision_evidence_status=noop` and never advances the current gate. See [durable evidence records](../references/durable-evidence-records.md).
+The record is not proof by itself. Before every consumption, re-read current readiness, its target-human mapping, the packet comment/attachments, and the decision comment; any revision or raw UTF-8 content-digest drift invalidates captured evidence. Multica discovery is read-only. The record becomes effective only after its own `shared_workspace_sidecar_v1` no-clobber write/reread appears in and is consumed from the current workflow manifest; no separate operational token is requested. A valid decision for a superseded packet is retained with `decision_evidence_status=noop` and never advances the current gate. See [durable evidence records](../references/durable-evidence-records.md).

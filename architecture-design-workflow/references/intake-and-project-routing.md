@@ -17,7 +17,7 @@ Issue 未提供时不得伪造。可以在回复中生成待发布的 `ARCH-CONT
 - Subject Project 未定：保持 `waiting_human`，`WAIT_REASON=target_project`，`BLOCKED_REASON=missing_subject_project`。
 - 已有 `approved_for_spec` 但目标研发项目未定：保留批准证据，保持 `waiting_human`，`WAIT_REASON=target_project`。
 
-两种缺失都必须生成 `action_type=routing` 的 Human Action Request，而不是只要求“给出项目名”。请求应基于已知所有权、共同协议、文档长期归档和跨项目责任给出候选建议或 `no_recommendation`；备选只包含已存在且确实可承担该责任的项目，并逐项说明选择后的 owner、文档归属、remaining blockers 和 planned writes。提供稳定可访问的归属证据引用与准确回复，例如 `ACTION <id>: select subject_project=<existing_project>; reason=<reason>`。
+两种缺失都会使 current workflow mandate 失效，并要求一条新的任务指令，而不是生成方案 Review 或 operational authorization。报告应基于已知所有权、共同协议、文档长期归档和跨项目责任给出候选建议或 `no_recommendation`；备选只包含已存在且确实可承担该责任的项目，并逐项说明选择后的 owner、文档归属、remaining blockers 和 planned writes。用户可以用自然语言明确指定现有项目；该指令只恢复路由，不授权创建缺失资源。
 
 路由确认只改变明确绑定的项目归属。它不批准设计，不授权创建缺失 Project、仓库、Issue、Team、Agent、OpenSpec 或实现。
 

@@ -38,14 +38,15 @@
 
 ## 当前读者的一项决定
 
-- Action ID / type / current status：`<action_id>` / `design_input|risk_acceptance|design_approval|routing|access_confirmation` / `current|answered|superseded`
+- Action ID / type / current status：`<action_id>` / `design_input|architecture_review|architecture_approval` / `current|answered|superseded`
+- Requires human review：`true`；不满足 Review 前提时不得渲染本模板的可执行回复。
 - Human Action State：`none|preparing|awaiting_response|received|unavailable|superseded`
 - Wait reason：`none|target_project|design_approval|awaiting_human_confirmation`
 - Platform status intent：`agent_working|human_review|hard_blocked|terminal`
 - Why now：
 - Decision Owner / authority scope：
 - Current reader / authority binding：`unique|unbound|ambiguous` / `<evidence ref>`
-- Content-decision activation gate：`ready|access_confirmation_required`；未验证材料时本 action 必须是 `access_confirmation|routing`，不得展示内容决定回复。
+- Content-decision activation gate：`ready|not_ready`；未验证材料时由 workflow mandate 自动完成验证或记录 evidence gap，不得展示内容决定回复。
 - 一句话决定：
 - Decision required：
 - Bounded alternatives：见上一节；只有本 action 的回复格式可执行。
@@ -73,7 +74,7 @@
 
 ## Exact response
 
-仅当 Current reader binding=`unique` 且 Content-decision activation gate=`ready` 时展示内容决定回复。否则这里只展示当前 `access_confirmation|routing` 的准确回复，并把内容决定列为 non-actionable pending action。
+仅当 Current reader binding=`unique`、`requires_human_review=true` 且 Content-decision activation gate=`ready` 时展示内容决定回复。否则只展示缺失证据、Owner 和恢复路径，不展示 operational、access confirmation 或 routing token。
 
 复制一个合法回复，并补齐占位符：
 

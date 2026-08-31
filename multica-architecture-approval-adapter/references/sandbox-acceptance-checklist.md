@@ -2,35 +2,21 @@
 
 ## Preconditions
 
-- A current `operation variant=sandbox` authorization names the existing sandbox workspace, Issue, Architecture Agent, exact test writes, retained objects, failure behavior and excluded production scope.
-- The core and adapter IDs have been verified with the activation runbook's final `agent skills list` read-back.
-- The Issue is dedicated to this acceptance; it is not a production Architecture Team Issue.
-- Record adapter repository commit, consumed core revision, observed Multica/CLI version or commit, workspace/Agent/Issue identities, and verifier/time.
+- 用户明确要求在一个准确既有 sandbox workspace/Issue/Architecture Agent 验证当前 packages，由此建立 sandbox mandate；不使用 operation authorization。
+- core/adapter IDs 与 package aggregates 已通过 activation readback。
+- Issue 明确用于验收，不自动创建缺失 sandbox 资源。
+- manifest 冻结 exact test writes、retained objects、retry limit、失败行为与 excluded production scope。
 
 ## Acceptance checks
 
-1. Deliver one current compatible design-input action using `multica_human_action_material_bundle_v1`. Confirm the comment follows the nine-part `Architecture Decision Brief` order, attaches exact `ARCH-DESIGN-vN.md`, provides complete Research/Control entries, and exposes exactly one actionable decision for the uniquely bound target member. Other Owners must appear only as dependency summaries.
-2. On desktop Web, use the target member account to click and open exact Design, Research and Control entries. Confirm exact artifact/comment/attachment identity and complete content, then record each result independently with verifier/time. A filename-only card, `multica://issues/...`, local path, plain-text URL or Agent download must fail this check.
-3. On mobile, repeat the same Design/Research/Control checks independently. Web success cannot populate mobile evidence. If Markdown is not comfortably readable, verify that a separately authorized superseding bundle carries a source-digest-bound `ARCH-DESIGN-vN.pdf` while canonical Markdown remains attached and authoritative.
-4. Re-download canonical Design Markdown by durable attachment identity and verify raw bytes against its frozen SHA-256 digest. For comment-backed Research/Control, verify the exact `multica_web_comment_permalink_v1`; for a failed permalink, require the authorized exact Markdown attachment fallback.
-5. Deliver one current compatible packet to the existing sandbox Issue. Confirm its approval comment also follows the Decision Brief order, adds exact Review/Packet materials and accepted risks, and preserves all four Chinese option consequences, exact response and After response before marker/digest audit detail.
-6. On desktop and mobile, open exact `ARCH-DESIGN`, `ARCH-REVIEW` and `ARCH-APPROVAL-PACKET` entries. Record `design.desktop|mobile`, `review.desktop|mobile` and `packet.desktop|mobile` independently with comment/attachment IDs, human-facing entries, exact-content result, verifier and time.
-7. Reply beneath the exact current packet comment with one short legal token only. Re-read the parent chain, author identity, packet marker, target-human mapping, and content digest before accepting the decision evidence. Separately verify that token-plus-prose is non-binding and produces `fresh_token_required=yes`; a revision brief uses a different packet-bound `decision_context_ref`.
-8. Create a newer packet delivery, then verify that a reply bound to the superseded packet remains audit-only/no-op while a new exact-current short-token reply is the only effective decision.
-9. Exercise authorized retry/partial-failure paths for both the material and packet routes. Before each retry, require a new operational request listing every retained object and exact incremental write. Confirm reconciliation does not silently duplicate, relabel, delete, overwrite or mark incomplete delivery ready; unsupported human-facing URI, attachment/link opening failure, metadata/comment conflict, missing attachment, digest mismatch, mapping uncertainty or stale writer closes as the appropriate `human_action_material_unavailable|review_packet_unavailable` while preserving real action/Review state and every existing object.
+1. 自动交付一个 current `requires_human_review=true` design-input brief，确认固定内容顺序、完整 Design/Research/Control、唯一 actionable Owner、canonical mention 与 `in_review` 状态。
+2. 分别在 Web/mobile 打开 exact materials，验证 identity/complete content；Agent download、文件名卡片、本地路径或 unsupported URI 不算。
+3. 重下载 canonical Markdown 并匹配 raw-byte digest；PDF（若有）必须是 source-bound non-authoritative copy。
+4. 自动交付一个 current packet brief，验证 Design/Review/Packet、四个中文 option consequences 和 `in_review`。
+5. 由准确 Owner 提交 current exact response；验证 actor/parent/action/version/digest/revision/task attribution 后自动恢复 `in_progress`。token+prose、edited/wrong-owner/wrong-parent 必须 no-op。
+6. 创建 superseding packet/attempt，验证旧回复 audit-only，新 current reply 才有效。
+7. 演练 bounded retry/partial failure：新 manifest 冻结 retained set，不 duplicate/edit/delete/overwrite；全过程不产生 `AUTHORIZE OPERATION`、relay、access-confirmation 或逐状态授权请求。
 
-## Outcome record
+## Outcome
 
-Record `sandbox_acceptance=passed` only when every named human checklist item completes for the authorized sandbox scope. Desktop-only results, generic confirmation, unsupported links, multi-Owner action forms, missing supersession/token-context/retry evidence or unavailable target-member mobile access remain `not_run|failed`; keep production activation inactive and capture each failed check plus observable closing condition. Where platform capability—not configuration—prevents completion, recommend a separate platform capability proposal; that recommendation is not authorization to alter Multica or create resources.
-
-## Implementation status
-
-For this repository implementation, no real workspace import, Agent binding, sandbox Issue, network call, or platform write was authorized or performed:
-
-```text
-activation=not_run
-sandbox_acceptance=not_run
-unidrag_12_retry=not_run
-workspace=n/a
-agent=n/a
-```
+只有全部检查通过才记录 `sandbox_acceptance=passed`。desktop-only、multi-Owner form、材料不可访问、缺 supersession/response/retry 证据或出现 operational token 均为 `failed|not_run`。平台能力缺失时建议独立平台 proposal，但不自动修改 Multica 核心或创建资源。

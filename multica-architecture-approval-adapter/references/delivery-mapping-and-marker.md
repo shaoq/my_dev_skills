@@ -2,7 +2,7 @@
 
 ## Scope and write boundary
 
-Apply this reference only after the core compatibility, target-human mapping, capability preflight and current operational authorization have all passed for the exact named existing Issue, packet, input paths, comment/attachment/projection and sidecar scope. The adapter never performs an independent upload: one packet-comment creation carries the three verified frozen Markdown files. Missing, ambiguous, stale or narrower authorization means no write and a new operational request with the observable closing condition.
+Apply this reference only after core compatibility、target-human mapping、capability preflight、current workflow mandate 与 derived manifest 已对准确既有 Issue、packet、input paths、comment/attachment/projection/sidecar scope 全部通过。Adapter 不执行 independent upload：一条 packet comment 携带三份冻结 Markdown。mandate/manifest 缺失、歧义、过期或范围不足时 no write；范围扩大只报告需要新的任务指令，不生成 operational request。
 
 Before constructing a comment, calculate SHA-256 over the raw bytes of the exact delivered `ARCH-DESIGN`, `ARCH-REVIEW`, and `ARCH-APPROVAL-PACKET`. Preserve bytes, encoding, filenames, media types, whitespace, and newlines. The brief is a new concise comment, not a copy or reserialization of the attachments.
 
@@ -52,7 +52,7 @@ Persist `attachment_id`, `artifact_ref`, and only a returned `markdown_url` or d
 
 These `multica://issues/...` values are opaque internal audit identities only. They MUST NOT be copied into a human-facing Design/Research/Control entry or described as clickable. Resolve and verify a separate attachment card, documented stable endpoint, or `multica_web_comment_permalink_v1` using [human-accessible evidence links](human-accessible-evidence-links.md); otherwise report the affected client scope unavailable.
 
-Present those exact three stable refs to the canonical target member through an `access_confirmation` action. The response must identify each `design|review|packet` artifact and each requested `desktop|mobile` scope as opened or unavailable. Do not collapse results into one generic confirmation, and do not treat successful Agent download as human access.
+Present those exact three stable refs to the canonical target member in the Decision Brief, then verify each `design|review|packet` artifact and requested `desktop|mobile` scope automatically under the current manifest. Record `opened|unavailable|not_run` separately; do not collapse results into generic confirmation or treat Agent download as human access. No `access_confirmation` Human Action is generated.
 
 For each record also retain media type, expected/verified digest, Issue/workspace availability scope, canonical target member UUID, packet-bound mapping evidence ref, verifier, and RFC3339 UTC verification time. Once the comment marker and all three attachment bindings can be re-read, deterministically construct the pre-projection delivery evidence ref:
 

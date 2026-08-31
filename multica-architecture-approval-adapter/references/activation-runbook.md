@@ -1,48 +1,41 @@
 # Multica adapter activation runbook
 
-## Authorization gate
+## Mandate boundary
 
-This runbook is operational guidance, not an implicit authorization. Before any real Multica command, render [the operational authorization request](../templates/multica-operational-authorization.md) and obtain its exact current authorize response. The request names:
+Skill package/import/binding 不是方案 Review，也不使用 operational authorization。只有用户明确要求“实施并激活”或等价的新任务指令时，才能建立绑定准确既有 workspace、Architecture Agent、core/adapter package identity 和 planned writes 的 activation mandate，并派生 `architecture_operation_manifest_v1`。
 
-- the existing target workspace by stable identity;
-- the existing Architecture Agent by stable identity; and
-- the requested activation scope for the independently installed core and adapter skills.
+普通 Issue delivery mandate 不隐含 activation。activation mandate 也不授权创建 workspace、Agent、Team、Project、Issue、Skill fallback、Runtime 配置、CLI 安装/升级、replace-all binding、delete 或业务实现。
 
-It also lists the exact import/additive-binding commands, existing skill identities, planned writes, excluded resource creation/replace-all/configuration, overwrite and availability risks, verification readback and stop behavior. Architecture content approval, an adapter delivery request or a generic instruction to activate cannot substitute.
+## Automatic activation procedure
 
-Repository implementation, local packaging, temporary-HOME link checks, an adapter delivery request, a recommendation, or a Review conclusion do not authorize workspace import or Agent binding. Never create a missing Skill, Agent, Team, Project, Issue, or fallback binding. If the named workspace or Agent cannot be resolved, stop, report the missing identity, and request new human direction.
-
-## Authorized activation procedure
-
-1. Confirm the local package identity and the selected existing workspace/Agent identities with the human. Package/import the adapter only from the reviewed artifact; keep the core skill independently installed rather than embedding or replacing it.
-2. Import with conflict-safe behavior, for example:
+1. 重验 reviewed local package aggregate 和用户指定的既有 workspace/Agent identities；目标不唯一或缺失时停止并说明需要新的任务指令。
+2. 把 import/additive binding/readback 作为 manifest 的有序操作。首次安装或未声明 replacement 时使用 conflict-safe fail：
 
    ```bash
-   multica skill import --file <adapter.skill-or-zip> --on-conflict fail --output json
+   multica skill import --file <skill-package> --on-conflict fail --output json
    ```
 
-   If the import reports a same-name conflict, stop. Record the existing skill identity and the platform-supported choices. The observed target changed, so the prior activation authority is exhausted. Render a new `operation variant=conflict_strategy` request explaining `fail|platform-supported overwrite` consequences, exact target, retained object and risk. Do not overwrite, replace, rename around, or delete the existing skill unless the new exact authorization selects a supported strategy.
-3. Resolve the human-named existing Architecture Agent again, then bind skills additively. Do not use a replace-all or `set` operation:
+3. 如果 activation mandate 明确要求“把这两个新版 Skill 激活到现有 Agent”，且 preflight 已唯一重读同名 existing Skill ID、当前绑定、new package identity/digest 和 `overwrite` 的平台能力，则把该 exact replacement 作为 manifest 的既定 operation，使用 `--on-conflict overwrite` 自动更新；不拆分新的 conflict 授权。名称、workspace、existing ID、binding 或 package 任一不匹配时停止，保留 observed conflict 并要求新的任务指令；禁止 delete、rename-around 或替换其他 Skill。
+4. 只对准确既有 Architecture Agent 执行 additive binding：
 
    ```bash
    multica agent skills add <existing-agent-id> <core-skill-id>
    multica agent skills add <existing-agent-id> <adapter-skill-id>
    ```
 
-   Skip an already-present ID only after the read-back below confirms it. Do not create an Agent or choose a substitute if either ID cannot be resolved.
-4. Perform the final read-only verification:
+   已存在的 binding 在 readback 证明后复用；禁止 replace-all/set。
+5. 最终只读：
 
    ```bash
    multica agent skills list <existing-agent-id> --output json
    ```
 
-   Confirm that both the core and adapter skill IDs are present and record the selected workspace/Agent identities, adapter repository commit, consumed core revision, and observed Multica/CLI version or commit.
-5. Do not claim production readiness from import/binding alone. Run the dedicated sandbox acceptance checklist before enabling the adapter for a production Architecture Agent.
+   记录 workspace/Agent、两个 Skill IDs/package aggregates、adapter repository revision 和 Multica/CLI identity。
 
-## Closing conditions
+## Failure and closing conditions
 
-- Missing workspace or Agent: stop with `activation=not_run`; request an existing identity from the human.
-- Import conflict: stop with `activation=not_run`; request a separately authorized platform-supported conflict strategy.
-- Missing core/adapter ID in final list: stop with `activation=not_run`; do not compensate by creating or replacing resources.
-- Any command requiring credentials, network access, workspace mutation, or configuration change: execute only after the authorization gate above; otherwise retain `activation=not_run`.
-- Superseded or incomplete operational request: retain `activation=not_run`; identify the current request and exact authorize/deny response.
+- 缺失/歧义 workspace 或 Agent：`activation=not_run`，请求新的任务指令。
+- same-name conflict：`activation=not_run`，报告可选策略与后果；不请求复制 token。
+- partial import/binding：保留对象，冻结 retained set；只有 current activation mandate 仍覆盖且 retry 未耗尽时自动 new manifest，否则停止。
+- 最终 readback 缺 ID：`activation=not_run`，不创建或替换资源。
+- import/binding 成功不等于 production acceptance；sandbox 需明确任务指令建立自己的 mandate。

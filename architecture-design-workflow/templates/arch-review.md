@@ -25,7 +25,7 @@
 | Risk ID | Condition / review point | Acceptance evidence | Decision Owner / authority scope | Human Action Request ref / status |
 |---|---|---|---|---|
 
-未取得 acceptance evidence 时不得写入“已接受”。每个不同 Owner 的风险使用独立 `action_type=risk_acceptance` 请求；不得提供跨 Owner 的“接受全部”。
+未取得 acceptance evidence 时不得写入“已接受”。每个不同 Owner 的风险使用独立 `action_type=architecture_review`、`review_subtype=risk_acceptance` 请求；不得提供跨 Owner 的“接受全部”。
 
 ## Traceability and evidence limitations
 

@@ -17,6 +17,7 @@ Automatic discovery remains enabled. Human gates authorize publication/handoff, 
 - GitNexus is preferred for existing-code evidence; unavailable时记录限制并做有界调查。
 - Missing dependencies are reported; this skill never installs them or changes Runtime configuration.
 - Approval packet core uses Markdown, raw-byte SHA-256 and portable evidence only; it remains executable with shared local files and current-session human confirmation, without a separate adapter.
+- Workflow mandate、Review 分类和 action state 都是 portable fields；任何平台的 workspace、work item、actor、message、material delivery、status、URL 与 CLI 都不是 core 依赖。
 
 ## Repository validation
 
@@ -28,7 +29,7 @@ Run from repository root:
 uv run --with pyyaml python "$CODEX_HOME/skills/.system/skill-creator/scripts/quick_validate.py" architecture-design-workflow
 bash tests/architecture-design-workflow-safety.sh
 python3 -m unittest tests/test_setup_skills_env.py
-openspec validate add-portable-architecture-approval-packets --type change --strict --json
+openspec validate automate-non-review-architecture-operations --type change --strict --json
 git diff --check
 ```
 

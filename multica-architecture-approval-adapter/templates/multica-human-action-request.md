@@ -43,7 +43,8 @@
 ## 当前读者的一项决定
 
 - Action ID：`{{action_id}}`
-- `action_type={{action_type}}`
+- `action_type={{action_type}}`；只允许 `design_input|architecture_review|architecture_approval`。
+- `requires_human_review=true`
 - Human Action State：`{{none_preparing_awaiting_response_received_unavailable_superseded}}`
 - Issue status：交付验证通过并等待你回复时为 `in_review`；你的准确 current 回复启动后续 Agent 工作时为 `in_progress`。这两个状态不改变 architecture stage。
 - Current / superseded：`{{current_or_superseded}}`
@@ -51,7 +52,7 @@
 - Decision Owner：`{{decision_owner_member_id}}`（{{decision_owner_display_name}}）
 - Authority scope：{{authority_scope_zh}}
 - Current reader / authority binding：`{{unique_unbound_ambiguous}}` / `{{binding_evidence_ref}}`
-- Content-decision activation gate：`{{ready_or_access_confirmation_required}}`；未全部验证时 `action_type=access_confirmation`，本评论不得请求设计输入、风险接受或正式批准。
+- Content-decision activation gate：`{{ready_or_not_ready}}`；未全部验证时不发布本评论的可执行版本，由 workflow mandate 自动补齐验证或记录 evidence gap。
 - 一句话决定：{{atomic_decision_zh}}
 - Candidate recommendation：`{{candidate_recommendation_or_no_recommendation}}`
 - Bounded alternatives / Option consequences：见上一节。
@@ -81,7 +82,7 @@
 
 ## Exact response
 
-仅当 Current reader binding=`unique` 且 Content-decision activation gate=`ready` 时渲染内容决定回复。否则只渲染 current `access_confirmation|routing` 的准确回复；待访问证据齐备后生成新的 Human Action Request 版本和新的、单独授权的 Decision Brief，不能编辑本评论激活内容决定。
+仅当 Current reader binding=`unique`、`requires_human_review=true` 且 Content-decision activation gate=`ready` 时渲染内容决定回复。否则不得生成 actionable Review comment；只在 task evidence 记录缺失证据与恢复路径，不生成 operational、access confirmation 或 routing token。
 
 请复制一种合法回复，不要把解释文字混入要求 token-only 的回复：
 
@@ -89,13 +90,13 @@
 {{type_specific_exact_response}}
 ```
 
-Multica access confirmation 使用 `access_profile=multica_artifact_access_confirmation_v1` 的固定 15 行语法；revision context 使用 `context_profile=multica_revision_context_v1` 的固定 7 行语法。必须从 current refs 生成，不得自由改写字段顺序。
+Revision context 使用 `context_profile=multica_revision_context_v1` 的固定 7 行语法，必须从 current refs 生成，不得自由改写字段顺序。材料访问由 Adapter 自动验证，不要求用户提交 access-confirmation payload。
 
 ## 权限边界
 
 - Authorizes：{{authorized_effect_zh}}
 - Does not authorize：{{excluded_effects_zh}}
-- 非权威上下文：recommendation、访问确认、运维授权、说明文字和 revision brief 不替代正式决定或其他 canonical evidence。
+- 非权威上下文：recommendation、访问 evidence、说明文字和 revision brief 不替代正式决定或其他 canonical evidence。
 
 ## 最小审计绑定
 

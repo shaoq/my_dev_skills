@@ -87,7 +87,7 @@ decision evidence 必须包含 decision、可识别 `human_actor`、当前 packe
 
 ## Human-facing approval action
 
-current ready packet 等待决定时，生成一个 `action_type=design_approval` Human Action Request。请求首屏先给 Decision Owner、为什么现在可决定、candidate recommendation（若有）和四个选项的中文对比；稳定 design/review/packet refs 放在随后可打开的位置，完整 digest/audit binding 后置。
+current ready packet 等待决定时，生成一个 `action_type=architecture_approval` Human Action Request；历史 `design_approval` 仅作兼容读取。请求首屏先给 Decision Owner、为什么现在可决定、candidate recommendation（若有）和四个选项的中文对比；稳定 design/review/packet refs 放在随后可打开的位置，完整 digest/audit binding 后置。
 
 四个选项必须分别说明：
 

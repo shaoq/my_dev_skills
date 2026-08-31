@@ -2,52 +2,36 @@
 
 ## Profile and scope
 
-`multica_human_action_material_bundle_v1` delivers a current core Architecture Decision Brief and the complete materials needed for one authorized human action before or after packet creation. It is separate from packet readiness and never creates a Review conclusion, recommendation, approval token or core state transition.
+`multica_human_action_material_bundle_v1` 在 current workflow mandate 内交付一份真正的方案 Review：一个 core Architecture Decision Brief、完整 Design、Research、Control，以及 gate 所需的 Review/Packet。它不创建 Review conclusion、recommendation、approval token 或 core state。
 
-The route requires:
+route 要求：
 
-- one current core Human Action Request with one atomic decision, one Decision Owner and one authority scope;
-- a uniquely bound current Multica member for that Owner, or a routing/owner-binding action instead of a content action;
-- a complete standalone `ARCH-DESIGN-vN.md` with canonical UTF-8 Markdown bytes, artifact version and raw-byte digest;
-- exact Research and Control identities and complete human-facing entries;
-- one existing workspace and Issue; and
-- current exact operational authorization for all input paths, one comment write, attachments and retained objects.
+- `action_type=design_input|architecture_review|architecture_approval` 且 `requires_human_review=true`；
+- 一个 current action、一个唯一 Decision Owner、一个 authority scope；
+- 完整 standalone `ARCH-DESIGN-vN.md` 与准确 Research/Control identities；
+- 一个既有 workspace/Issue；
+- current `architecture_workflow_mandate_v1` 与可消费 `architecture_operation_manifest_v1`。
 
-No approvable Review or packet is required for a design-input bundle. Conversely, this profile never substitutes for the separate immutable packet delivery/readiness route.
+不要求或生成 operational authorization。
 
 ## Bundle contents
 
-The required attachment is:
+canonical attachment 至少包含 `ARCH-DESIGN-vN.md`，冻结 filename、`text/markdown; charset=utf-8`、version 和 raw-byte SHA-256。Research/Control 可以使用已验证的 `multica_web_comment_permalink_v1`；未通过 requested client checks 时，把准确源作为 Markdown attachment 纳入同一 manifest。
+
+若当前 client capability 证明 Markdown 不便阅读，可以包含 source-digest-bound `ARCH-DESIGN-vN.pdf`：
 
 ```text
-ARCH-DESIGN-vN.md
-```
-
-Its filename, `text/markdown` media type, design version and SHA-256 over exact raw bytes are frozen before delivery. Do not reserialize, normalize newlines or rebuild it from Issue comments.
-
-Research and Control use verified `multica_web_comment_permalink_v1` entries when their exact complete comments remain available. If either entry cannot pass the requested client checks, include its exact source as `ARCH-RESEARCH-vN.md` or `ARCH-CONTROL-vN.md` in the same authorized bundle.
-
-When current capability evidence says canonical Markdown is not comfortably readable in a requested client, include:
-
-```text
-ARCH-DESIGN-vN.pdf
 derived_non_authoritative=true
 source_digest=sha256:<canonical-markdown-digest>
 ```
 
-The PDF is a reading copy only. It cannot replace the Markdown attachment, design identity or approval digest. If a missing PDF is discovered only after delivery, the attempt is unavailable; a later superseding bundle requires a new authorization listing retained objects and the new one comment write. Never append or edit the old comment.
+PDF 不能替代 canonical Markdown。交付后发现缺失材料时保留旧对象；bounded retry 生成新 attempt/new manifest 和新的完整 comment，不编辑/append 旧评论。
 
-## Operational authorization
+## Automatic execution
 
-Use `operation_variant=delivery` in `multica_operational_scope_v1`. Set `bound_identity` to the current action ID, Design version/digest and opaque delivery attempt. `authorized_paths` lists every exact Decision Brief, canonical Markdown, optional PDF and fallback Markdown input. `planned_writes` contains the exact ordered state/comment lifecycle: current-work `in_progress --no-start` only when needed, one Issue comment with all selected attachments, postcondition-gated `in_review --no-start`, and one deferred `in_progress --no-start` bound to `valid_human_action_response_v1`. No status transition is implicit.
+manifest 冻结 content/attachment 相对路径、cwd、digests、target Issue、actual current parent selector、ordered status/comment writes、postconditions 和 retained objects。路径在 mandate root 之外时 manifest 必须显式包含 resolved external-file mode；运行时不得临时扩大。
 
-If the preparation task result will be automatically materialized as the authorization request, the bundle declares `authorization_request=multica_task_result_authorization_request_v1`, freezes its preparation task ID, trigger comment, request Agent, authorization ID, Issue/workspace, Owner, attempt and material digests, and lists `comment:multica_task_result_authorization_request_v1` as an expected retained object. After materialization, resolve exactly one request comment by `source_task_id`, parent, Agent, revision-1 unedited content, parsed canonical scope and uniqueness. Record the actual ID as observed evidence without changing the frozen payload.
-
-When the human authorization response triggers execution, freeze `parent=multica_authorization_response_parent_v1` in that write. At runtime first resolve the authorization request above, require the response to be its direct child, then resolve the response selector only to the verified current task `trigger_comment_id` under the operational authorization rules. Do not freeze the earlier preparation comment as delivery parent. Do not include packet metadata projection or readiness sidecars for a pre-packet action.
-
-Also freeze the command's execution working directory. Keep all paths relative to the authorized common material root when possible. If the content or any attachment is intentionally outside that directory, the authorized command profile must state `allow_external_file=true` and execution must add `--allow-external-file`; neither the cwd nor the flag may be changed after authorization.
-
-The write is one comment, not an independent upload:
+一次写入形态为：
 
 ```bash
 multica issue comment add <issue> \
@@ -56,33 +40,14 @@ multica issue comment add <issue> \
   [--attachment <ARCH-DESIGN-vN.pdf>] \
   [--attachment <ARCH-RESEARCH-vN.md>] \
   [--attachment <ARCH-CONTROL-vN.md>] \
-  [--parent <actual-trigger-comment-id>] \
+  [--parent <current-trigger-comment-id>] \
   --output json
 ```
 
-The actual response trigger comment ID is mandatory for the executed CLI command. The request and response symbolic selectors exist only to bind future platform identities and MUST resolve in order—first `multica_task_result_authorization_request_v1`, then `multica_authorization_response_parent_v1`—before execution. A generated thread root, prior authorization response, latest-comment search, orphan attachment, later edit, append, relabel, delete or second unlisted write is outside the authorization.
+必要时先自动 `in_progress --no-start`。重读新 comment，要求准确 Agent、actual parent、固定 Decision Brief headings、一个 actionable action、canonical mention 和所有附件 bindings；重下载 Markdown 并匹配 digest。分别验证 web/mobile 的 exact identity 与 complete content。
 
-The authorized status commands are public CLI writes and MUST be frozen exactly as applicable:
+全部 postconditions 通过且 `requires_human_review=true` 后自动执行 `in_review --no-start` 并重读。这表示唯一 Owner 已被准确 `@` 且正在等待方案决定。无法自动证明 client access 时记录 evidence gap/恢复路径；不生成 `access_confirmation` action，也不要求用户授权交付。
 
-```bash
-multica issue status <issue> in_progress --no-start
-multica issue status <issue> in_review --no-start
-```
+后续 current reply 只有在 actor、direct parent、action ref/version、exact response、revision、Issue/workspace、supersession 和 task attribution 全部通过时才匹配 `valid_human_action_response_v1`；匹配后自动 `in_progress --no-start` 并处理决定。无效回复 no-write。
 
-While the Agent is preparing or consuming a valid response, the Issue is `in_progress`. After the exact comment, attachments, mention, parent, digest and requested access postconditions succeed, set the Issue to `in_review`; this is the visible “waiting for the mentioned human” state. A remaining `critical_evidence_gaps` record does not change that projection when the delivered request gives a unique Owner an executable closing action. Use `blocked` only when no executable Agent or human path exists, never as a synonym for waiting for confirmation.
-
-The deferred response transition uses `selector=valid_human_action_response_v1`. It resolves only when one task trigger is a revision-1 unedited direct reply by the exact Decision Owner to the current delivery comment, contains the exact action-bound response, belongs to the same Issue/workspace, and matches task attribution. After that selector validates, set the Issue to `in_progress --no-start` and verify the status postcondition before processing the response. Invalid, superseded, wrong-owner or wrong-parent responses are no-write/fail-closed.
-
-Status changes, Agent-invoked authorization-request comments and fail-closed diagnostic comments are separate writes. If the required status writes are absent from exact `planned_writes`, the delivery is not authorized as a complete Human Action lifecycle and the Agent performs no partial substitute. Multica may automatically expose a task result as a platform-managed task result comment; record that actual comment and say “未主动调用 Issue write；Multica 将 task result 自动投递为平台管理评论”，而不是声称没有平台评论。
-
-## Postconditions
-
-Parse the response and re-read the exact new comment. Require the expected agent author, actual parent, exact Decision Brief headings, exactly one actionable action for the bound member, and every selected attachment identity bound to that comment. Re-download canonical Markdown, hash raw bytes and match the frozen digest.
-
-Require the first rendered line to contain `mention://member/<canonical-member-id>` for the same Decision Owner. After all delivery and access postconditions pass, execute the authorized `in_review --no-start` write and re-read the Issue; `status postcondition=in_review` is part of success. If the status cannot be verified, retain the comment/attachments, return partial-failure evidence and require a new incremental authorization; do not edit, delete, append or issue an unplanned repair comment.
-
-Then apply [human-accessible evidence links](human-accessible-evidence-links.md) to each Design, Research and Control entry. Record `web|mobile` separately as `opened|unavailable|not_run`; a filename, attachment card presence or Agent download alone is insufficient. If the exact new entries lack complete requested-client evidence before publication, this bundle's one actionable request MUST be `action_type=access_confirmation`; the intended design input, risk acceptance or approval remains non-actionable pending context. If any required complete material cannot be opened for the requested scope, retain all objects, mark the material delivery unavailable and do not treat the content decision as ready.
-
-After the exact access action succeeds and its evidence re-verifies, create a new current core Human Action Request version for the content decision. Delivering that later request is a new `multica_human_action_material_bundle_v1` attempt with a new exact operational authorization; it may repeat the canonical attachment but MUST list retained objects and must not edit or append to the access-confirmation comment. Access confirmation never becomes content-decision authority.
-
-This profile never writes `arch.packet.current`. If a later Review becomes approvable, the packet delivery route performs its own compatibility, authorization, immutable three-attachment delivery and readiness checks.
+本 profile 不写 `arch.packet.current`。approvable packet 使用独立 packet route，但共享同一 mandate/manifest 自动化与失败关闭规则。

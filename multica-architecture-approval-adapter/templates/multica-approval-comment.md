@@ -20,7 +20,7 @@
 - 适用条件：{{applicable_conditions_zh}}
 - 关键风险 / accepted warnings：{{key_risks_and_acceptance_zh}}
 
-> 推荐不是批准。Recommendation、Review conclusion、readiness、访问确认、运维授权、metadata、reaction、Issue status 或 Agent/system 评论均不得驱动 core gate。
+> 推荐不是批准。Recommendation、Review conclusion、readiness、访问 evidence、metadata、reaction、Issue status 或 Agent/system 评论均不得驱动 core gate。
 
 ## 已确定与尚未确定
 
@@ -45,10 +45,11 @@
 
 ## 当前读者的一项决定
 
-- Action ID / type：`{{human_action_id}}` / `design_approval`
+- Action ID / type：`{{human_action_id}}` / `architecture_approval`
+- `requires_human_review=true`
 - Decision Owner：`{{canonical_target_member_uuid}}`
 - Current reader / authority binding：`{{unique_binding_evidence_ref}}`
-- Content-decision activation gate：`ready`；Design/Review/Packet 的 required `access_confirmation` 已按 requested client scopes 通过，否则不得渲染本审批表单。
+- Content-decision activation gate：`ready`；Design/Review/Packet 已按 requested client scopes 自动验证，否则不得渲染本审批表单。
 - 审核对象：`{{review_subject_zh}}`
 - 为什么现在可决定：`{{packet_ref}} {{packet_version}}` 已完成 current delivery/readiness，Review conclusion=`{{review_conclusion}}`
 - Candidate recommendation：`{{architecture_recommendation}}`

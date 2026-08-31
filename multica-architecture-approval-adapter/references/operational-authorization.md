@@ -1,12 +1,21 @@
-# Operational authorization protocol
+# Legacy operational authorization protocol — audit only
 
-## Authority boundary
+## Status
 
-`multica_operational_scope_v1` is the only adapter profile for authorizing a new Multica or shared-scope write. It is operational authority only: it cannot decide architecture content, change core state, or expand beyond the exact current request.
+`multica_operational_scope_v1` 是旧版 Adapter 的历史格式。新 `architecture_workflow_mandate_v1` 路径 MUST NOT 生成、渲染、relay、等待或消费该协议，也 MUST NOT 把它当作 preparation、delivery、attachment、status、retry、sidecar、verification、activation 或 conflict handling 的门禁。
 
-## Canonical scope payload
+本 reference 只允许：
 
-Build exactly these ten LF-separated lines in fixed order, including one final LF after the last line:
+- 识别和解析既有 audit records；
+- 将未消费 request 标为 `superseded/audit-only`；
+- 把旧 request/comment identity 写入新 `architecture_operation_manifest_v1.supersedes`；
+- 证明晚到回复没有触发新写入或状态变化。
+
+所有新自动操作使用 [architecture operation manifest](architecture-operation-manifest.md)。范围扩大时要求自然语言的新任务指令，不生成新的 authorization token。
+
+## Legacy payload grammar
+
+为保证历史记录可重验，解析器仍可读取固定十行 LF payload：
 
 ```text
 scope_profile=multica_operational_scope_v1
@@ -21,60 +30,23 @@ planned_writes=<escaped-ordered-write-list-or-none>
 retained_objects=<escaped-sorted-object-list-or-none>
 ```
 
-Every placeholder is encoded using canonical percent encoding of UTF-8 bytes: preserve only `A-Z`, `a-z`, `0-9`, `.`, `_`, `-`, and `~`; encode every other byte as `%` plus two uppercase hexadecimal digits. The parser rejects lowercase/non-canonical escapes, invalid UTF-8, unknown/duplicate/reordered fields and an absent final LF.
-
-Normalize path/object lists before escaping. Paths are relative to the explicitly confirmed scope, contain no leading slash、`..`、home expansion、drive prefix、query string or symlink escape, are sorted by raw UTF-8 byte order and joined with ASCII comma. Retained object identities use the same sorting. `planned_writes` preserves execution order and prefixes each entry with a zero-padded ordinal such as `01:` before joining with ASCII comma; no duplicate target is allowed.
-
-For a Human Action delivery, `planned_writes` MUST explicitly freeze every applicable status write as a distinct ordinal: work-start `in_progress --no-start` when the observed status differs, the comment/attachments, postcondition-gated `in_review --no-start`, and deferred response-start `in_progress --no-start` with `selector=valid_human_action_response_v1`. The selector is bound to the current action ref, delivery comment, Decision Owner, exact response grammar, Issue/workspace and task attribution. It is single-use and cannot match an edited, superseded, wrong-parent or wrong-author reply. Status writes omitted from the scope are forbidden; a delivery authorization that omits required lifecycle writes is incomplete and causes no delivery write.
-
-### Platform-managed task-result authorization-request selector
-
-When Multica automatically materializes a preparation task result as the authorization-request comment, that comment UUID does not exist while the scope payload is being frozen. In that one case, the canonical authorization bundle MUST declare:
-
-```text
-authorization_request=multica_task_result_authorization_request_v1
-```
-
-This is a constrained expected retained-object selector, not a wildcard and not an additional Agent-invoked write. `bound_identity` MUST freeze the exact preparation task ID, preparation trigger comment ID, request Agent ID, authorization ID, Issue, workspace, operational Decision Owner, delivery attempt and material identities/digests. `retained_objects` MUST include `comment:multica_task_result_authorization_request_v1`.
-
-After platform materialization and before consuming any response, resolve the selector to exactly one current comment that satisfies every frozen fact: `source_task_id` equals the preparation task ID; direct parent equals the preparation trigger; author type and ID equal the request Agent; revision is 1 and unedited; the parsed authorization ID, canonical scope payload and scope digest equal the frozen request; and the comment belongs to the same Issue/workspace. Use a read surface that preserves `source_task_id`; a compact view that omits it is insufficient. Missing, duplicate, edited, malformed or mismatched candidates fail closed and require a new preparation attempt. Never guess a future UUID or select the latest comment or thread root.
-
-Multica's automatic materialization is a platform-managed task result comment. It is not an Agent invocation of an Issue write, but it is still an observable platform comment and MUST be reported truthfully: “未主动调用 Issue write；Multica 将 task result 自动投递为平台管理评论”. Do not claim that no platform comment was produced.
-
-### Comment-triggered response-parent selector
-
-When the operational authorization response itself will trigger a comment-delivery task, the response comment UUID does not exist while the scope payload is being frozen. In that one case, `planned_writes` MUST encode the canonical selector:
-
-```text
-parent=multica_authorization_response_parent_v1
-```
-
-This is a constrained runtime binding, not a wildcard. `bound_identity` MUST include the authorization-request binding (either an already exact comment ID or `multica_task_result_authorization_request_v1` with its frozen preparation identity), authorization ID, Issue, workspace, operational Decision Owner and delivery attempt. The expected one-line response is derived from the frozen authorization ID and canonical scope digest; do not place a self-referential future response digest in `bound_identity`. Do not prebind a prior response UUID, latest comment, thread root or guessed future UUID.
-
-Compute `scope_digest=sha256:<64 lowercase hex>` over the canonical payload's exact raw UTF-8 bytes, including the final LF. Do not normalize Unicode, whitespace or line endings after construction.
-
-## Exact response
-
-The authorize response is exactly one line after trimming outer whitespace:
+历史 exact response 形态为：
 
 ```text
 AUTHORIZE OPERATION <authorization_id> scope=<scope_digest>
-```
-
-The deny response is exactly:
-
-```text
 DENY OPERATION <authorization_id> reason=<canonical-percent-escaped-reason>
 ```
 
-The current recognizable operational Decision Owner must author the response. Recompute the payload and digest immediately before the first write; any changed target, path, retained object, planned write, conflict or attempt supersedes the request and requires a new authorization. A response bound to a superseded digest is audit-only/no-op.
+解析成功只证明历史字节符合旧格式，不证明 current authority。新契约下一律：
 
-## Consumption and evidence
+```text
+legacy_request_status=superseded|audit_only
+effective_for_current_manifest=no
+allowed_new_writes=none
+```
 
-Record authorization comment/ref, actor, scope payload/digest, current/superseded, created/updated/recorded times and reread result. Before every write, confirm the operation is the next exact `planned_writes` item and all prior postconditions passed. Authorization never bypasses preflight, no-clobber, stale-writer, identity-conflict or final no-more-writes rules.
+## Legacy selectors
 
-The delivery comment/attachment postconditions gate the `in_review` write. Re-read the Issue after the command and require `status postcondition=in_review`. At a later valid response task, resolve `valid_human_action_response_v1`, execute only its frozen deferred `in_progress --no-start` item, re-read, and require `status postcondition=in_progress` before processing the response. A failed status postcondition retains prior objects and fails closed; it does not authorize repair, edit, delete, diagnostic comment or another status write.
+`multica_task_result_authorization_request_v1` 与 `multica_authorization_response_parent_v1` 可以为了审计重建 source task/direct-parent/author/revision/content 关系，但不得解析为新 delivery parent 或 current trigger。新路径只使用 current workflow trigger、Review delivery comment 和 `valid_human_action_response_v1` 的 manifest-bound selectors。
 
-When `multica_task_result_authorization_request_v1` is present, first resolve and record its actual request comment ID using the preparation-task rules above; this observed evidence does not alter the frozen scope payload. Only then resolve `multica_authorization_response_parent_v1` to the current task's `trigger_comment_id` after verifying all of the following against frozen scope: same workspace and Issue; exact member author and operational Decision Owner; direct parent equals the resolved authorization request comment; outer-whitespace-trimmed content equals the exact response derived from the frozen authorization ID and scope digest; comment is revision 1 and unedited; and task attribution evidence ref equals the same trigger comment. The write then uses that resolved response UUID as the actual CLI `--parent`, and reread must confirm it. Any missing, duplicate, edited or mismatched request/response is no-op/fail closed and MUST NOT cause a diagnostic Issue comment.
-
-The authorization response is human evidence, not an adapter write. An Agent-invoked authorization-request comment, failure diagnostic, repair note, Issue status change or any other Agent-invoked Issue comment is forbidden unless it appears as its own exact `planned_writes` item. Without that authority, return the request or diagnostic in the task result only; do not call an Issue write to explain why no comment was allowed. If the platform automatically materializes that task result, record the platform-managed comment identity and do not misreport it as “no platform comment”.
+任何旧 request 的缺失、重复、编辑、错误 actor/parent、旧 attempt 或晚到回复都保留为审计事实。不得为“修复旧授权”编辑历史、追加评论、请求新 token 或恢复旧流程。

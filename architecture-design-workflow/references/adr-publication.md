@@ -13,7 +13,7 @@
 5. 用模板生成 ADR 和 detailed design，保留批准技术内容，不在发布时重新设计。
 6. 写入后记录路径、版本、取代关系和提交/发布证据；无写入能力时输出完整待发布内容，不声称已落库。
 
-若发布前需要人类选择目标架构仓库、处理未决发布风险或确认材料访问，分别使用 `routing`、`risk_acceptance` 或 `access_confirmation` Human Action Request。每个请求必须提前展示选择后的 stage、remaining blockers、Owner 和 planned writes；它们不改变已经记录的正式批准，也不扩展批准范围。
+若发布前需要人类改变方案风险判断，使用 `action_type=architecture_review` 并记录准确 subtype。目标仓库或 Owner 未唯一绑定时 current mandate 失效并请求新的任务指令；材料访问由 Runtime/adapter 自动验证。routing 与 access confirmation 不生成 Human Review，也不改变已经记录的正式批准或扩大批准范围。
 
 `approved_design_only` 发布后进入 `completed_design_only`，不得生成 handoff。`approved_for_spec` 发布后才可按 R&D handoff reference 继续。
 
