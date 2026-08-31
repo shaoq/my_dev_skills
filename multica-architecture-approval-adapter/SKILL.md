@@ -49,7 +49,7 @@ current mandate 和 manifest 可以覆盖：
 
 - 只读 capability/identity/preflight、材料准备与 raw-byte validation；
 - 一条 Decision Brief comment 与其准确 attachments；
-- desktop/mobile 的自动 opening/identity/complete-content evidence 或明确 evidence gap；
+- desktop/mobile 的 actual UI activation、browser-rendered preview、identity/complete-content evidence 或明确 evidence gap；raw-byte fetch、HTTP 200 与 `download-only` 不计为 opened；
 - platform-managed task-result evidence；
 - `multica issue status <issue> in_progress --no-start` 与 `in_review --no-start` 的准确投影和 readback；
 - packet route 的既有 `arch.packet.current` bounded projection；
@@ -76,8 +76,8 @@ Issue status 只是 portable intent 的平台投影：
 1. 验证 current mandate、single action/Owner/scope、standalone Design/Research/Control identities 和 target member；Owner 不唯一时停止并请求新的任务指令。
 2. 自动生成 manifest；必要时先投影 `in_progress --no-start` 并 read back。
 3. 读取 [human action material bundle](references/human-action-material-bundle.md)与 [human-accessible evidence links](references/human-accessible-evidence-links.md)，执行一次 comment+attachments write。
-4. 重读 exact comment/parent/author/mention/attachments，重算 raw-byte digests，并分别验证 desktop/mobile 入口。
-5. 只有 `requires_human_review=true` 且全部 Review 前提通过时自动投影 `in_review --no-start`。无法验证材料时保留对象并记录 evidence gap/恢复路径，不生成 access-confirmation action。
+4. 重读 exact comment/parent/author/mention/attachments，重算 raw-byte digests，并分别在 desktop/mobile 执行 actual UI activation；已知 Markdown attachment link 必须打开 browser-rendered preview 并呈现完整正文，不能只 fetch 或触发下载。
+5. 只有 `requires_human_review=true` 且全部 Review 前提通过时自动投影 `in_review --no-start`。任一必要材料只有 `download-only`、preview 未呈现或无法验证时保留对象并记录 evidence gap/恢复路径，保持 `in_progress` 或在无恢复路径时 `blocked`，不生成 access-confirmation action。
 6. 后续 exact Review 回复按 `valid_human_action_response_v1` 验证后自动恢复 `in_progress`。
 
 ## Route A — packet delivery and readiness

@@ -23,3 +23,11 @@
 - [x] 4.2 严格验证本 change 并运行 `git diff --check`、GitNexus `detect-changes`
 - [x] 4.3 生成并校验两个 Skill package，记录实施证据
 - [x] 4.4 激活既有 Agent 后以新 attempt 验证 UNIDRAG-12；不创建缺失资源
+
+## 5. Inline preview 契约修正
+
+- [x] 5.1 记录既有 fetch-only 证据无效及 Chrome 下载隔离风险，修订 portable human-readable access 定义
+- [x] 5.2 更新 Multica adapter 的 preview-first、actual UI activation 与 download-only fail-closed 契约及模板
+- [x] 5.3 在 Multica `packages/views/rich-content` 以 RED/GREEN 用例实现已知 Markdown attachment link 打开既有 preview；不新增服务端接口
+- [x] 5.4 运行 Skill contract/safety/quick validation、Multica 定向测试/typecheck/lint、OpenSpec strict validation 和 diff 检查
+- [x] 5.5 激活两个 Skill、部署 Multica shared frontend，并将旧 fetch-only 证据与错误 `in_review` 投影纠正为 `in_progress@revision-54`；用户明确选择后续自行完成实际网页点击/下载验收，不虚报 automated PASS

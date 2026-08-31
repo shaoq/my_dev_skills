@@ -68,7 +68,7 @@ platform_status_intent=agent_working|human_review|hard_blocked|terminal
 
 每个完整材料入口分别记录 exact artifact identity/type/version/digest、可导航 ref、Requested client scopes、Access status by scope（`opened|unavailable|not_run`）、Verifier / verification time，以及失败时的 Owner/closure condition。
 
-某个 scope 只有在具名 verifier 实际打开入口、解析到准确完整材料并核对 identity 后才能记录 `opened`。一个 scope 的成功不能推出另一个 scope；Agent 进程、CLI 或 raw-byte download 不能替代人的客户端证据。若新发布入口必须在发布后才能验证，先在同一 mandate 内自动交付并执行客户端验证；验证完成后才可生成 current Human Action Request 请求内容决定。无法自动证明时记录 evidence gap 和可观察恢复路径，不把访问确认当成人工授权或内容批准。
+某个 scope 只有在具名 verifier 执行 actual reader activation，并在目标人类界面内看到准确、完整、可阅读的 artifact rendering、核对 identity 后才能记录 `opened`。一个 scope 的成功不能推出另一个 scope；Agent 进程、CLI、raw-byte fetch、HTTP 200、digest 一致、`download-only` 入口或“文件已经保存”不能替代人的客户端证据。下载后的本地文件还可能受宿主系统来源标记、隔离策略、应用关联或设备不可达影响，除非目标 reader 实际打开并呈现正文，否则仍为 `unavailable|not_run`。若新发布入口必须在发布后才能验证，先在同一 mandate 内自动交付并执行客户端验证；验证完成后才可生成 current Human Action Request 请求内容决定。无法自动证明时记录 evidence gap 和可观察恢复路径，不把访问确认当成人工授权或内容批准。
 
 core 不规定平台 URL、附件或预览语法。没有经验证入口时，brief 保留建议和 unavailable 报告，但不得请求正式内容决定；需要正式批准且 packet 不可访问时继续适用既有 `review_packet_unavailable`。
 

@@ -73,6 +73,7 @@
   - Review / Packet（仅当前 gate 需要时）：{{review_packet_entries_or_na}}
 - Requested client scopes：`desktop`（Web）/ `mobile`
 - Access status by scope：`opened|unavailable|not_run`
+- Primary action：每个材料入口必须打开 browser-rendered preview；`download-only`、raw-byte fetch、HTTP 200 或文件已保存不等于 `opened`。下载仅作为预览框内的次要动作。
 
 | Material | Scope | Status | Exact identity / complete content | Verifier / verification time | Evidence / closure condition |
 |---|---|---|---|---|---|

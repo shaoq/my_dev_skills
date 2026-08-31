@@ -78,7 +78,7 @@ attachment_id={{attachment_id}}
 media_type={{media_type}}
 expected_digest={{frozen_sha256}}
 verified_digest={{redownloaded_raw_byte_sha256}}
-stable_access_ref={{markdown_url_or_stable_attachment_endpoint}}
+stable_access_ref={{browser_rendered_preview_entry}}
 availability_scope=multica_workspace:{{workspace_id}}/issue:{{issue_id}}
 attachment_bound_to_comment={{verified|missing|identity_conflict}}
 raw_byte_reread_status={{verified|missing|digest_mismatch}}
@@ -89,7 +89,7 @@ packet_access_confirmation={{desktop:opened|unavailable|unconfirmed;mobile:opene
 
 三个 access confirmation 字段按相应 `artifact_kind` 使用：每个 artifact、每个请求的 client scope 单独记录 canonical target member 的 `opened|unavailable|unconfirmed`。通用“可以访问”、附件卡片存在、Agent 下载或只完成 desktop 都不能把 mobile 或其他 artifact 记为 confirmed。
 
-Never persist a signed or expiring `download_url`. `stable_access_ref` is only `markdown_url` or a stable attachment endpoint; raw-byte re-download may obtain a fresh transient URL at read time.
+Never persist a signed or expiring `download_url`. `stable_access_ref` identifies the platform-rendered preview action backed by the stable attachment identity; a `markdown_url` or stable endpoint is only its identity input, not human-access evidence by itself. Each `opened` value requires actual UI activation and complete rendered content. Raw-byte re-download may obtain a fresh transient URL at read time but never upgrades `download-only` to `opened`.
 
 ## Projection and closing record
 

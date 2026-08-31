@@ -15,7 +15,7 @@
 
 - 不自动替人接受、修改、拒绝或正式批准方案。
 - 不授权实现、部署、采购、资源创建或跨 Issue/workspace 写入。
-- 不修改 Multica 核心或引入私有 API。
+- 不新增 Multica 服务端能力或私有 API；允许在共享前端层把已知附件链接路由到既有预览。
 
 ## Decisions
 
@@ -25,7 +25,7 @@
 
 ### 2. Human Review 由内容语义派生
 
-`requires_human_review=true` 只允许用于 `design_input|architecture_review|architecture_approval`，并要求唯一 Owner、完整可访问材料、原子决定、建议、理由、置信度、备选后果和准确回复。访问确认、路由补充和内部操作不是 Review；无法自动解决的范围/Owner 缺口以新任务指令边界报告。
+`requires_human_review=true` 只允许用于 `design_input|architecture_review|architecture_approval`，并要求唯一 Owner、完整可访问材料、原子决定、建议、理由、置信度、备选后果和准确回复。完整可访问必须由目标客户端 actual UI activation 后的准确完整渲染证明；download-only、raw-byte fetch、HTTP 200、digest 一致或本地文件存在都不充分。访问确认、路由补充和内部操作不是 Review；无法自动解决的范围/Owner 缺口以新任务指令边界报告。
 
 ### 3. Derived manifest 自动消费
 
@@ -42,11 +42,17 @@ Adapter 在首笔写入前生成 `architecture_operation_manifest_v1`，冻结 m
 
 既有 `multica_operational_scope_v1`、`AUTHORIZE OPERATION` 和相关 request 保留为历史解析与审计格式。新 mandate 不生成、不消费这些 token；激活后由新的 attempt supersede 未消费旧请求。
 
+### 6. Inline preview 是附件材料的主入口
+
+UNIDRAG-12 的既有证据只在浏览器上下文 fetch 附件 bytes 并核对 digest，没有真实点击评论入口；Chrome 下载添加的 `com.apple.quarantine` 进一步说明“下载完成”不等于目标读者能打开。portable core 因此只定义平台无关的 human-readable rendering 门槛；Multica adapter 进一步要求实际点击准确 attachment card/anchor，并看到完整 browser-rendered preview。
+
+Multica 已有 `/api/attachments/{id}/content`、ReadonlyContent 与 AttachmentPreviewModal，无需新增后端接口。Multica 仓库只需让 `RichContent` 中可解析为当前 attachment 的普通 Markdown 链接在主点击时复用该 modal；原始 href 与 modal 内下载作为次要路径保留。
+
 ## Risks / Trade-offs
 
 - mandate 过宽：强制绑定单一 stage/attempt 和允许操作类别。
 - 自动 retry 重复评论：manifest 单次消费、current delivery 唯一性和 attempt 上限。
-- 客户端可访问性无法证明：记录 evidence gap；不把用户变成 operational approver。
+- 客户端可访问性无法证明：真实 UI activation 失败或只有下载时记录 evidence gap，禁止进入 `in_review`；不把用户变成 operational approver。
 - 历史协议与新协议并存：所有 legacy 模板醒目标记 audit-only，新路径禁止渲染。
 
 ## Migration Plan
@@ -54,7 +60,8 @@ Adapter 在首笔写入前生成 `architecture_operation_manifest_v1`，冻结 m
 1. 更新 portable core 契约和模板。
 2. 更新 adapter manifest、自动交付、状态与 decision consumption 契约。
 3. 严格验证 OpenSpec、现有 Skill safety/contract tests 与 quick validation。
-4. 打包激活既有 Agent 后，以新 attempt supersede UNIDRAG-12 旧式请求。
+4. 在 Multica 共享只读内容渲染层启用已知附件链接的现有 Markdown preview。
+5. 打包激活既有 Agent 后，以新 attempt supersede UNIDRAG-12 旧式请求，并通过真实点击/渲染而不是 fetch 证明访问能力。
 
 ## Open Questions
 

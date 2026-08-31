@@ -22,6 +22,17 @@
 - **WHEN** 当前步骤是 preparation、delivery、attachment/access verification、status、relay、retry 或 postcondition check
 - **THEN** 系统自动处理且不得请求用户授权
 
+### Requirement: Human access 必须由完整客户端渲染证明
+系统 SHALL 仅在具名 verifier 对目标人类入口执行 actual UI activation，并看到准确完整的 human-readable rendering 后，把对应 scope 记录为 `opened`。download-only、raw-byte fetch、HTTP 200、digest 一致或本地文件存在 MUST NOT 单独满足该条件。
+
+#### Scenario: Markdown attachment preview 成功
+- **WHEN** verifier 点击能解析为当前 Multica attachment 的 Design/Research/Control 链接，browser-rendered preview 呈现准确完整正文
+- **THEN** 系统可以把该 material/scope 记录为 `opened`，并单独保留 raw-byte digest 证据
+
+#### Scenario: 点击只触发下载
+- **WHEN** 入口只下载文件或 verifier 只 fetch 原始字节，没有检查目标客户端渲染
+- **THEN** 系统记录 `unavailable|not_run` 和关闭条件，且不得因此投影 `in_review`
+
 ### Requirement: Adapter 使用 immutable derived manifest
 Adapter SHALL 在首笔平台写入前生成并重验 `architecture_operation_manifest_v1`，冻结 mandate、输入/输出 digest、目标、ordered writes、postconditions、retained objects、attempt 与 supersession，并 SHALL 在匹配时自动单次消费。
 

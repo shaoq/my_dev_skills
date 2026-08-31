@@ -76,7 +76,7 @@
 - Access status by scope：`opened|unavailable|not_run`
 - Verifier / verification time：{{verifier_and_time}}
 
-请逐项打开完整 Design、Research、Control、Review 和 Packet；附件卡片名称、摘要、Agent 下载、内部对象 identity 和可选预览均不能替代完整材料或 target-member access confirmation。
+请逐项通过 browser-rendered preview 打开完整 Design、Research、Control、Review 和 Packet；附件卡片名称、摘要、Agent 下载、raw-byte fetch、内部对象 identity 和 `download-only` 均不能替代完整材料或 target-member access confirmation。下载只是预览中的次要动作。
 
 ## 准确回复
 

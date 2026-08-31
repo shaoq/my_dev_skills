@@ -1,0 +1,35 @@
+{
+  "fixture_id": "ambiguous-current-action-reply",
+  "family": "ambiguous_current_action_reply",
+  "input": {
+    "binding_profile": "current_action_reference_v1",
+    "rejected_variants": [
+      "wrong_action",
+      "superseded_action",
+      "duplicate_current_action",
+      "wrong_actor",
+      "edited_comment",
+      "wrong_agent_mention",
+      "multiple_mentions",
+      "middle_mention",
+      "extra_prose",
+      "multiple_decisions"
+    ],
+    "issue_status_before": "in_review",
+    "issue_status_after": "in_review"
+  },
+  "expected": {
+    "action_type": "design_input",
+    "first_screen": "decision_first",
+    "decision_authority": "unchanged",
+    "artifact_checks": [],
+    "write_outcome": "no_write",
+    "retry_scope": "none",
+    "required_markers": [
+      "fail closed on ambiguous Action identity",
+      "fail closed on unauthorized mention normalization",
+      "retain audit without status change",
+      "no operational authorization"
+    ]
+  }
+}

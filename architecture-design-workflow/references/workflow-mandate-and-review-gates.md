@@ -42,7 +42,7 @@ invalidates_on=<identity, stage, version, digest, owner, target or scope drift>
 还必须同时满足：
 
 1. action、Owner 与 authority scope 唯一且 current；
-2. Design、Research、Control 以及当前 gate 所需 Review/Packet 完整可访问；
+2. Design、Research、Control 以及当前 gate 所需 Review/Packet 具备经 actual activation 验证的 human-readable rendering；`download-only`、raw bytes 或 digest 校验不满足该条件；
 3. brief 给出一段式摘要、简图、Team 建议/理由/置信度、已确定/未确定、关键备选后果；
 4. 只请求一个原子决定，并给出准确回复与回复后的状态/写入边界；
 5. 回复会改变方案内容、Review 结论/风险状态或正式批准状态。

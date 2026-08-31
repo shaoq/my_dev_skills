@@ -48,7 +48,7 @@ comment_ref=multica://issues/<issue-id>/comments/<comment-id>
 artifact_ref=multica://issues/<issue-id>/comments/<comment-id>/attachments/<attachment-id>
 ```
 
-Persist `attachment_id`, `artifact_ref`, and only a returned `markdown_url` or documented stable attachment endpoint as `stable_access_ref`. Never persist `download_url`, query-string bearer token, signed URL, or an inferred browser path. A re-read can ask the platform for a fresh transient download URL solely to stream raw bytes and verify SHA-256.
+Persist `attachment_id`, `artifact_ref`, and the platform-rendered preview action backed by a returned `markdown_url` or documented stable attachment endpoint as `stable_access_ref`. The raw endpoint is identity input, not human-access proof. Never persist `download_url`, query-string bearer token, signed URL, or an inferred browser path. A re-read can ask the platform for a fresh transient download URL solely to stream raw bytes and verify SHA-256; it cannot upgrade a `download-only` entry to `opened`.
 
 These `multica://issues/...` values are opaque internal audit identities only. They MUST NOT be copied into a human-facing Design/Research/Control entry or described as clickable. Resolve and verify a separate attachment card, documented stable endpoint, or `multica_web_comment_permalink_v1` using [human-accessible evidence links](human-accessible-evidence-links.md); otherwise report the affected client scope unavailable.
 

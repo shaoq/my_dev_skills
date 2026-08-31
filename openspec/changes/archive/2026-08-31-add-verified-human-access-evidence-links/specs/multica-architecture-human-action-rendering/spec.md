@@ -70,6 +70,8 @@ The adapter SHALL expose the exact Design Markdown attachment and verified compl
 - **WHEN** the Design attachment or a required Research/Control entry fails client opening, exact identity or complete-content verification
 - **THEN** the adapter records the affected artifact/client scope as unavailable, provides the Owner and closing condition, and MUST NOT request the content decision
 
+## ADDED Requirements
+
 ### Requirement: Comment-triggered delivery binds safely to the authorization response
 For an operational authorization prepared in a Multica task whose result is automatically materialized as a comment, the adapter SHALL canonicalize `authorization_request=multica_task_result_authorization_request_v1` instead of requiring that future request-comment UUID. The scope MUST freeze the preparation task ID, preparation trigger comment, request Agent, authorization ID, Issue/workspace, operational Decision Owner, delivery attempt and material identity, and SHALL represent the future platform-managed request comment as a constrained expected retained object. After materialization, the selector MUST resolve to exactly one unedited revision-1 Agent comment whose `source_task_id`, parent, author and parsed authorization request content match those frozen facts. Missing, duplicate, edited or mismatched task-result comments MUST fail closed.
 

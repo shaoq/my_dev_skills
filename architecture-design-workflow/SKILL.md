@@ -20,6 +20,7 @@ description: "Use when a substantial architecture upgrade, greenfield system, hy
 - 不把 preparation、delivery、attachment/access verification、status projection、task-result、relay、retry、sidecar 或 postcondition check 变成人工授权点。
 - Architecture workflow 只生成 `ARCH-RD-HANDOFF`；目标项目既有 R&D Team 自行分析需求并决定是否创建 OpenSpec change。
 - 不把 recommendation、readiness、引用文本、Agent 输出或仅进程可读的本地路径当作人工批准或 human-readable access。
+- `human-readable access` 必须由目标读者在当前人类界面中完成 actual rendering：入口经实际激活后呈现准确、完整、可阅读的 artifact。`download-only`、保存到本地、raw-byte fetch、HTTP 200、digest 一致或仅文件名可见都不能单独证明 human-readable rendering。
 
 ## Canonical control model
 
@@ -58,7 +59,7 @@ completed_design_only | rejected
 
 每次合法转换都更新 [ARCH-CONTROL 模板](templates/arch-control.md)中的 Issue、Owner、输入版本、证据、下一动作和转换记录。
 
-只有下一步需要人类改变方案输入、作出架构 Review/风险判断或批准 current packet 时，才读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；面向当前读者的 `Architecture Decision Brief` 只请求其唯一有权决定的一项内容，其他 Owner 只作 non-actionable dependency summary。Owner、项目或目标未唯一绑定时停止 current mandate 并说明需要新的任务指令，不把 routing 或 access confirmation 渲染为方案 Review。首屏依次给一段式方案摘要、简化架构图、Team 建议/理由/置信度、已确定/未确定内容、关键备选后果、当前决定、回复后行为和完整材料入口；完整方案保留在独立版本化 artifact，不复制进 brief。每个材料引用必须区分稳定 identity、可导航入口和逐 client scope 自动验证；未验证 URL、本地路径、文件名卡片或仅 Agent 可读入口不得标记 human-accessible。当请求已经交付且唯一 Owner 可以行动时，设 `HUMAN_ACTION_STATE=awaiting_response`；`critical_evidence_gaps` 可以继续作为事实缺口记录，但不能把这类 actionable Human Action Request 误报成“没有可执行路径”的硬阻塞。
+只有下一步需要人类改变方案输入、作出架构 Review/风险判断或批准 current packet 时，才读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；面向当前读者的 `Architecture Decision Brief` 只请求其唯一有权决定的一项内容，其他 Owner 只作 non-actionable dependency summary。Owner、项目或目标未唯一绑定时停止 current mandate 并说明需要新的任务指令，不把 routing 或 access confirmation 渲染为方案 Review。首屏依次给一段式方案摘要、简化架构图、Team 建议/理由/置信度、已确定/未确定内容、关键备选后果、当前决定、回复后行为和完整材料入口；完整方案保留在独立版本化 artifact，不复制进 brief。每个材料引用必须区分稳定 identity、可导航入口和逐 client scope 自动验证；只有实际激活入口并完成 human-readable rendering 才可标记 human-accessible。未验证 URL、本地路径、文件名卡片、`download-only` 或仅 Agent 可读入口不得标记 human-accessible。当请求已经交付且唯一 Owner 可以行动时，设 `HUMAN_ACTION_STATE=awaiting_response`；`critical_evidence_gaps` 可以继续作为事实缺口记录，但不能把这类 actionable Human Action Request 误报成“没有可执行路径”的硬阻塞。
 
 ## Workflow
 

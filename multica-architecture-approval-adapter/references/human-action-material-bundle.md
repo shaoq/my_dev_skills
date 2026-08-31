@@ -44,7 +44,7 @@ multica issue comment add <issue> \
   --output json
 ```
 
-必要时先自动 `in_progress --no-start`。重读新 comment，要求准确 Agent、actual parent、固定 Decision Brief headings、一个 actionable action、canonical mention 和所有附件 bindings；重下载 Markdown 并匹配 digest。分别验证 web/mobile 的 exact identity 与 complete content。
+必要时先自动 `in_progress --no-start`。重读新 comment，要求准确 Agent、actual parent、固定 Decision Brief headings、一个 actionable action、canonical mention 和所有附件 bindings；重下载 Markdown 并匹配 digest。分别通过 actual UI activation 验证 web/mobile 的 browser-rendered preview、exact identity 与 complete content；raw-byte fetch、HTTP 200 或 `download-only` 不能把 scope 标为 `opened`。
 
 全部 postconditions 通过且 `requires_human_review=true` 后自动执行 `in_review --no-start` 并重读。这表示唯一 Owner 已被准确 `@` 且正在等待方案决定。无法自动证明 client access 时记录 evidence gap/恢复路径；不生成 `access_confirmation` action，也不要求用户授权交付。
 

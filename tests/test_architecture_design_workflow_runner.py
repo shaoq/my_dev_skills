@@ -23,6 +23,10 @@ class ArchitectureWorkflowRunnerSafetyTest(unittest.TestCase):
             REPOSITORY_ROOT / "tests" / "architecture-design-workflow-safety.sh",
             tests_dir / "architecture-design-workflow-safety.sh",
         )
+        shutil.copy2(
+            REPOSITORY_ROOT / "tests" / "architecture_design_workflow_safety.py",
+            tests_dir / "architecture_design_workflow_safety.py",
+        )
         shutil.copytree(
             REPOSITORY_ROOT / "tests" / "fixtures",
             tests_dir / "fixtures",

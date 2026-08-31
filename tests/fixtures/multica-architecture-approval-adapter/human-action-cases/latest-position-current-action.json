@@ -1,0 +1,39 @@
+{
+  "fixture_id": "latest-position-current-action",
+  "family": "latest_position_current_action",
+  "input": {
+    "binding_profile": "current_action_reference_v1",
+    "issue_id": "01a052ed-1875-75c7-a0e2-1ca1ca33f2e5",
+    "action_id": "UNIDRAG-12-DESIGN-BASELINE-V1",
+    "action_version": "v1",
+    "action_digest": "sha256:02eaae79bcc9429c6e01b5ae8f00ab80e10cad09d4d202c7d6fedb33ba155c01",
+    "action_state": "current_unique",
+    "request_comment_id": "01a05760-5d1e-7b13-a207-e0a4314773cf",
+    "candidate_comment_id": "01a057a6-6f80-7021-8942-94ea19394a69",
+    "candidate_author": "5a17a52c-601e-4674-92f8-3274dcefb2bf",
+    "candidate_revision": 1,
+    "candidate_created_after_request": true,
+    "candidate_parent_kind": "thread_root",
+    "parent_chain_authority": "audit_only",
+    "platform_mention": "current_agent_tail",
+    "raw_content": "ACTION UNIDRAG-12-DESIGN-BASELINE-V1: accept platform-neutral-dual-plane [@Architecture Lead](mention://agent/f6135960-aea8-4aaa-a970-0c1e60544a90)",
+    "normalized_content": "ACTION UNIDRAG-12-DESIGN-BASELINE-V1: accept platform-neutral-dual-plane",
+    "issue_status_before": "in_review",
+    "issue_status_after_valid_response": "in_progress"
+  },
+  "expected": {
+    "action_type": "design_input",
+    "first_screen": "decision_first",
+    "decision_authority": "unchanged",
+    "artifact_checks": ["design", "research", "control"],
+    "write_outcome": "authorized_only",
+    "retry_scope": "none",
+    "required_markers": [
+      "current unique Action ID is primary binding",
+      "latest issue position is valid",
+      "thread parent is audit only",
+      "one current Agent edge mention is normalized",
+      "valid response projects in_progress"
+    ]
+  }
+}

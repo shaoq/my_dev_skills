@@ -30,6 +30,7 @@ REQUIRED_ADAPTER_SURFACES = (
     "multica-architecture-approval-adapter/references/operational-authorization.md",
 )
 EXPECTED_HUMAN_ACTION_FAMILIES = {
+    "ambiguous-current-action-reply": "ambiguous_current_action_reply",
     "authorization-response-parent-binding": "authorization_response_parent_binding",
     "attachment-first-decision-brief": "attachment_first_decision_brief",
     "buried-approval-choices": "decision_first_approval",
@@ -39,6 +40,7 @@ EXPECTED_HUMAN_ACTION_FAMILIES = {
     "per-artifact-mobile-access": "per_artifact_access",
     "task-result-authorization-request-binding": "task_result_authorization_request_binding",
     "invalid-task-result-authorization-request": "invalid_task_result_authorization_request",
+    "latest-position-current-action": "latest_position_current_action",
     "token-plus-prose-revision": "decision_context_separation",
 }
 EXPECTED_FAMILIES = {
@@ -418,6 +420,31 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             set(invalid_trigger["input"]["rejected_trigger_variants"]),
         )
 
+        latest_action = cases["latest-position-current-action"]
+        self.assertEqual("current_action_reference_v1", latest_action["input"]["binding_profile"])
+        self.assertEqual("thread_root", latest_action["input"]["candidate_parent_kind"])
+        self.assertEqual("current_agent_tail", latest_action["input"]["platform_mention"])
+        self.assertEqual("audit_only", latest_action["input"]["parent_chain_authority"])
+        self.assertEqual("in_progress", latest_action["input"]["issue_status_after_valid_response"])
+
+        ambiguous_action = cases["ambiguous-current-action-reply"]
+        self.assertEqual("no_write", ambiguous_action["expected"]["write_outcome"])
+        self.assertEqual(
+            {
+                "wrong_action",
+                "superseded_action",
+                "duplicate_current_action",
+                "wrong_actor",
+                "edited_comment",
+                "wrong_agent_mention",
+                "multiple_mentions",
+                "middle_mention",
+                "extra_prose",
+                "multiple_decisions",
+            },
+            set(ambiguous_action["input"]["rejected_variants"]),
+        )
+
     def test_human_action_rendering_contract_is_present(self) -> None:
         human_action = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-human-action-request.md"
         material_bundle = REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-action-material-bundle.md"
@@ -545,6 +572,11 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "comment-<comment-id>",
                 "opened|unavailable|not_run",
                 "stable attachment",
+                "browser-rendered preview",
+                "actual UI activation",
+                "download-only",
+                "raw-byte fetch",
+                "MUST NOT enter `in_review`",
                 "multica://issues/",
                 "MUST NOT",
             ):
@@ -581,10 +613,18 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             self.assertNotIn(token, operational_text, f"operational authorization must not contain approval token {token}")
 
         protocol_slots = {
+            REPOSITORY_ROOT / "architecture-design-workflow/references/workflow-mandate-and-review-gates.md": (
+                "current_action_reference_v1",
+                "平台评论位置",
+                "current Action ID",
+            ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-decision-binding.md": (
                 "context_profile=multica_revision_context_v1",
                 "revision_brief_ref=",
                 "revision_brief_digest=sha256:",
+                "current_action_reference_v1",
+                "parent chain",
+                "current Architecture Agent",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/target-human-mapping.md": (
                 "access_profile=multica_artifact_access_confirmation_v1",
@@ -611,6 +651,7 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "retry_limit=",
                 "supersedes=",
                 "valid_human_action_response_v1",
+                "current_action_reference_v1",
                 "in_review --no-start",
                 "in_progress --no-start",
                 "AUTHORIZE OPERATION",
