@@ -21,6 +21,8 @@ compatibility 的 exact markers、frozen inputs 和 raw-byte digests 会在相�
 
 当 compatible core 输出 current Human Action Request 时，先读取 [human action material bundle](references/human-action-material-bundle.md)与 [human-accessible evidence links](references/human-accessible-evidence-links.md)，再使用 [Multica Human Action Request template](templates/multica-human-action-request.md)忠实渲染。评论固定为 Architecture Decision Brief：方案摘要、简化架构图、Team 建议/理由/置信度、已确定/未确定、关键备选后果、当前读者的一项决定、回复后行为和完整 Design/Research/Control 入口；完整设计作为 canonical Markdown attachment，不复制正文。只有唯一绑定的当前 member 获得一个可执行回复表单，其他 Owner 只列 non-actionable dependencies。用户材料入口必须经过实际 attachment/link、准确 identity、完整内容与逐 desktop/mobile scope 验证；未经验证的 `multica://issues/...`、本地路径、文件名卡片或临时 URL 不能冒充 human-accessible ref。
 
+所有可执行 Human Action 评论首行必须用 canonical member UUID 渲染 `[@<display-name>](mention://member/<member-id>)`，不能只写显示名、角色名或普通文本 `@name`。Issue status 是 core stage 的平台投影而非替代：Agent 正在准备或处理有效回复时为 `in_progress`；current actionable request 已成功交付、等待该 member 回复时为 `in_review`；只有没有可执行 Agent 或 human 路径时才是 `blocked`；正式发布或 handoff 完成后才可为 `done`。`critical_evidence_gaps` 与可行动请求可以同时存在，此时必须投影为 `in_review`，不能仅因 evidence gap 设为 `blocked`。
+
 任何新的 delivery、target-human/shared-scope 写入、activation、conflict strategy、sandbox 或 retry 权限，都必须先读取 [operational authorization protocol](references/operational-authorization.md)并使用 [Multica Operational Authorization template](templates/multica-operational-authorization.md)。运维授权与架构内容决定是不同 authority：它只覆盖所列 existing identities、exact planned writes 和 path scope，不能被 recommendation、批准 comment 或模糊肯定推断，也不能成为 core human decision。
 
 ## Fixed core compatibility contract
@@ -50,7 +52,7 @@ closing_condition=provide a current delivered packet compatible with core revisi
 
 若随后的人类授权回复触发 delivery，scope 的 `planned_writes` 使用 `parent=multica_authorization_response_parent_v1`。执行时必须先解析上述 task-result 请求评论，再验证当前回复的 direct parent 等于该评论，并在 author/content/revision/Issue/workspace/task-attribution 全部精确匹配后，才把 response selector 解析为当前 `trigger_comment_id`，调用 `multica issue comment add <issue> --parent <trigger-comment-id> --attachment <path> --output json`。不得使用猜测 UUID、旧回复、最近评论或 thread root。
 
-未列入 `planned_writes` 的 Agent 主动授权请求、诊断、修补评论和 Issue 状态变更一律不是隐含副作用；没有对应授权时只通过 task result 返回。Multica 把 task result 自动投递为 platform-managed task result comment 属于平台管理行为，不是 Agent 主动调用 Issue write；结果必须如实说明“未主动调用 Issue write；Multica 将 task result 自动投递为平台管理评论”，不得声称没有产生平台评论。A0 准备与交付保持 Issue `in_progress`。
+未列入 `planned_writes` 的 Agent 主动授权请求、诊断、修补评论和 Issue 状态变更一律不是隐含副作用；没有对应授权时只通过 task result 返回。Multica 把 task result 自动投递为 platform-managed task result comment 属于平台管理行为，不是 Agent 主动调用 Issue write；结果必须如实说明“未主动调用 Issue write；Multica 将 task result 自动投递为平台管理评论”，不得声称没有产生平台评论。A0 的授权必须把当前执行开始时的 `in_progress --no-start`（若当前状态不同）、交付评论及其附件、交付 postcondition 成功后的 `in_review --no-start`，以及由 `valid_human_action_response_v1` 延迟选择器约束的回复任务 `in_progress --no-start` 分别列为准确有序写入；任何一项未授权都不得执行或暗中补写。
 
 以下操作不属于 Issue delivery，也不得作为本 skill 的隐式副作用：Skill import、Agent binding、Team/Project/Issue 创建、Runtime 配置、CLI install/upgrade、私有/未文档化 API、缺失 resource 创建。它们要求单独、明确的人类授权；没有该授权时停止并报告 owner 与 closing condition。不得以 preflight 失败为理由安装、升级、配置或绕过平台接口。
 
@@ -64,11 +66,13 @@ closing_condition=provide a current delivered packet compatible with core revisi
 
 ### A0 — human-action material delivery
 
-1. 验证 current Human Action Request 的单 action/Owner/scope、standalone Design 结构/version/digest 以及 Research/Control identities；不要求不存在的 packet。
-2. 唯一绑定当前 Multica member；Owner 未绑定/歧义时只允许 routing brief，不允许 content action。
-3. 验证 exact operational authorization、路径/digest 与一次 comment+attachment write preflight；若授权请求来自平台自动投递的准备任务结果，先唯一解析 `multica_task_result_authorization_request_v1`，再验证回复并解析 `multica_authorization_response_parent_v1`。
+1. 验证 current Human Action Request 的单 action/Owner/scope、standalone Design 结构/version/digest 以及 Research/Control identities；不要求不存在的 packet。Agent 开始执行已授权工作时，将 Issue 精确投影为 `in_progress --no-start` 并重读验证。
+2. 唯一绑定当前 Multica member；Owner 未绑定/歧义时只允许 routing brief，不允许 content action。评论首行必须渲染该 member 的 canonical mention。
+3. 验证 exact operational authorization、路径/digest、状态写入与一次 comment+attachment write preflight；若授权请求来自平台自动投递的准备任务结果，先唯一解析 `multica_task_result_authorization_request_v1`，再验证回复并解析 `multica_authorization_response_parent_v1`。
 4. 若 exact 新入口尚无 requested-client 证据，本次唯一 action 必须是 `access_confirmation`；按 `multica_human_action_material_bundle_v1` 执行一次写入，重读 comment/attachment/parent/author，并验证 canonical Markdown raw bytes。
-5. 分别记录 desktop/mobile attachment/link、exact identity 和 complete-content 结果；失败保留对象并 unavailable，不写 `arch.packet.current`。全部通过后，内容决定必须使用新的 core action 版本和新的独立授权交付，不编辑旧评论，访问确认本身不批准方案。
+5. 分别记录 desktop/mobile attachment/link、exact identity 和 complete-content 结果；失败保留对象并 unavailable，不写 `arch.packet.current`。评论及所有交付 postconditions 成功后，执行 `multica issue status <issue> in_review --no-start` 并重读；这表示已明确 `@` 唯一 Owner 且等待其行动。
+6. 当后续任务由准确 current 回复触发时，先按 `valid_human_action_response_v1` 验证 actor、direct parent、action ref、revision、exact response 与 task attribution，再执行已授权的 `multica issue status <issue> in_progress --no-start` 并重读，然后处理回复。无效、过期或错误 Owner 的回复不得改变状态。
+7. 全部通过后，内容决定必须使用新的 core action 版本和新的独立授权交付，不编辑旧评论，访问确认本身不批准方案。状态 postcondition 失败时保留已有对象、失败关闭并在 task result 报告，不执行未授权 repair。
 
 ### A — delivery route
 

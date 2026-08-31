@@ -10,6 +10,15 @@ For an explicitly authorized delivery only, passing verified frozen artifacts as
 
 The operational request must show `Existing target identities`, `Exact planned writes`, `Authorized paths / scope`, `Retained objects`, `Failure behavior`, `Excluded operations`, `Risks`, the exact authorize/deny reply and After-response behavior before any write. It is not an architecture approval and must not contain or solicit architecture decision tokens.
 
+For a Human Action lifecycle, command-surface inspection and the current capability certificate must cover status readback plus both exact no-trigger commands:
+
+```bash
+multica issue status <issue> in_review --no-start
+multica issue status <issue> in_progress --no-start
+```
+
+The authorization must list these status writes in their event order, including deferred response-start binding via `valid_human_action_response_v1`; mention, comment and status are not bundled as an unspecified side effect.
+
 When a preparation task result will be automatically materialized as the authorization request, freeze `authorization_request=multica_task_result_authorization_request_v1` rather than a future request UUID. Bind the exact preparation task, preparation trigger, request Agent, authorization ID, Issue/workspace, Owner, attempt and material digests, and retain `comment:multica_task_result_authorization_request_v1` as a constrained expected object. After materialization, require exactly one revision-1 unedited request comment with matching `source_task_id`, direct parent, Agent, parsed authorization content and scope. Missing, duplicate, edited or mismatched candidates fail closed; never use a guessed UUID, latest comment or compact read that omits task attribution.
 
 For a response-triggered delivery, the authorization also freezes `parent=multica_authorization_response_parent_v1` rather than a future response UUID. Immediately before the first write, first resolve the request selector above, then resolve the response selector only to the current task's `trigger_comment_id`. Require same workspace/Issue, exact operational-owner member author, direct reply to the resolved authorization request, exact expected token derived from the frozen authorization ID/scope digest after outer-whitespace trimming, revision 1 with no edit, and task attribution evidence pointing to that same trigger. A mismatch is an authorization failure, not a reason to select another comment.
@@ -39,6 +48,8 @@ Preserve the real Review conclusion and do not claim delivery/readiness. Before 
 | `metadata_read` | Packet route only: read existing `arch.packet.current` and observe its bounded single-key representation. Pre-packet material route records `not_applicable` and MUST NOT create or modify that key. | For packet delivery, provide readable current metadata in the existing Issue. |
 
 The authorized first comment write is the live proof boundary. Its parseable JSON response, actual `--parent` result, attachment bindings, thread reread, attachment identity/stable entry/raw-byte re-download, and requested-client opening results are **postconditions**, not pre-write assumptions. Packet-only metadata write/read-back remains a later packet-route postcondition. `--parent` must use the actual response trigger-comment ID resolved through `multica_authorization_response_parent_v1`, after its direct parent has first been resolved through `multica_task_result_authorization_request_v1` when applicable; never substitute a thread root. `--attachment` must refer to frozen local files after their raw-byte digests are verified. Any postcondition failure emits route-specific unavailable evidence and retains created objects; it never retroactively authorizes a repair write.
+
+For Human Action delivery, a canonical member mention and successful comment/attachment/access reread gate the authorized `in_review --no-start` command. Re-read the Issue and require `status postcondition=in_review`. For a later response task, validate `valid_human_action_response_v1` before the authorized `in_progress --no-start` command, then require `status postcondition=in_progress` before doing Agent work. A failure returns evidence in the task result, retains prior objects and performs no unplanned repair.
 
 Fail-closed evidence is returned through the task result unless an exact diagnostic comment is separately listed in `planned_writes`. The same rule applies to asking for operational authorization: the Agent may prepare or return the request, but it must not invoke an unlisted Issue write. If Multica automatically materializes the task result as a platform-managed task result comment, record its identity and state truthfully that the Agent did not invoke the write but the platform produced the comment. Never spend an unlisted Agent-invoked comment write to explain a rejected trigger, failed preflight or failed postcondition.
 

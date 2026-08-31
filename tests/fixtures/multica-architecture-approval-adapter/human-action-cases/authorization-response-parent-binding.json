@@ -11,7 +11,8 @@
     "response_revision": 1,
     "response_content": "exact_authorization_token",
     "task_attribution_comment_id": "C-AUTH-RESPONSE",
-    "issue_status_after_delivery": "in_progress"
+    "issue_status_after_delivery": "in_review",
+    "issue_status_after_valid_response": "in_progress"
   },
   "expected": {
     "action_type": "operational_authorization",
@@ -25,7 +26,8 @@
       "resolve to current task trigger_comment_id",
       "exact authorization response",
       "one authorized delivery comment",
-      "Issue remains in_progress"
+      "Issue enters in_review after delivery",
+      "Issue returns to in_progress for a valid response task"
     ]
   }
 }

@@ -20,6 +20,8 @@ Automatic discovery remains enabled. Human gates authorize publication/handoff, 
 
 ## Repository validation
 
+Behavior validation must keep architecture stage, Human Action state and platform projection independent. An actionable Human Action Request with a unique Owner and exact response uses `awaiting_human_confirmation`; it is waiting for review, not a hard blocker, even when `critical_evidence_gaps` remains recorded. A hard blocker requires evidence that no executable human or Agent path currently exists.
+
 Run from repository root:
 
 ```bash

@@ -39,7 +39,7 @@ The PDF is a reading copy only. It cannot replace the Markdown attachment, desig
 
 ## Operational authorization
 
-Use `operation_variant=delivery` in `multica_operational_scope_v1`. Set `bound_identity` to the current action ID, Design version/digest and opaque delivery attempt. `authorized_paths` lists every exact Decision Brief, canonical Markdown, optional PDF and fallback Markdown input. `planned_writes` contains exactly one ordered Issue comment write with all selected attachments.
+Use `operation_variant=delivery` in `multica_operational_scope_v1`. Set `bound_identity` to the current action ID, Design version/digest and opaque delivery attempt. `authorized_paths` lists every exact Decision Brief, canonical Markdown, optional PDF and fallback Markdown input. `planned_writes` contains the exact ordered state/comment lifecycle: current-work `in_progress --no-start` only when needed, one Issue comment with all selected attachments, postcondition-gated `in_review --no-start`, and one deferred `in_progress --no-start` bound to `valid_human_action_response_v1`. No status transition is implicit.
 
 If the preparation task result will be automatically materialized as the authorization request, the bundle declares `authorization_request=multica_task_result_authorization_request_v1`, freezes its preparation task ID, trigger comment, request Agent, authorization ID, Issue/workspace, Owner, attempt and material digests, and lists `comment:multica_task_result_authorization_request_v1` as an expected retained object. After materialization, resolve exactly one request comment by `source_task_id`, parent, Agent, revision-1 unedited content, parsed canonical scope and uniqueness. Record the actual ID as observed evidence without changing the frozen payload.
 
@@ -62,11 +62,24 @@ multica issue comment add <issue> \
 
 The actual response trigger comment ID is mandatory for the executed CLI command. The request and response symbolic selectors exist only to bind future platform identities and MUST resolve in order—first `multica_task_result_authorization_request_v1`, then `multica_authorization_response_parent_v1`—before execution. A generated thread root, prior authorization response, latest-comment search, orphan attachment, later edit, append, relabel, delete or second unlisted write is outside the authorization.
 
-Material preparation and delivery leave the Issue `in_progress`. Status changes, Agent-invoked authorization-request comments and fail-closed diagnostic comments are separate writes and are not implied by this bundle. If they are absent from exact `planned_writes`, the Agent returns their content in the task result only. Multica may then automatically expose that result as a platform-managed task result comment; record that actual comment and say “未主动调用 Issue write；Multica 将 task result 自动投递为平台管理评论”，而不是声称没有平台评论。
+The authorized status commands are public CLI writes and MUST be frozen exactly as applicable:
+
+```bash
+multica issue status <issue> in_progress --no-start
+multica issue status <issue> in_review --no-start
+```
+
+While the Agent is preparing or consuming a valid response, the Issue is `in_progress`. After the exact comment, attachments, mention, parent, digest and requested access postconditions succeed, set the Issue to `in_review`; this is the visible “waiting for the mentioned human” state. A remaining `critical_evidence_gaps` record does not change that projection when the delivered request gives a unique Owner an executable closing action. Use `blocked` only when no executable Agent or human path exists, never as a synonym for waiting for confirmation.
+
+The deferred response transition uses `selector=valid_human_action_response_v1`. It resolves only when one task trigger is a revision-1 unedited direct reply by the exact Decision Owner to the current delivery comment, contains the exact action-bound response, belongs to the same Issue/workspace, and matches task attribution. After that selector validates, set the Issue to `in_progress --no-start` and verify the status postcondition before processing the response. Invalid, superseded, wrong-owner or wrong-parent responses are no-write/fail-closed.
+
+Status changes, Agent-invoked authorization-request comments and fail-closed diagnostic comments are separate writes. If the required status writes are absent from exact `planned_writes`, the delivery is not authorized as a complete Human Action lifecycle and the Agent performs no partial substitute. Multica may automatically expose a task result as a platform-managed task result comment; record that actual comment and say “未主动调用 Issue write；Multica 将 task result 自动投递为平台管理评论”，而不是声称没有平台评论。
 
 ## Postconditions
 
 Parse the response and re-read the exact new comment. Require the expected agent author, actual parent, exact Decision Brief headings, exactly one actionable action for the bound member, and every selected attachment identity bound to that comment. Re-download canonical Markdown, hash raw bytes and match the frozen digest.
+
+Require the first rendered line to contain `mention://member/<canonical-member-id>` for the same Decision Owner. After all delivery and access postconditions pass, execute the authorized `in_review --no-start` write and re-read the Issue; `status postcondition=in_review` is part of success. If the status cannot be verified, retain the comment/attachments, return partial-failure evidence and require a new incremental authorization; do not edit, delete, append or issue an unplanned repair comment.
 
 Then apply [human-accessible evidence links](human-accessible-evidence-links.md) to each Design, Research and Control entry. Record `web|mobile` separately as `opened|unavailable|not_run`; a filename, attachment card presence or Agent download alone is insufficient. If the exact new entries lack complete requested-client evidence before publication, this bundle's one actionable request MUST be `action_type=access_confirmation`; the intended design input, risk acceptance or approval remains non-actionable pending context. If any required complete material cannot be opened for the requested scope, retain all objects, mark the material delivery unavailable and do not treat the content decision as ready.
 

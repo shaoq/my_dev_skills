@@ -379,7 +379,8 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             parent_binding["input"]["resolved_parent_comment_id"],
         )
         self.assertEqual("authorized_only", parent_binding["expected"]["write_outcome"])
-        self.assertEqual("in_progress", parent_binding["input"]["issue_status_after_delivery"])
+        self.assertEqual("in_review", parent_binding["input"]["issue_status_after_delivery"])
+        self.assertEqual("in_progress", parent_binding["input"]["issue_status_after_valid_response"])
 
         request_binding = cases["task-result-authorization-request-binding"]
         self.assertEqual(
@@ -436,6 +437,7 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
 
         required_slots = {
             human_action: (
+                "mention://member/{{decision_owner_member_id}}",
                 "## Architecture Decision Brief", "## 当前方案摘要", "## 简化架构图",
                 "## Architecture Team 总体建议", "总体建议", "推荐理由", "置信度",
                 "## 已确定与尚未确定", "## 最重要的备选及后果",
@@ -450,6 +452,7 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "{{research_human_access_entry}}", "{{control_human_access_entry}}",
                 "Requested client scopes", "desktop", "mobile",
                 "opened|unavailable|not_run", "Verifier / verification time",
+                "Issue status", "in_review", "in_progress",
             ),
             operational: (
                 "action_type=operational_authorization", "Existing target identities",
@@ -497,6 +500,15 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 if slot not in text
             )
         self.assertFalse(failures, "human action rendering contract incomplete:\n" + "\n".join(failures))
+
+        first_rendered_line = next(
+            line for line in human_action.read_text(encoding="utf-8").splitlines() if line.strip()
+        )
+        self.assertEqual(
+            "[@{{decision_owner_display_name}}](mention://member/{{decision_owner_member_id}})，请处理下面唯一一项当前动作。",
+            first_rendered_line,
+            "canonical Decision Owner mention must be the first rendered comment line",
+        )
 
         interface_text = agent_interface.read_text(encoding="utf-8")
         for marker in (
@@ -592,6 +604,8 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "platform-managed task result comment",
                 "trigger_comment_id",
                 "task result",
+                "valid_human_action_response_v1",
+                "status postcondition",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/capability-preflight-and-write-authorization.md": (
                 "multica_authorization_response_parent_v1",
@@ -603,13 +617,19 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "task result",
                 "--allow-external-file",
                 "execution working directory",
+                "multica issue status <issue> in_review --no-start",
+                "multica issue status <issue> in_progress --no-start",
+                "status postcondition",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-action-material-bundle.md": (
                 "parent=multica_authorization_response_parent_v1",
                 "authorization_request=multica_task_result_authorization_request_v1",
                 "source_task_id",
                 "trigger_comment_id",
-                "in_progress",
+                "multica issue status <issue> in_review --no-start",
+                "multica issue status <issue> in_progress --no-start",
+                "critical_evidence_gaps",
+                "status postcondition",
                 "task result",
                 "--allow-external-file",
             ),

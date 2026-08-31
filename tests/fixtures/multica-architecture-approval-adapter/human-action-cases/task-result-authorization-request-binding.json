@@ -14,7 +14,8 @@
     "response_comment_id": "C-AUTH-RESPONSE",
     "response_parent_comment_id": "C-AUTH-REQUEST",
     "response_task_attribution_comment_id": "C-AUTH-RESPONSE",
-    "issue_status_after_delivery": "in_progress"
+    "issue_status_after_delivery": "in_review",
+    "issue_status_after_valid_response": "in_progress"
   },
   "expected": {
     "action_type": "operational_authorization",

@@ -30,7 +30,9 @@ approved_design_only | approved_for_spec | publishing | handed_off |
 completed_design_only | rejected
 ```
 
-`revision_requested` 是决定，不是 stage。`waiting_human` 必须记录 `WAIT_REASON=design_approval|target_project`。依赖、证据或路由缺失时保持当前 stage，并记录 `BLOCKED_REASON`，不得创造 `blocked` 等近义 stage。
+`revision_requested` 是决定，不是 stage。`WAIT_REASON` 是与 stage 正交的等待原因，可取 `none|design_approval|target_project|awaiting_human_confirmation`；正式 packet 批准仍使用 `stage=waiting_human` 与 `WAIT_REASON=design_approval`，而设计输入、访问确认、风险接受等请求可以保持真实的 `designing|reviewing` stage，并记录 `WAIT_REASON=awaiting_human_confirmation`。依赖、证据或路由缺失时保持当前 stage，并记录 `BLOCKED_REASON`，不得创造 `blocked` 等近义 stage。
+
+每个 Human Action 还必须独立记录 `HUMAN_ACTION_STATE=none|preparing|awaiting_response|received|unavailable|superseded`。它描述“面向人的请求是否已可行动地交付”，不替代 architecture stage、gate 或 `BLOCKED_REASON`。请求尚在生成且 Agent 正工作时为 `preparing`；唯一 Owner、准确回复和可访问材料已交付时为 `awaiting_response`；收到并验证准确回复后先记为 `received`，再开始后续 Agent 工作。平台 adapter 可以据此投影其自身 Issue status，但 core 不规定平台命令或 mention 语法。
 
 本工作流使用以下稳定 blocker：`missing_subject_project`、`missing_target_project`、`missing_openspec_explore`、`missing_brainstorming`、`critical_evidence_gaps`、`review_packet_unavailable`、`approved_artifact_unavailable`。没有 blocker 时记录 `none`；新的原因必须在控制契约中先定义，不能临时造同义值。
 
@@ -55,7 +57,7 @@ completed_design_only | rejected
 
 每次合法转换都更新 [ARCH-CONTROL 模板](templates/arch-control.md)中的 Issue、Owner、输入版本、证据、下一动作和转换记录。
 
-任何下一步需要人类选择、确认、接受风险、批准或补充信息时，先读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；面向当前读者的 `Architecture Decision Brief` 只请求其唯一有权决定的一项内容，其他 Owner 只作 non-actionable dependency summary，Owner 未唯一绑定时先做 routing。首屏依次给一段式方案摘要、简化架构图、Team 建议/理由/置信度、已确定/未确定内容、关键备选后果、当前决定、回复后行为和完整材料入口；完整方案保留在独立版本化 artifact，不复制进 brief。每个材料引用必须区分稳定 identity、可导航入口、逐 client scope 验证和 target-human access confirmation；未验证 URL、本地路径、文件名卡片或仅 Agent 可读入口不得标记 human-accessible。该请求是平台无关的决策界面，不规定平台 URL/附件语法，不创造新的 canonical enum、artifact type 或 `planned_writes` 目标，也不扩大任何授权；core normalized `planned_writes` 仍只记录直接更新的既有架构 artifact，例如请求发布在控制评论时记录 `issue:ARCH-CONTROL`。
+任何下一步需要人类选择、确认、接受风险、批准或补充信息时，先读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；面向当前读者的 `Architecture Decision Brief` 只请求其唯一有权决定的一项内容，其他 Owner 只作 non-actionable dependency summary，Owner 未唯一绑定时先做 routing。首屏依次给一段式方案摘要、简化架构图、Team 建议/理由/置信度、已确定/未确定内容、关键备选后果、当前决定、回复后行为和完整材料入口；完整方案保留在独立版本化 artifact，不复制进 brief。每个材料引用必须区分稳定 identity、可导航入口、逐 client scope 验证和 target-human access confirmation；未验证 URL、本地路径、文件名卡片或仅 Agent 可读入口不得标记 human-accessible。该请求是平台无关的决策界面，不规定平台 URL/附件语法，不创造新的 canonical enum、artifact type 或 `planned_writes` 目标，也不扩大任何授权；core normalized `planned_writes` 仍只记录直接更新的既有架构 artifact，例如请求发布在控制评论时记录 `issue:ARCH-CONTROL`。当请求已经交付且唯一 Owner 可以行动时，设 `HUMAN_ACTION_STATE=awaiting_response`；`critical_evidence_gaps` 可以继续作为事实缺口记录，但不能把这类 actionable Human Action Request 误报成“没有可执行路径”的硬阻塞。
 
 ## Workflow
 

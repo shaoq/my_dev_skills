@@ -39,6 +39,9 @@
 ## 当前读者的一项决定
 
 - Action ID / type / current status：`<action_id>` / `design_input|risk_acceptance|design_approval|routing|access_confirmation` / `current|answered|superseded`
+- Human Action State：`none|preparing|awaiting_response|received|unavailable|superseded`
+- Wait reason：`none|target_project|design_approval|awaiting_human_confirmation`
+- Platform status intent：`agent_working|human_review|hard_blocked|terminal`
 - Why now：
 - Decision Owner / authority scope：
 - Current reader / authority binding：`unique|unbound|ambiguous` / `<evidence ref>`

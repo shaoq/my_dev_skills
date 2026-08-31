@@ -255,6 +255,35 @@ if human_action_template.is_file():
             + ", ".join(missing_human_action_slots)
         )
 
+human_action_state_contract = {
+    skill / "SKILL.md": [
+        "HUMAN_ACTION_STATE",
+        "awaiting_human_confirmation",
+    ],
+    skill / "references" / "human-action-request.md": [
+        "HUMAN_ACTION_STATE=none|preparing|awaiting_response|received|unavailable|superseded",
+        "platform_status_intent",
+        "critical_evidence_gaps",
+    ],
+    skill / "references" / "runtime-and-validation.md": [
+        "awaiting_human_confirmation",
+        "actionable Human Action Request",
+        "hard blocker",
+    ],
+    skill / "templates" / "human-action-request.md": [
+        "Human Action State",
+        "Platform status intent",
+        "awaiting_response",
+    ],
+}
+for path, slots in human_action_state_contract.items():
+    if not path.is_file():
+        continue
+    contract_text = path.read_text(encoding="utf-8")
+    for slot in slots:
+        if slot not in contract_text:
+            fail(f"{path.relative_to(root)} missing human action state marker: {slot}")
+
 
 def load_fixture(path: Path) -> tuple[dict[str, object], str]:
     text = path.read_text(encoding="utf-8")

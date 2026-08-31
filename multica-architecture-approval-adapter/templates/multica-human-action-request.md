@@ -1,4 +1,8 @@
+[@{{decision_owner_display_name}}](mention://member/{{decision_owner_member_id}})，请处理下面唯一一项当前动作。
+
 # Multica Human Action Request
+
+该 mention 必须由已验证的 canonical member UUID 渲染。
 
 ## Architecture Decision Brief
 
@@ -40,9 +44,11 @@
 
 - Action ID：`{{action_id}}`
 - `action_type={{action_type}}`
+- Human Action State：`{{none_preparing_awaiting_response_received_unavailable_superseded}}`
+- Issue status：交付验证通过并等待你回复时为 `in_review`；你的准确 current 回复启动后续 Agent 工作时为 `in_progress`。这两个状态不改变 architecture stage。
 - Current / superseded：`{{current_or_superseded}}`
 - Why now：{{why_now_zh}}
-- Decision Owner：`{{canonical_multica_member_uuid}}`
+- Decision Owner：`{{decision_owner_member_id}}`（{{decision_owner_display_name}}）
 - Authority scope：{{authority_scope_zh}}
 - Current reader / authority binding：`{{unique_unbound_ambiguous}}` / `{{binding_evidence_ref}}`
 - Content-decision activation gate：`{{ready_or_access_confirmation_required}}`；未全部验证时 `action_type=access_confirmation`，本评论不得请求设计输入、风险接受或正式批准。

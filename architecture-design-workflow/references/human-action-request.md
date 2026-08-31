@@ -6,6 +6,23 @@
 
 该请求是决策界面，不是新的 stage、Review conclusion 或批准协议。它不得把 recommendation、风险接受、路由确认、访问确认或修订说明提升为正式架构批准。
 
+## Orthogonal action state and platform intent
+
+每个 current action 必须记录：
+
+```text
+HUMAN_ACTION_STATE=none|preparing|awaiting_response|received|unavailable|superseded
+HUMAN_ACTION_TYPE=<action_type|none>
+HUMAN_ACTION_OWNER=<unique human or role|none>
+HUMAN_ACTION_REF=<stable current request ref|none>
+WAIT_REASON=none|target_project|design_approval|awaiting_human_confirmation
+platform_status_intent=agent_working|human_review|hard_blocked|terminal
+```
+
+这些字段与 architecture stage、Review conclusion、gate 和 `BLOCKED_REASON` 分开计算。`preparing` 表示 Agent 仍在准备材料；准确请求已经交付给唯一 Owner 后使用 `awaiting_response` 与 `WAIT_REASON=awaiting_human_confirmation`，即使 stage 仍是 `designing|reviewing`。正式 packet 批准仍使用 `stage=waiting_human`、`WAIT_REASON=design_approval`，同时 action state 为 `awaiting_response`。
+
+`platform_status_intent=human_review` 只表示平台应让人看见当前请求处于待其处理的审核态；平台 adapter 决定具体状态名与写入方式。`critical_evidence_gaps` 本身不是 hard blocker：只要存在已交付、Owner 唯一、回复可执行的 current Human Action Request，就仍有明确推进路径。只有 Owner 无法绑定、请求无法交付或依赖确实不存在且没有任何可执行关闭动作时，才使用 `HUMAN_ACTION_STATE=unavailable` 与 `platform_status_intent=hard_blocked`。
+
 ## Action types
 
 `action_type` 只能是：
@@ -125,6 +142,8 @@ ACTION <action_id>: select subject_project=<existing_project>; reason=<reason>
 - 不会被该回复授权的动作。
 
 只投影当前合法转换的直接结果，不提前声称未来 Review、packet、发布、OpenSpec 或实现已经发生。
+
+收到回复后先验证 actor、current action ref、准确回复格式和 supersession。有效回复将 `HUMAN_ACTION_STATE` 记为 `received`、清除 `WAIT_REASON=awaiting_human_confirmation`，并把 `platform_status_intent` 恢复为 `agent_working`，然后才开始该回复授权范围内的 Agent 工作；无效或过期回复保持 current request，不得假装已恢复执行。
 
 Human Action Request 是现有控制或 artifact 的人类决策入口，不新增 canonical artifact type。core normalized `planned_writes` 只使用既有目标；请求随 `ARCH-CONTROL` 评论呈现时写 `issue:ARCH-CONTROL`，不得临时创造 `issue:HUMAN-ACTION-REQUEST/...` 等目标。平台 renderer 可以记录自己的 delivery evidence，但不能改写 core normalized 字段。
 
