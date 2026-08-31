@@ -15,6 +15,7 @@ Multica 最新位置回复会被保存为线程根 child，并可能带 current 
 - 不接受普通“OK/确认”、任意 prose、多 Action 或编辑评论。
 - 不改变 token-only packet reply 兼容规则。
 - 不修改 Multica 应用代码。
+- 本地 symlink 只覆盖 Codex 使用面；Multica Agent 使用 Workspace Skill 快照，因此实施需要把同一已验证内容原 ID 就地同步并回读 digest，不创建 Skill 或 binding。
 
 ## Decisions
 

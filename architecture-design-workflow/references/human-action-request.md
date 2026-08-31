@@ -145,4 +145,4 @@ Human Action Request 是现有控制或 artifact 的人类决策入口，不新�
 
 ## Compatibility
 
-历史有效决定继续按原规则生效。新契约只改善人类看到的决策上下文和可审计性，不追溯判无效，也不创造新的 canonical stage、Review conclusion、blocker、recommendation 或 human decision 值。
+历史有效决定继续按原规则生效。`current_action_reference_v1` 可在明确的新 continue/retry mandate 中重读此前因平台位置/envelope 被判 no-op 的独立评论，但只能在 Action 仍唯一 current、全部 identity 未漂移时生效；不得自动扫描或重放任意历史评论。新契约不创造 canonical stage、Review conclusion、blocker、recommendation 或 human decision 值。

@@ -15,7 +15,7 @@ description: "Use to project a current portable architecture workflow mandate an
 
 1. **A0 — Decision Brief material route**：current portable action 绑定完整 standalone Design、Research、Control、唯一 Decision Owner，且 current mandate 允许在准确既有 Issue 内完成准备、交付、可访问性验证和状态投影。
 2. **A — packet delivery route**：current compatible delivered `ARCH-APPROVAL-PACKET vN`、准确 Design/Review 和 current mandate 均存在，目标 workspace/Issue/member 唯一。
-3. **B — decision consumption route**：current Human Action Request 或 packet readiness、target-human binding 和 exact Review reply 可重读；具名 `current_action_reference_v1` 可来自同一 Issue 最新位置，packet token-only 路径保留原绑定。读取本身无平台写入，决定 sidecar 和 `in_progress` projection 作为 current mandate 内的自动操作。
+3. **B — decision consumption route**：current Human Action Request 或 packet readiness、target-human binding 和 exact Review reply 可重读；具名 `current_action_reference_v1` 可来自同一 Issue 最新位置，packet token-only 路径保留原绑定。读取本身无平台写入；current Action task/control evidence、packet decision sidecar 和 `in_progress` projection 作为 current mandate 内的自动操作。
 
 任一路由的 identity、digest、Owner、stage、attempt 或 target 不唯一时 fail closed。不得从 Issue status、最近评论、显示名、Agent recommendation、旧 authorization token 或模糊肯定构造 core state。
 
@@ -93,7 +93,7 @@ Issue status 只是 portable intent 的平台投影：
 
 1. 具名 Action route 重读 current Human Action Request/material readiness/target-human binding；packet route 重读 current readiness sidecar、packet comment/attachments 与 mapping；两者都按 ID 重读 exact decision comment。
 2. 按 [human decision binding](references/human-decision-binding.md) 选择 `current_action_reference_v1` 或 packet profile，验证 actor、work item、Action/packet identity、revision、digest 与 supersession；不得用 parent 修复错误 Action，也不得用 Action ID 绕过 token-only packet binding。
-3. 自动 no-clobber 写入 decision evidence，并在 readback 通过后恢复 `in_progress` 处理 portable decision。
+3. `design_input|architecture_review` 把 decision evidence 写入 manifest-bound platform task/ARCH-CONTROL 并回读；正式 packet approval 继续使用既有 shared-scope no-clobber sidecar。证据通过后恢复 `in_progress` 处理 portable decision。
 4. 具名 Action 的错误/重复/过期 identity、edited、wrong actor、非法 mention/附加正文，以及 packet route 的 token+prose、wrong parent/旧 packet/mapping drift，只保留审计，不改变 gate/status。
 
 ## Failure, retry, and legacy migration

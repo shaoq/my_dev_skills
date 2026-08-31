@@ -480,6 +480,7 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "Requested client scopes", "desktop", "mobile",
                 "opened|unavailable|not_run", "Verifier / verification time",
                 "Issue status", "in_review", "in_progress",
+                "current_action_reference_v1", "Issue 最新位置",
             ),
             operational: (
                 "Legacy Multica Operational Authorization Record", "audit only",
@@ -507,6 +508,10 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             decision: (
                 "decision_context_ref", "decision_context_digest", "revision_scope",
                 "non_authoritative_context", "fresh_token_required",
+                "current_action_reference_v1", "parent_chain_authority",
+                "normalized_content_digest", "normalized_platform_mention",
+                "action_id", "action_version", "action_digest",
+                "multica_issue_task_evidence_v1",
             ),
             readiness: (
                 "human_action_request_ref", "human_action_request_version",
@@ -625,6 +630,12 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "current_action_reference_v1",
                 "parent chain",
                 "current Architecture Agent",
+                "multica_issue_task_evidence_v1",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/durable-evidence-records.md": (
+                "current_action_reference_v1",
+                "multica_issue_task_evidence_v1",
+                "cannot satisfy `architecture_approval`",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/target-human-mapping.md": (
                 "access_profile=multica_artifact_access_confirmation_v1",

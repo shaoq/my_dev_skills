@@ -22,4 +22,4 @@ UNIDRAG-12 证明当前 Skill 会拒绝准确 Owner 在 Issue 最新位置提交
 
 - 上游：`/Users/jie.hua/Documents/Developments/Projects/litata/uni-architecture/openspec/changes/accept-current-architecture-action-replies`。
 - 修改 `architecture-design-workflow`、`multica-architecture-approval-adapter` 与现有测试。
-- 不修改 Multica 代码/API/数据库，不创建或重绑平台资源。
+- 不修改 Multica 代码/API/数据库，不创建或重绑平台资源；实施时仅把本仓库已验证内容原 ID 同步到 Multica Workspace 的两个既有 Skill identity。

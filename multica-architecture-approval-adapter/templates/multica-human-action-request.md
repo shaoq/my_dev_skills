@@ -91,7 +91,7 @@
 {{type_specific_exact_response}}
 ```
 
-对 `design_input|architecture_review` 的 `ACTION <action-id>:` 回复，你可以直接在当前 Issue 最新位置提交，不需要寻找本评论或理解评论层级。Multica 若在正文首端或尾端自动加入一个当前 Architecture Agent mention，Adapter 会验证并移除该 envelope 后匹配决定；不要自行加入说明、引用、围栏、其他 mention、多个 Action 或多个决定。正式 packet approval 的 token-only/explicit packet identity 规则保持不变。
+对 `design_input|architecture_review` 的 `ACTION <action-id>:` 回复使用 `current_action_reference_v1`：你可以直接在当前 Issue 最新位置提交，不需要寻找本评论或理解评论层级。Multica 若在正文首端或尾端自动加入一个当前 Architecture Agent mention，Adapter 会验证并移除该 envelope 后匹配决定；不要自行加入说明、引用、围栏、其他 mention、多个 Action 或多个决定。正式 packet approval 的 token-only/explicit packet identity 规则保持不变。
 
 Revision context 使用 `context_profile=multica_revision_context_v1` 的固定 7 行语法，必须从 current refs 生成，不得自由改写字段顺序。材料访问由 Adapter 自动验证，不要求用户提交 access-confirmation payload。
 
