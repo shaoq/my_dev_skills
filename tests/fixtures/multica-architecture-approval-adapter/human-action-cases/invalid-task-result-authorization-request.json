@@ -1,0 +1,33 @@
+{
+  "fixture_id": "invalid-task-result-authorization-request",
+  "family": "invalid_task_result_authorization_request",
+  "input": {
+    "authorization_request_selector": "multica_task_result_authorization_request_v1",
+    "rejected_request_variants": [
+      "missing_source_task_id",
+      "wrong_source_task_id",
+      "wrong_preparation_parent",
+      "wrong_request_agent",
+      "edited_request_comment",
+      "malformed_request_content",
+      "duplicate_current_request",
+      "response_parent_not_resolved_request"
+    ],
+    "failure_reporting": "task_result_only",
+    "unplanned_issue_comment": "forbidden"
+  },
+  "expected": {
+    "action_type": "operational_authorization",
+    "first_screen": "authorization_first",
+    "decision_authority": "not_architecture_approval",
+    "artifact_checks": [],
+    "write_outcome": "no_write",
+    "retry_scope": "none",
+    "required_markers": [
+      "fail closed",
+      "no guessed request comment",
+      "no issue diagnostic write",
+      "new preparation attempt required"
+    ]
+  }
+}

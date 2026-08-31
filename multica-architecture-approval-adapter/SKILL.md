@@ -46,9 +46,11 @@ closing_condition=provide a current delivered packet compatible with core revisi
 
 在写入前读取 [capability preflight and write authorization](references/capability-preflight-and-write-authorization.md)。每个 check 必须记录 deterministic evidence（check、observed command/profile、result、owner、closing condition）。对 unknown、unsupported、错误输出或无法重读的行为一律失败关闭为 `review_packet_unavailable`，保留真实 Review conclusion，并且不写入。
 
-只有同时满足 current `operational_authorization` 明确覆盖该 Issue delivery、所有 input/path scope 和完整 preflight 通过时，才可对该既有 Issue 执行最小必要的 comment、attachment 与 `arch.packet.current` metadata projection 写入。若授权回复本身触发任务，scope 的 `planned_writes` 使用 `parent=multica_authorization_response_parent_v1`，并冻结授权请求身份；执行时仅在 author/request/content/revision/Issue/workspace/task-attribution 全部精确匹配后解析为当前 `trigger_comment_id`，再调用 `multica issue comment add <issue> --parent <trigger-comment-id> --attachment <path> --output json`。不得使用旧回复、最近评论或 thread root。
+只有同时满足 current `operational_authorization` 明确覆盖该 Issue delivery、所有 input/path scope 和完整 preflight 通过时，才可对该既有 Issue 执行最小必要的 comment、attachment 与 `arch.packet.current` metadata projection 写入。若准备任务的 task result 会由 Multica 自动投递为授权请求评论，scope 使用 `authorization_request=multica_task_result_authorization_request_v1`，冻结 preparation task、原 trigger、request Agent、授权身份、Issue/workspace、Owner、attempt 与材料 digest，并把 `comment:multica_task_result_authorization_request_v1` 列为受约束的预期 retained object。平台投递后必须以 `source_task_id`、parent、Agent、revision 1、准确授权内容和唯一性解析实际请求评论；缺失、重复、编辑或不匹配均失败关闭。
 
-未列入 `planned_writes` 的授权请求、诊断、修补评论和 Issue 状态变更一律不是隐含副作用；没有对应授权时只通过 task result 返回。A0 准备与交付保持 Issue `in_progress`。
+若随后的人类授权回复触发 delivery，scope 的 `planned_writes` 使用 `parent=multica_authorization_response_parent_v1`。执行时必须先解析上述 task-result 请求评论，再验证当前回复的 direct parent 等于该评论，并在 author/content/revision/Issue/workspace/task-attribution 全部精确匹配后，才把 response selector 解析为当前 `trigger_comment_id`，调用 `multica issue comment add <issue> --parent <trigger-comment-id> --attachment <path> --output json`。不得使用猜测 UUID、旧回复、最近评论或 thread root。
+
+未列入 `planned_writes` 的 Agent 主动授权请求、诊断、修补评论和 Issue 状态变更一律不是隐含副作用；没有对应授权时只通过 task result 返回。Multica 把 task result 自动投递为 platform-managed task result comment 属于平台管理行为，不是 Agent 主动调用 Issue write；结果必须如实说明“未主动调用 Issue write；Multica 将 task result 自动投递为平台管理评论”，不得声称没有产生平台评论。A0 准备与交付保持 Issue `in_progress`。
 
 以下操作不属于 Issue delivery，也不得作为本 skill 的隐式副作用：Skill import、Agent binding、Team/Project/Issue 创建、Runtime 配置、CLI install/upgrade、私有/未文档化 API、缺失 resource 创建。它们要求单独、明确的人类授权；没有该授权时停止并报告 owner 与 closing condition。不得以 preflight 失败为理由安装、升级、配置或绕过平台接口。
 
@@ -64,7 +66,7 @@ closing_condition=provide a current delivered packet compatible with core revisi
 
 1. 验证 current Human Action Request 的单 action/Owner/scope、standalone Design 结构/version/digest 以及 Research/Control identities；不要求不存在的 packet。
 2. 唯一绑定当前 Multica member；Owner 未绑定/歧义时只允许 routing brief，不允许 content action。
-3. 验证 exact operational authorization、路径/digest 与一次 comment+attachment write preflight。
+3. 验证 exact operational authorization、路径/digest 与一次 comment+attachment write preflight；若授权请求来自平台自动投递的准备任务结果，先唯一解析 `multica_task_result_authorization_request_v1`，再验证回复并解析 `multica_authorization_response_parent_v1`。
 4. 若 exact 新入口尚无 requested-client 证据，本次唯一 action 必须是 `access_confirmation`；按 `multica_human_action_material_bundle_v1` 执行一次写入，重读 comment/attachment/parent/author，并验证 canonical Markdown raw bytes。
 5. 分别记录 desktop/mobile attachment/link、exact identity 和 complete-content 结果；失败保留对象并 unavailable，不写 `arch.packet.current`。全部通过后，内容决定必须使用新的 core action 版本和新的独立授权交付，不编辑旧评论，访问确认本身不批准方案。
 

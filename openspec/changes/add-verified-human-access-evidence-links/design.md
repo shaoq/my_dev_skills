@@ -111,30 +111,42 @@ Web 成功不能推断 mobile；Agent CLI 下载不能推断人类客户端。�
 
 附件上传、评论、可选 PDF 和任何 retry 都是 Multica/shared-scope 写入，必须由当前 `multica_operational_scope_v1` 精确覆盖 Issue、attempt、输入路径、planned writes 和 retained objects。更新本地 Skill 不授权激活或 Issue 写入；激活和 UNIDRAG-12 重试继续需要彼此独立的新授权。
 
-### 8. 授权回复 parent 使用受约束的运行时自绑定
+### 8. 平台 task-result 授权请求使用来源任务选择器
 
-comment-triggered delivery 的 reply parent 是人类授权回复本身。该评论在授权 scope 生成时尚不存在，因此不能把未来 UUID 作为 scope 前提；否则每次新授权回复都会产生新的 UUID，使已授权 parent 永远落后一个版本。
+Multica 会把 comment-triggered Agent task 的最终 task result 自动 materialize 为该 trigger 下的 Agent 评论。准备任务在冻结授权 scope 时还不知道这条平台管理评论的 UUID，因此 scope 不得要求预知 request comment ID，也不得把自动投递描述成“没有平台评论”。
 
-`planned_writes` 改为冻结 canonical symbolic selector：
+scope 使用 canonical request selector：
+
+```text
+authorization_request=multica_task_result_authorization_request_v1
+```
+
+`bound_identity` 冻结 preparation task ID、preparation trigger comment、request Agent、authorization ID、Issue、workspace、operational Decision Owner、delivery attempt 和材料 digest。`retained_objects` 使用受约束的 `comment:multica_task_result_authorization_request_v1` 预期对象；它只可解析为满足以下全部条件的评论：
+
+1. `source_task_id` 等于冻结的 preparation task ID；
+2. parent 等于冻结的 preparation trigger comment；
+3. author type/id 等于冻结的 request Agent；
+4. comment revision 为 1 且未编辑；
+5. 内容中的 authorization ID、canonical scope payload 和 scope digest 与冻结 scope 完全一致；
+6. 同一 task/Issue/workspace 只能解析出一个 current request comment。
+
+平台自动 materialize 是 task 执行模型的预期结果对象，不是 Agent 主动调用 `multica issue comment add`。Agent 仍不得主动发布未授权请求/诊断评论；task result 文案必须准确区分“未主动调用 Issue write”与“平台会自动投递 result comment”。selector 无法唯一解析时 fail closed，并要求新 preparation attempt。
+
+### 9. 授权回复 parent 使用受约束的运行时自绑定
+
+comment-triggered delivery 的 reply parent 是人类授权回复本身。`planned_writes` 冻结：
 
 ```text
 parent=multica_authorization_response_parent_v1
 ```
 
-scope 同时通过 `bound_identity` 冻结 exact authorization request comment、authorization ID、expected response digest、Issue、workspace、target operational Owner 与 delivery attempt。执行任务时，adapter 只可把选择器解析为当前任务 attribution 中的 `trigger_comment_id`，并在首笔写入前验证：
+人类回复后，adapter 先通过 `multica_task_result_authorization_request_v1` 解析其 direct parent，再把 response selector 解析为当前任务 attribution 中的 `trigger_comment_id`。首笔写入前必须验证：trigger 属于同一 workspace/Issue；作者是 exact operational Decision Owner member；direct parent 是唯一已解析 request comment；内容准确等于该 request 中的 authorization token；revision 为 1 且未编辑；task attribution evidence ref 等于同一 trigger。
 
-1. trigger comment 属于同一 workspace/Issue；
-2. 作者是 exact operational Decision Owner member；
-3. parent 是 scope 中冻结的 authorization request comment；
-4. 去除外围空白后的内容准确等于预期 authorization token；
-5. comment revision 为 1，且 created/updated 证据表明未编辑；
-6. task attribution evidence ref 与同一 trigger comment identity 完全一致。
-
-全部通过后，实际 CLI 仍使用 `--parent <resolved-trigger-comment-id>`，并在发布后重读 actual parent。任一条件失败都使授权 no-op/fail closed，不回退到 thread root、旧评论、最近评论或字符串搜索，也不发布诊断评论。
+全部通过后，实际 CLI 使用 `--parent <resolved-trigger-comment-id>`，发布后重读 actual parent。任一 request/response 条件失败都使授权 no-op/fail closed，不回退到 thread root、旧评论、最近评论或字符串搜索。
 
 同一 scope 还冻结 execution cwd 与 `allow_external_file` 模式。默认把 cwd 设为已授权的共同材料根目录并使用相对路径；仅当输入确实位于 cwd 外且 `planned_writes` 明确包含 `allow_external_file=true` 时，CLI 才增加 `--allow-external-file`。运行时临时改变 cwd 或补加 flag 都会改变授权事实并要求新授权。
 
-授权请求、授权失败和 postcondition 失败若没有被 exact `planned_writes` 覆盖，只能通过 task result 返回给调用者。Issue 在准备和交付期间保持 `in_progress`；状态写入、授权请求评论和诊断评论都不是 material delivery 的隐含副作用。
+授权失败和 postcondition 失败若没有被 exact `planned_writes` 覆盖，只能通过 task result 返回。Issue 在准备和交付期间保持 `in_progress`；状态写入和 Agent 主动请求/诊断评论都不是 material delivery 的隐含副作用。
 
 ## Risks / Trade-offs
 
@@ -145,6 +157,7 @@ scope 同时通过 `bound_identity` 冻结 exact authorization request comment�
 - [多 Owner 造成大量评论] → 只为当前可识别 Decision Owner 渲染当前 action；其他事项留在依赖摘要和 Control，不批量请求无权读者。
 - [平台路由或附件 endpoint 变化] → 每次交付执行当前客户端验证；历史成功不替代当前验证。
 - [符号 parent 被误当成模糊选择] → 只支持单一 profile，并要求 request/response/author/content/revision/Issue/workspace/task attribution 全量相等；不满足即 no write。
+- [task result 自动投递产生未知 request comment ID] → 通过 preparation `source_task_id`、原 trigger、Agent、内容和唯一性解析平台管理 request comment；不预猜 UUID，也不把平台自动投递误报为零评论。
 - [失败诊断污染 Issue 或越权触发新任务] → 未列入 `planned_writes` 的评论一律禁止，诊断只返回 task result。
 
 ## Migration Plan
@@ -152,7 +165,7 @@ scope 同时通过 `bound_identity` 冻结 exact authorization request comment�
 1. 增加会在当前实现上失败的完整 Design、Decision Brief、单 Owner、附件 bundle 和网页/手机访问契约测试。
 2. 更新核心 `ARCH-DESIGN` reference/template 和 Human Action Request contract，保持平台无关。
 3. 更新 Multica adapter 的 Human Action renderer、材料 bundle、operational authorization/readback 和 sandbox acceptance。
-4. 增加授权回复 parent 自绑定与非法 trigger 的回归 fixture，验证 exact UUID 预绑定循环在现有契约上失败。
+4. 增加授权请求 task-result selector、授权回复 parent 自绑定与非法 request/trigger 的回归 fixture，验证两个未来 UUID 预绑定循环在现有契约上失败。
 5. 更新 adapter 的 operational authorization、preflight、material bundle 与入口指令；运行相关测试、Skill validation、OpenSpec strict validation 和 GitNexus change analysis。
 6. 本地实施完成后停止；另行请求 Skill activation 授权。
 7. 激活完成后，再为 UNIDRAG-12 生成只包含增量附件/评论/retry 的新授权，并由目标账号完成网页和手机验证。

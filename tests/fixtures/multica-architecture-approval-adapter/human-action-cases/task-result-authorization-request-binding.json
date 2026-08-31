@@ -1,0 +1,34 @@
+{
+  "fixture_id": "task-result-authorization-request-binding",
+  "family": "task_result_authorization_request_binding",
+  "input": {
+    "authorization_request_selector": "multica_task_result_authorization_request_v1",
+    "preparation_task_id": "T-PREPARE",
+    "preparation_trigger_comment_id": "C-PREPARE-TRIGGER",
+    "request_agent_id": "A-ARCHITECTURE-LEAD",
+    "platform_result_comment_id": "C-AUTH-REQUEST",
+    "request_source_task_id": "T-PREPARE",
+    "request_parent_comment_id": "C-PREPARE-TRIGGER",
+    "request_revision": 1,
+    "request_content": "exact_authorization_request_with_scope_digest",
+    "response_comment_id": "C-AUTH-RESPONSE",
+    "response_parent_comment_id": "C-AUTH-REQUEST",
+    "response_task_attribution_comment_id": "C-AUTH-RESPONSE",
+    "issue_status_after_delivery": "in_progress"
+  },
+  "expected": {
+    "action_type": "operational_authorization",
+    "first_screen": "authorization_first",
+    "decision_authority": "not_architecture_approval",
+    "artifact_checks": ["design", "research", "control"],
+    "write_outcome": "authorized_only",
+    "retry_scope": "none",
+    "required_markers": [
+      "platform-managed request selector",
+      "source task and trigger binding",
+      "unique request comment resolution",
+      "response direct-parent binding",
+      "one authorized delivery comment"
+    ]
+  }
+}

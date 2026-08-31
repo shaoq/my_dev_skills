@@ -38,3 +38,10 @@
 - [x] 6.2 Define `multica_authorization_response_parent_v1` in operational authorization, preflight and material delivery guidance, including exact author/request/content/revision/Issue/workspace/task-attribution checks.
 - [x] 6.3 Require unauthorized authorization-request and diagnostic output to use task results only, and preserve Issue `in_progress` unless an exact status write is separately authorized.
 - [x] 6.4 Run focused/full tests, both Skill quick validators, OpenSpec strict validation and final diff/impact review; record `activation=not_run`, `sandbox_acceptance=not_run` and `UNIDRAG-12 retry=not_run`.
+
+## 7. Platform-managed Authorization-request Binding Regression
+
+- [x] 7.1 Add valid and invalid fixtures for a platform-managed task-result authorization request, `source_task_id`/trigger/Agent/content uniqueness and response-parent chaining; run the focused test and record the expected RED failure.
+- [x] 7.2 Define `multica_task_result_authorization_request_v1` in the adapter entrypoint, operational authorization, preflight, material bundle and authorization template, including the expected retained-object selector and truthful platform-materialization wording.
+- [x] 7.3 Require delivery to resolve the authorization response's direct parent through the preparation task result before resolving `multica_authorization_response_parent_v1`; reject missing, duplicate, edited or mismatched request comments without an Issue diagnostic write.
+- [x] 7.4 Run focused/full tests, both Skill quick validators, OpenSpec strict validation and final diff/impact review; record the observed UNIDRAG-12 task-result comment as regression evidence and keep activation/sandbox/retry writes separately authorized.

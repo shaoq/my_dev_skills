@@ -37,6 +37,8 @@ EXPECTED_HUMAN_ACTION_FAMILIES = {
     "missing-operational-authorization": "operational_authorization",
     "partial-failure-retry": "retry_authorization",
     "per-artifact-mobile-access": "per_artifact_access",
+    "task-result-authorization-request-binding": "task_result_authorization_request_binding",
+    "invalid-task-result-authorization-request": "invalid_task_result_authorization_request",
     "token-plus-prose-revision": "decision_context_separation",
 }
 EXPECTED_FAMILIES = {
@@ -379,6 +381,26 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
         self.assertEqual("authorized_only", parent_binding["expected"]["write_outcome"])
         self.assertEqual("in_progress", parent_binding["input"]["issue_status_after_delivery"])
 
+        request_binding = cases["task-result-authorization-request-binding"]
+        self.assertEqual(
+            "multica_task_result_authorization_request_v1",
+            request_binding["input"]["authorization_request_selector"],
+        )
+        self.assertEqual(
+            request_binding["input"]["preparation_task_id"],
+            request_binding["input"]["request_source_task_id"],
+        )
+        self.assertEqual(
+            request_binding["input"]["platform_result_comment_id"],
+            request_binding["input"]["response_parent_comment_id"],
+        )
+        self.assertEqual("authorized_only", request_binding["expected"]["write_outcome"])
+
+        invalid_request = cases["invalid-task-result-authorization-request"]
+        self.assertEqual("no_write", invalid_request["expected"]["write_outcome"])
+        self.assertEqual("task_result_only", invalid_request["input"]["failure_reporting"])
+        self.assertIn("duplicate_current_request", invalid_request["input"]["rejected_request_variants"])
+
         invalid_trigger = cases["invalid-authorization-response-trigger"]
         self.assertEqual("no_write", invalid_trigger["expected"]["write_outcome"])
         self.assertEqual("task_result_only", invalid_trigger["input"]["failure_reporting"])
@@ -565,11 +587,16 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "LF",
                 "canonical percent encoding",
                 "multica_authorization_response_parent_v1",
+                "multica_task_result_authorization_request_v1",
+                "source_task_id",
+                "platform-managed task result comment",
                 "trigger_comment_id",
                 "task result",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/capability-preflight-and-write-authorization.md": (
                 "multica_authorization_response_parent_v1",
+                "multica_task_result_authorization_request_v1",
+                "source_task_id",
                 "trigger_comment_id",
                 "revision 1",
                 "task attribution",
@@ -579,6 +606,8 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-action-material-bundle.md": (
                 "parent=multica_authorization_response_parent_v1",
+                "authorization_request=multica_task_result_authorization_request_v1",
+                "source_task_id",
                 "trigger_comment_id",
                 "in_progress",
                 "task result",

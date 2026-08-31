@@ -1,4 +1,4 @@
 interface:
   display_name: "Multica Architecture Approval Adapter"
   short_description: "Deliver reviewable architecture materials and approval packets"
-  default_prompt: "Use $multica-architecture-approval-adapter to render an Architecture Decision Brief with a complete design material bundle or deliver a compatible approval packet to an explicitly scoped Multica Issue. Require exact operational authorization, bind response-triggered parents only through the verified current task trigger, and return unplanned diagnostics through the task result."
+  default_prompt: "Use $multica-architecture-approval-adapter to render an Architecture Decision Brief with a complete design material bundle or deliver a compatible approval packet to an explicitly scoped Multica Issue. Require exact operational authorization; resolve a platform-managed task-result authorization request by source task, trigger, Agent, content, revision and uniqueness before resolving a response-triggered parent; report platform materialization truthfully; and never invoke unplanned diagnostic writes."

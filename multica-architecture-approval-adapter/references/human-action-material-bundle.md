@@ -39,7 +39,11 @@ The PDF is a reading copy only. It cannot replace the Markdown attachment, desig
 
 ## Operational authorization
 
-Use `operation_variant=delivery` in `multica_operational_scope_v1`. Set `bound_identity` to the current action ID, Design version/digest and opaque delivery attempt. `authorized_paths` lists every exact Decision Brief, canonical Markdown, optional PDF and fallback Markdown input. `planned_writes` contains exactly one ordered Issue comment write with all selected attachments. When the human authorization response triggers execution, freeze `parent=multica_authorization_response_parent_v1` in that write and bind the exact authorization request identity; at runtime resolve it only to the verified current task `trigger_comment_id` under the operational authorization rules. Do not freeze the earlier preparation comment as delivery parent. Do not include packet metadata projection or readiness sidecars for a pre-packet action.
+Use `operation_variant=delivery` in `multica_operational_scope_v1`. Set `bound_identity` to the current action ID, Design version/digest and opaque delivery attempt. `authorized_paths` lists every exact Decision Brief, canonical Markdown, optional PDF and fallback Markdown input. `planned_writes` contains exactly one ordered Issue comment write with all selected attachments.
+
+If the preparation task result will be automatically materialized as the authorization request, the bundle declares `authorization_request=multica_task_result_authorization_request_v1`, freezes its preparation task ID, trigger comment, request Agent, authorization ID, Issue/workspace, Owner, attempt and material digests, and lists `comment:multica_task_result_authorization_request_v1` as an expected retained object. After materialization, resolve exactly one request comment by `source_task_id`, parent, Agent, revision-1 unedited content, parsed canonical scope and uniqueness. Record the actual ID as observed evidence without changing the frozen payload.
+
+When the human authorization response triggers execution, freeze `parent=multica_authorization_response_parent_v1` in that write. At runtime first resolve the authorization request above, require the response to be its direct child, then resolve the response selector only to the verified current task `trigger_comment_id` under the operational authorization rules. Do not freeze the earlier preparation comment as delivery parent. Do not include packet metadata projection or readiness sidecars for a pre-packet action.
 
 Also freeze the command's execution working directory. Keep all paths relative to the authorized common material root when possible. If the content or any attachment is intentionally outside that directory, the authorized command profile must state `allow_external_file=true` and execution must add `--allow-external-file`; neither the cwd nor the flag may be changed after authorization.
 
@@ -56,9 +60,9 @@ multica issue comment add <issue> \
   --output json
 ```
 
-The actual trigger comment ID is mandatory for the executed CLI command. The symbolic selector exists only in the pre-response canonical authorization scope and MUST resolve to that exact ID before execution. A generated thread root, prior authorization response, latest-comment search, orphan attachment, later edit, append, relabel, delete or second unlisted write is outside the authorization.
+The actual response trigger comment ID is mandatory for the executed CLI command. The request and response symbolic selectors exist only to bind future platform identities and MUST resolve in order—first `multica_task_result_authorization_request_v1`, then `multica_authorization_response_parent_v1`—before execution. A generated thread root, prior authorization response, latest-comment search, orphan attachment, later edit, append, relabel, delete or second unlisted write is outside the authorization.
 
-Material preparation and delivery leave the Issue `in_progress`. Status changes, authorization-request comments and fail-closed diagnostic comments are separate writes and are not implied by this bundle. If they are absent from exact `planned_writes`, return their content in the task result only.
+Material preparation and delivery leave the Issue `in_progress`. Status changes, Agent-invoked authorization-request comments and fail-closed diagnostic comments are separate writes and are not implied by this bundle. If they are absent from exact `planned_writes`, the Agent returns their content in the task result only. Multica may then automatically expose that result as a platform-managed task result comment; record that actual comment and say “未主动调用 Issue write；Multica 将 task result 自动投递为平台管理评论”，而不是声称没有平台评论。
 
 ## Postconditions
 
