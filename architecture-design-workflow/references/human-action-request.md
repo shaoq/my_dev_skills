@@ -24,18 +24,36 @@
 - `Decision Owner` 必须是可识别的人类或明确角色；未知时写明 Owner 缺口和关闭条件，不得让任意回复者代替。
 - 请求必须写明该 Owner 有权决定什么，以及明确无权授权什么。
 
-## Human-first presentation order
+## Architecture Decision Brief
 
-先呈现：
+面向一个当前读者的请求按以下固定顺序呈现：
 
-1. Action summary：Action ID、类型、当前状态、为什么现在需要动作、Decision Owner 与 authority scope；
-2. Decision context：原子问题、候选建议或 `no_recommendation`、有限备选、事实/推断/原则依据、逐项后果与重大风险；
-3. Evidence and unresolved items：可由目标人类打开的稳定材料引用，以及仍缺证据、Owner 和关闭条件；
-4. Exact response：可复制的准确回复；
-5. After response：每个合法选项对应的 next stage、remaining blockers、Next Owner 和 planned writes；
-6. Authority boundary 与 Audit binding。
+1. 当前方案的一段式摘要；
+2. 简化架构图；
+3. Architecture Team 总体建议、理由和置信度；
+4. 已确定与尚未确定的内容；
+5. 最重要的备选及后果；
+6. 当前读者真正有权决定的一项内容；
+7. 回复后会发生什么；
+8. 可点击的完整 Design、Research、Control（以及当前 gate 必需的 Review/Packet）入口；
+9. Exact response、authority boundary 与最小 current/superseded audit binding。
 
-不要用“请确认”“等待审核”或只列 token 代替上述内容。完整方案不必复制进评论，但必须提供目标人类可重读的稳定引用；仅 Agent 可读的路径不算 human-accessible evidence。
+不要用“请确认”“等待审核”、只列 token、多 Owner 问卷或完整设计正文代替上述 brief。完整方案必须是独立版本化 artifact，通过目标人类可重读的稳定入口打开；仅 Agent 可读的路径不算 human-accessible evidence。
+
+## Current reader and authority
+
+- 一个 brief 只绑定一个 current action、一个 Decision Owner 和一个 authority scope。
+- renderer 必须记录 Current reader / authority binding 和 `Content-decision activation gate`；只有唯一匹配且当前请求所需材料在全部 requested client scopes 已验证时，才展示内容 action 的 Exact response。
+- 其他 Owner 的未决 action 只能列在 `Other-owner dependencies (non-actionable)`，包含 action ID、Owner、依赖影响和关闭条件，不得显示可执行回复表单。
+- Decision Owner 为未知角色、零匹配或多匹配时，当前 action 只能是 routing/owner-binding；不能要求当前读者代替该角色决定内容。
+
+## Human-accessible evidence contract
+
+每个完整材料入口分别记录 exact artifact identity/type/version/digest、可导航 ref、Requested client scopes、Access status by scope（`opened|unavailable|not_run`）、Verifier / verification time，以及失败时的 Owner/closure condition。
+
+某个 scope 只有在具名 verifier 实际打开入口、解析到准确完整材料并核对 identity 后才能记录 `opened`。一个 scope 的成功不能推出另一个 scope；Agent 进程、CLI 或 raw-byte download 不能替代人的客户端证据。目标人类尚未打开时保持 target access `unconfirmed`，即使 renderer verification 已通过。若新发布入口必须在发布后才能验证，首次 current action 只能是 `access_confirmation`；验证完成后才可生成新的 current Human Action Request 版本请求内容决定，不得编辑旧请求或把访问确认当成内容批准。
+
+core 不规定平台 URL、附件或预览语法。没有经验证入口时，brief 保留建议和 unavailable 报告，但不得请求正式内容决定；需要正式批准且 packet 不可访问时继续适用既有 `review_packet_unavailable`。
 
 ## Recommendation and alternatives
 
@@ -112,7 +130,8 @@ Human Action Request 是现有控制或 artifact 的人类决策入口，不新�
 
 ## Stable evidence and audit binding
 
-- 每个关键材料使用稳定、目标人类可访问的 ref；记录 artifact type、version/digest（如适用）、access evidence 和 verifier。
+- 每个关键材料使用稳定、经对应 client scope 验证的可导航 ref；记录 artifact type、version/digest、requested scopes、逐 scope status、access evidence、verifier 和 verification time。
+- 内部对象 identity、可导航入口和 target-human access confirmation 分开记录；任一项不能替代另一项。
 - 审计区绑定当前 routing version、design/review/packet version 或 Risk ID；明确 `current|superseded`。
 - superseded 请求与回复保留审计，但不得驱动 current action。
 - 请求本身的 context ref 可以补充决策说明，但只有各自 canonical evidence 或正式批准 token 能改变对应 gate。

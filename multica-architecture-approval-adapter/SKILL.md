@@ -1,16 +1,17 @@
 ---
 name: multica-architecture-approval-adapter
-description: "Use for an explicitly authorized Multica delivery of a compatible current architecture packet, or for platform-read-only decision review of existing durable readiness; never create core state or implicit platform writes."
+description: "Use for explicitly authorized Multica delivery of current architecture decision materials or a compatible packet, or for platform-read-only decision review of existing durable readiness; never create core state or implicit platform writes."
 ---
 
 # Multica Architecture Approval Adapter
 
 ## Purpose and trigger boundary
 
-本 skill 是 `architecture-design-workflow` 的独立、可单独安装的 sibling skill；它不是 core 的条件分支，也不替代或指令 core 状态机。它有两个互不隐含授权的路由：
+本 skill 是 `architecture-design-workflow` 的独立、可单独安装的 sibling skill；它不是 core 的条件分支，也不替代或指令 core 状态机。它有三个互不隐含授权的路由：
 
-1. **A — delivery route**：当前 core packet 是 compatible/current/delivered 的 `ARCH-APPROVAL-PACKET vN`，已给出既有可访问的 Multica workspace/Issue，且当前任务明确授权对该 Issue 写入 delivery。该路由在首笔写入前还必须通过 write preflight。
-2. **B — platform-read-only decision route**：已存在 current、可重读的 readiness sidecar，且已给出 exact Issue、packet 与 canonical target-human binding；当前任务明确要求读取/审计 decision。该路由不要求、也不取得新的 Multica delivery-write 授权，绝不隐含 Multica comment、attachment、metadata、workspace 或配置写入。若要把 audit candidate 变成有效 portable decision，当前任务还必须单独明确授权在已确认 shared scope 写入 immutable decision sidecar；没有该授权只能返回 audit candidate，不能生效。
+1. **A0 — human-action material delivery**：current core Human Action Request 绑定完整 standalone `ARCH-DESIGN-vN.md`、准确 Research/Control 与一个唯一 Decision Owner；既有 Multica workspace/Issue 和 `operation_variant=delivery` 精确授权覆盖一次 Decision Brief+附件写入。该路由只交付决策材料，不创建 packet readiness 或 core state。
+2. **A — packet delivery route**：当前 core packet 是 compatible/current/delivered 的 `ARCH-APPROVAL-PACKET vN`，已给出既有可访问的 Multica workspace/Issue，且当前任务明确授权对该 Issue 写入 delivery。该路由在首笔写入前还必须通过 write preflight。
+3. **B — platform-read-only decision route**：已存在 current、可重读的 readiness sidecar，且已给出 exact Issue、packet 与 canonical target-human binding；当前任务明确要求读取/审计 decision。该路由不要求、也不取得新的 Multica delivery-write 授权，绝不隐含 Multica comment、attachment、metadata、workspace 或配置写入。若要把 audit candidate 变成有效 portable decision，当前任务还必须单独明确授权在已确认 shared scope 写入 immutable decision sidecar；没有该授权只能返回 audit candidate，不能生效。
 
 compatibility 的 exact markers、frozen inputs 和 raw-byte digests 会在相关 I/O 前验证。任一路由条件缺失时，**不得**从 Issue、评论、metadata、Agent 或推荐中构造、补写或猜测 core 状态。
 
@@ -18,13 +19,13 @@ compatibility 的 exact markers、frozen inputs 和 raw-byte digests 会在相�
 
 本 adapter 的可交付 evidence 只映射回 portable core fields；不得改变 canonical stage、Review conclusion、`ARCHITECTURE_RECOMMENDATION` enum、packet bytes 或 legal human decision value。readiness 与 recommendation 都不构成人工批准。
 
-当 compatible core 输出 current Human Action Request 时，使用 [Multica Human Action Request template](templates/multica-human-action-request.md)忠实渲染，不重定义其 Owner、原子决定、备选、后果或 canonical projection。评论首屏先展示为什么现在需要动作、推荐、主要后果、准确 Decision Owner、Exact response 与 After response；marker、digest、sidecar 和 reconciliation 审计信息后置。
+当 compatible core 输出 current Human Action Request 时，先读取 [human action material bundle](references/human-action-material-bundle.md)与 [human-accessible evidence links](references/human-accessible-evidence-links.md)，再使用 [Multica Human Action Request template](templates/multica-human-action-request.md)忠实渲染。评论固定为 Architecture Decision Brief：方案摘要、简化架构图、Team 建议/理由/置信度、已确定/未确定、关键备选后果、当前读者的一项决定、回复后行为和完整 Design/Research/Control 入口；完整设计作为 canonical Markdown attachment，不复制正文。只有唯一绑定的当前 member 获得一个可执行回复表单，其他 Owner 只列 non-actionable dependencies。用户材料入口必须经过实际 attachment/link、准确 identity、完整内容与逐 desktop/mobile scope 验证；未经验证的 `multica://issues/...`、本地路径、文件名卡片或临时 URL 不能冒充 human-accessible ref。
 
 任何新的 delivery、target-human/shared-scope 写入、activation、conflict strategy、sandbox 或 retry 权限，都必须先读取 [operational authorization protocol](references/operational-authorization.md)并使用 [Multica Operational Authorization template](templates/multica-operational-authorization.md)。运维授权与架构内容决定是不同 authority：它只覆盖所列 existing identities、exact planned writes 和 path scope，不能被 recommendation、批准 comment 或模糊肯定推断，也不能成为 core human decision。
 
 ## Fixed core compatibility contract
 
-仅消费 `architecture-design-workflow` implementation revision `1d4b860b48e15f678d78a71bf2c38557ab9c2951` 的 portable contract。开始任何 Multica I/O 前，按 [core compatibility](references/core-contract-compatibility.md) 验证 exact markers、required fields 和 immutable raw-byte digest contract。
+packet route 继续只消费 `architecture-design-workflow` implementation revision `1d4b860b48e15f678d78a71bf2c38557ab9c2951` 的 immutable packet contract。A0 route 另外消费 portable `architecture_decision_brief_v1` / standalone Design markers，并在 activation 时记录实际 core package aggregate。开始任何 Multica I/O 前，按 [core compatibility](references/core-contract-compatibility.md) 验证对应 route 的 exact markers、required fields 和 immutable raw-byte digest contract。
 
 版本不兼容、字段未知、字段缺失、输入不再是 current packet、或 digest 无法重读匹配时，输出：
 
@@ -57,6 +58,14 @@ closing_condition=provide a current delivered packet compatible with core revisi
 
 ## Execution order
 
+### A0 — human-action material delivery
+
+1. 验证 current Human Action Request 的单 action/Owner/scope、standalone Design 结构/version/digest 以及 Research/Control identities；不要求不存在的 packet。
+2. 唯一绑定当前 Multica member；Owner 未绑定/歧义时只允许 routing brief，不允许 content action。
+3. 验证 exact operational authorization、路径/digest 与一次 comment+attachment write preflight。
+4. 若 exact 新入口尚无 requested-client 证据，本次唯一 action 必须是 `access_confirmation`；按 `multica_human_action_material_bundle_v1` 执行一次写入，重读 comment/attachment/parent/author，并验证 canonical Markdown raw bytes。
+5. 分别记录 desktop/mobile attachment/link、exact identity 和 complete-content 结果；失败保留对象并 unavailable，不写 `arch.packet.current`。全部通过后，内容决定必须使用新的 core action 版本和新的独立授权交付，不编辑旧评论，访问确认本身不批准方案。
+
 ### A — delivery route
 
 1. 验证 delivered current packet 与 pinned core contract；失败则只输出 adapter-local availability/closing condition。
@@ -74,7 +83,8 @@ closing_condition=provide a current delivered packet compatible with core revisi
 
 ## Delivery, readiness, and decision routes
 
-- 审核评论、单次三附件交付、stable marker、JSON durable refs 与 PDF 非权威边界：读取 [delivery mapping and marker](references/delivery-mapping-and-marker.md)、[Multica Human Action Request template](templates/multica-human-action-request.md) 和 [approval-comment template](templates/multica-approval-comment.md)。
+- 设计阶段 Decision Brief、完整 Design 附件、Research/Control 入口与客户端验证：读取 [human action material bundle](references/human-action-material-bundle.md)、[human-accessible evidence links](references/human-accessible-evidence-links.md)和 [Multica Human Action Request template](templates/multica-human-action-request.md)。
+- packet 审核评论、单次三附件交付、stable marker、JSON durable refs 与 PDF 非权威边界：读取 [delivery mapping and marker](references/delivery-mapping-and-marker.md)、[Multica Human Action Request template](templates/multica-human-action-request.md) 和 [approval-comment template](templates/multica-approval-comment.md)。
 - delivery states、reconciliation、`arch.packet.current` projection、raw-byte reread 和 readiness/unavailable envelope：读取 [reconciliation, projection, and readiness](references/reconciliation-projection-and-readiness.md)、[durable evidence records](references/durable-evidence-records.md) 和 [readiness-evidence template](templates/multica-readiness-evidence.md)。
 - packet-comment reply / explicit-reference 人工决定、token/context 分离、reread、编辑失效、同 actor replacement 与跨 actor conflict：读取 [human decision binding](references/human-decision-binding.md) 和 [decision-evidence template](templates/multica-decision-evidence.md)。
 

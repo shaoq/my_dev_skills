@@ -50,6 +50,8 @@ artifact_ref=multica://issues/<issue-id>/comments/<comment-id>/attachments/<atta
 
 Persist `attachment_id`, `artifact_ref`, and only a returned `markdown_url` or documented stable attachment endpoint as `stable_access_ref`. Never persist `download_url`, query-string bearer token, signed URL, or an inferred browser path. A re-read can ask the platform for a fresh transient download URL solely to stream raw bytes and verify SHA-256.
 
+These `multica://issues/...` values are opaque internal audit identities only. They MUST NOT be copied into a human-facing Design/Research/Control entry or described as clickable. Resolve and verify a separate attachment card, documented stable endpoint, or `multica_web_comment_permalink_v1` using [human-accessible evidence links](human-accessible-evidence-links.md); otherwise report the affected client scope unavailable.
+
 Present those exact three stable refs to the canonical target member through an `access_confirmation` action. The response must identify each `design|review|packet` artifact and each requested `desktop|mobile` scope as opened or unavailable. Do not collapse results into one generic confirmation, and do not treat successful Agent download as human access.
 
 For each record also retain media type, expected/verified digest, Issue/workspace availability scope, canonical target member UUID, packet-bound mapping evidence ref, verifier, and RFC3339 UTC verification time. Once the comment marker and all three attachment bindings can be re-read, deterministically construct the pre-projection delivery evidence ref:

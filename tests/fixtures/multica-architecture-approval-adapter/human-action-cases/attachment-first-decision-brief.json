@@ -1,0 +1,27 @@
+{
+  "fixture_id": "attachment-first-decision-brief",
+  "family": "attachment_first_decision_brief",
+  "input": {
+    "current_member": "member-product",
+    "decision_owner": "member-product",
+    "other_owners": ["member-privacy", "member-sre"],
+    "materials": ["ARCH-DESIGN-v2.md", "ARCH-RESEARCH-v1", "ARCH-CONTROL-v6"]
+  },
+  "expected": {
+    "action_type": "access_confirmation",
+    "first_screen": "decision_first",
+    "decision_authority": "unchanged",
+    "artifact_checks": ["design", "research", "control"],
+    "write_outcome": "authorized_only",
+    "retry_scope": "none",
+    "required_markers": [
+      "Architecture Decision Brief",
+      "完整 Design 附件",
+      "总体建议、理由和置信度",
+      "当前读者的一项决定",
+      "其他 Owner 仅依赖摘要",
+      "web/mobile 分别验证",
+      "未验证时不请求内容决定"
+    ]
+  }
+}

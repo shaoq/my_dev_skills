@@ -25,9 +25,12 @@ REQUIRED_ADAPTER_SURFACES = (
     "multica-architecture-approval-adapter/references/reconciliation-projection-and-readiness.md",
     "multica-architecture-approval-adapter/references/human-decision-binding.md",
     "multica-architecture-approval-adapter/references/durable-evidence-records.md",
+    "multica-architecture-approval-adapter/references/human-action-material-bundle.md",
+    "multica-architecture-approval-adapter/references/human-accessible-evidence-links.md",
     "multica-architecture-approval-adapter/references/operational-authorization.md",
 )
 EXPECTED_HUMAN_ACTION_FAMILIES = {
+    "attachment-first-decision-brief": "attachment_first_decision_brief",
     "buried-approval-choices": "decision_first_approval",
     "missing-operational-authorization": "operational_authorization",
     "partial-failure-retry": "retry_authorization",
@@ -334,6 +337,18 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 validate_json_schema(case, schema, schema)
 
         self.assertEqual(
+            "access_confirmation",
+            cases["attachment-first-decision-brief"]["expected"]["action_type"],
+        )
+        self.assertEqual(
+            ["design", "research", "control"],
+            cases["attachment-first-decision-brief"]["expected"]["artifact_checks"],
+        )
+        self.assertEqual(
+            "authorized_only",
+            cases["attachment-first-decision-brief"]["expected"]["write_outcome"],
+        )
+        self.assertEqual(
             "non_binding_fresh_token_required",
             cases["token-plus-prose-revision"]["expected"]["decision_authority"],
         )
@@ -352,20 +367,36 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
 
     def test_human_action_rendering_contract_is_present(self) -> None:
         human_action = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-human-action-request.md"
+        material_bundle = REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-action-material-bundle.md"
+        human_access_links = REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-accessible-evidence-links.md"
         operational = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-operational-authorization.md"
         approval = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-approval-comment.md"
         decision = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-decision-evidence.md"
         readiness = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-readiness-evidence.md"
 
-        missing_files = [str(path.relative_to(REPOSITORY_ROOT)) for path in (human_action, operational) if not path.is_file()]
+        missing_files = [
+            str(path.relative_to(REPOSITORY_ROOT))
+            for path in (human_action, material_bundle, human_access_links, operational)
+            if not path.is_file()
+        ]
         self.assertFalse(missing_files, "missing human action template(s): " + ", ".join(missing_files))
 
         required_slots = {
             human_action: (
-                "## 现在需要什么", "action_type={{action_type}}", "Decision Owner",
+                "## Architecture Decision Brief", "## 当前方案摘要", "## 简化架构图",
+                "## Architecture Team 总体建议", "总体建议", "推荐理由", "置信度",
+                "## 已确定与尚未确定", "## 最重要的备选及后果",
+                "## 当前读者的一项决定", "action_type={{action_type}}", "Decision Owner",
+                "Current reader / authority binding", "Other-owner dependencies (non-actionable)",
+                "Content-decision activation gate", "access_confirmation",
                 "Candidate recommendation", "Bounded alternatives", "Option consequences",
-                "Stable human-accessible evidence refs", "Exact response", "After response",
+                "## 回复后会发生什么", "## 完整材料入口",
+                "Stable human-accessible evidence refs", "Exact response",
                 "Does not authorize", "Current / superseded",
+                "{{design_attachment_filename}}", "{{design_attachment_digest}}",
+                "{{research_human_access_entry}}", "{{control_human_access_entry}}",
+                "Requested client scopes", "desktop", "mobile",
+                "opened|unavailable|not_run", "Verifier / verification time",
             ),
             operational: (
                 "action_type=operational_authorization", "Existing target identities",
@@ -374,10 +405,22 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "Exact authorize / deny response", "canonical_percent_escaped_reason",
             ),
             approval: (
-                "## 现在需要你决定", "只发布批准文档", "R&D handoff",
-                "新设计迭代", "终态", "Stable Design ref", "Stable Review ref",
-                "Stable Packet ref", "推荐不是批准", "Remaining blockers", "Next Owner",
-                "none|approved_artifact_unavailable", "## 准确回复", "## 审计信息",
+                "## Architecture Decision Brief", "## 当前方案摘要", "## 简化架构图",
+                "## Architecture Team 总体建议", "总体建议", "推荐理由", "置信度",
+                "## 已确定与尚未确定", "Other-owner dependencies (non-actionable)",
+                "## 最重要的备选及后果", "## 当前读者的一项决定",
+                "Decision Owner", "Current reader / authority binding",
+                "Content-decision activation gate", "access_confirmation",
+                "Candidate recommendation", "Bounded alternatives", "Option consequences",
+                "只发布批准文档", "R&D handoff", "新设计迭代", "终态",
+                "## 回复后会发生什么", "Remaining blockers", "Next Owner",
+                "none|approved_artifact_unavailable", "## 完整材料入口",
+                "Stable human-accessible evidence refs", "Stable Design ref",
+                "Research", "Control", "Stable Review ref", "Stable Packet ref",
+                "Requested client scopes", "desktop", "mobile",
+                "opened|unavailable|not_run", "Verifier / verification time",
+                "推荐不是批准", "## 准确回复", "## 最小审计绑定",
+                "Current / superseded", "Does not authorize",
             ),
             decision: (
                 "decision_context_ref", "decision_context_digest", "revision_scope",
@@ -401,6 +444,63 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 if slot not in text
             )
         self.assertFalse(failures, "human action rendering contract incomplete:\n" + "\n".join(failures))
+
+        if material_bundle.is_file():
+            bundle_contract = material_bundle.read_text(encoding="utf-8")
+            for marker in (
+                "multica_human_action_material_bundle_v1",
+                "ARCH-DESIGN-vN.md",
+                "canonical UTF-8 Markdown",
+                "raw-byte digest",
+                "ARCH-DESIGN-vN.pdf",
+                "derived_non_authoritative=true",
+                "Research",
+                "Control",
+                "web|mobile",
+                "one comment",
+                "operational authorization",
+            ):
+                self.assertIn(marker, bundle_contract, f"material bundle contract missing {marker}")
+
+        if human_access_links.is_file():
+            link_contract = human_access_links.read_text(encoding="utf-8")
+            for marker in (
+                "multica_web_comment_permalink_v1",
+                "<app_base_url>/<workspace_slug>/issues/<issue_identifier>#comment-<comment_id>",
+                "href",
+                "comment-<comment-id>",
+                "opened|unavailable|not_run",
+                "stable attachment",
+                "multica://issues/",
+                "MUST NOT",
+            ):
+                self.assertIn(marker, link_contract, f"human access link contract missing {marker}")
+
+        for path in (human_action, approval):
+            if path.is_file():
+                rendered_template = path.read_text(encoding="utf-8")
+                self.assertNotIn(
+                    "multica://issues/",
+                    rendered_template,
+                    f"human-facing template must not expose unsupported custom URI: {path.relative_to(REPOSITORY_ROOT)}",
+                )
+
+        self.assertNotIn(
+            "`{{design_attachment_card_or_stable_entry}}`",
+            human_action.read_text(encoding="utf-8"),
+            "navigable Design entry must not be rendered as inline code",
+        )
+        approval_text = approval.read_text(encoding="utf-8")
+        for placeholder in (
+            "stable_design_attachment_ref",
+            "stable_review_attachment_ref",
+            "stable_packet_attachment_ref",
+        ):
+            self.assertNotIn(
+                f"`{{{{{placeholder}}}}}`",
+                approval_text,
+                f"navigable {placeholder} must not be rendered as inline code",
+            )
 
         operational_text = operational.read_text(encoding="utf-8")
         for token in ("approved_design_only", "approved_for_spec", "revision_requested", "rejected"):

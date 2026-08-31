@@ -292,6 +292,23 @@ class ArchitectureWorkflowRunnerSafetyTest(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("Human Action Request missing required slots", result.stdout)
 
+    def test_rejects_incomplete_standalone_architecture_design_contract(self) -> None:
+        design_template = (
+            self.root
+            / "architecture-design-workflow"
+            / "templates"
+            / "arch-design.md"
+        )
+        design_template.write_text(
+            "# ARCH-DESIGN vN\n\n## Summary\n\n## Open questions\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_runner()
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("ARCH-DESIGN missing standalone architecture slots", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

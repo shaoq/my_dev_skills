@@ -1,8 +1,22 @@
 # Core contract compatibility
 
-## Pinned producer
+## Producer boundary
 
-The only consumed core implementation is `architecture-design-workflow` revision `1d4b860b48e15f678d78a71bf2c38557ab9c2951`. The adapter is a portable-evidence consumer: it must not change that skill, add Multica-specific required core fields, or redefine its canonical state machine.
+The immutable packet route consumes `architecture-design-workflow` revision `1d4b860b48e15f678d78a71bf2c38557ab9c2951`. The pre-packet Human Action material route consumes the portable `architecture_decision_brief_v1` contract and records the actual activated core package aggregate, including the exact `SKILL.md`, Human Action/solution-design references and templates used to produce the action. It MUST NOT invent a Git revision for uncommitted bytes. The adapter is a portable-evidence consumer: it must not change that skill, add Multica-specific required core fields, or redefine its canonical state machine.
+
+## Exact compatible Human Action and Design markers
+
+The `architecture_decision_brief_v1` material route requires:
+
+- one current portable Human Action Request with stable action ID/type/status, bound artifact/routing version, one Decision Owner and authority scope, and exactly one atomic current-reader action;
+- a unique target-human binding for a content action, or a routing/owner-binding action when the Owner is absent or ambiguous;
+- the fixed Decision Brief order: solution summary, simplified architecture, Team recommendation/rationale/confidence, determined/undetermined matters, alternatives/consequences, one authorized decision, post-response behavior, complete Design/Research/Control entries, exact response and minimal current/superseded audit binding;
+- one complete standalone canonical UTF-8 `ARCH-DESIGN-vN.md`, its strictly positive version and externally computed raw-byte SHA-256 digest;
+- Design readiness that accurately distinguishes incomplete, draft-complete, decision-ready and review-ready states; an incomplete design cannot request a content decision;
+- exact Research and Control identities plus human-access entries or deterministic attachment fallbacks; and
+- explicit non-authorization boundaries and an Owner/observable closing condition for every unavailable material or unresolved dependency.
+
+The adapter validates the complete Design section contract rather than reconstructing it from comments. It preserves the portable action semantics and Design bytes. Multica attachment IDs, client checks and permalinks are external delivery evidence only.
 
 ## Exact compatible packet markers and fields
 
@@ -19,13 +33,24 @@ The current packet must be an immutable `ARCH-APPROVAL-PACKET vN` with these exa
 
 The adapter must obtain the exact current `ARCH-DESIGN`, `ARCH-REVIEW`, and `ARCH-APPROVAL-PACKET` bytes and verify their SHA-256 values over raw bytes. It must not change character encoding, Unicode, whitespace, newlines, media types, or any frozen content. A superseded packet remains immutable and cannot substitute for the current packet.
 
-When the adapter receives a portable Human Action Request in addition to the packet, it verifies the required core fields without adding Multica fields: stable action ID/type/status, bound artifact or routing version, Decision Owner/authority scope, one atomic decision, recommendation or `no_recommendation`, bounded alternatives, separated basis, option consequences, stable human-accessible evidence refs, exact response, After-response canonical projection and non-authorization boundary. Missing or unknown fields make that action rendering incompatible; they do not invalidate an otherwise compatible frozen packet or permit the adapter to invent content.
+When the adapter receives a portable Human Action Request in addition to the packet, it applies the same `architecture_decision_brief_v1` checks. Missing or unknown fields make that action rendering incompatible; they do not invalidate an otherwise compatible frozen packet or permit the adapter to invent content.
 
 ## Compatibility decision
 
-Before platform reads or writes, verify all markers above, the pinned revision, identity consistency between packet and frozen inputs, and that the target packet is current/delivered. Do not treat an apparently approvable review alone as a packet.
+Before platform reads or writes, select exactly one route. For the material route, verify its current action, actual core package aggregate, standalone Design and exact Research/Control bindings; a packet is not required and MUST NOT be synthesized. For the packet route, verify the packet markers above, the pinned packet revision, identity consistency between packet and frozen inputs, and that the target packet is current/delivered. Do not treat an apparently approvable review alone as a packet.
 
-On any absent, incompatible, unknown, malformed, stale, or unverifiable item, deterministically emit `review_packet_unavailable` with:
+An incompatible material route emits:
+
+```text
+evidence_type=human_action_material_unavailable
+action_id=<known action ID or none>
+design_ref/design_version/design_digest=<known values or none>
+failed_checks=core_human_action_compatible|standalone_design_complete|material_binding_complete
+owner=<Decision Owner|Architecture Lead|Platform Owner>
+closing_condition=<specific observable compatible input or access behavior>
+```
+
+An incompatible packet route deterministically emits `review_packet_unavailable` with:
 
 ```text
 evidence_type=review_packet_unavailable

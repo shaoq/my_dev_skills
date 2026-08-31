@@ -55,7 +55,7 @@ completed_design_only | rejected
 
 每次合法转换都更新 [ARCH-CONTROL 模板](templates/arch-control.md)中的 Issue、Owner、输入版本、证据、下一动作和转换记录。
 
-任何下一步需要人类选择、确认、接受风险、批准或补充信息时，先读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；不同 Owner 的风险或决定必须拆开，`ARCH-CONTROL` 可同时列出多个 current action refs。首屏先给 action summary、建议与有限备选、逐项后果、稳定材料引用、准确回复和回复后的 stage/blockers/Owner/writes，审计字段后置。该请求是平台无关的决策界面，不创造新的 canonical enum、artifact type 或 `planned_writes` 目标，也不扩大任何授权；core normalized `planned_writes` 仍只记录直接更新的既有架构 artifact，例如请求发布在控制评论时记录 `issue:ARCH-CONTROL`。
+任何下一步需要人类选择、确认、接受风险、批准或补充信息时，先读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；面向当前读者的 `Architecture Decision Brief` 只请求其唯一有权决定的一项内容，其他 Owner 只作 non-actionable dependency summary，Owner 未唯一绑定时先做 routing。首屏依次给一段式方案摘要、简化架构图、Team 建议/理由/置信度、已确定/未确定内容、关键备选后果、当前决定、回复后行为和完整材料入口；完整方案保留在独立版本化 artifact，不复制进 brief。每个材料引用必须区分稳定 identity、可导航入口、逐 client scope 验证和 target-human access confirmation；未验证 URL、本地路径、文件名卡片或仅 Agent 可读入口不得标记 human-accessible。该请求是平台无关的决策界面，不规定平台 URL/附件语法，不创造新的 canonical enum、artifact type 或 `planned_writes` 目标，也不扩大任何授权；core normalized `planned_writes` 仍只记录直接更新的既有架构 artifact，例如请求发布在控制评论时记录 `issue:ARCH-CONTROL`。
 
 ## Workflow
 
@@ -96,7 +96,7 @@ Subject Project 或已批准交接的 Target Project 缺失时，使用 `action_
 
 ### 5. Design and independent review
 
-读取 [solution design](references/solution-design.md)，用 [ARCH-DESIGN 模板](templates/arch-design.md)发布独立 `ARCH-DESIGN vN`。它必须绑定输入 `ARCH-RESEARCH` 版本，不依附 OpenSpec。
+读取 [solution design](references/solution-design.md)，用 [ARCH-DESIGN 模板](templates/arch-design.md)生成独立 canonical `ARCH-DESIGN-vN.md`。它必须绑定输入 `ARCH-RESEARCH` 版本、完整 raw-byte digest 和 artifact-local Design readiness，不依附 OpenSpec 或 Issue 历史才能理解。未批准文件只留在 Issue/material delivery；只有批准版本进入正式架构文档目录。
 
 当研究或设计因 `critical_evidence_gaps` 需要可识别人类提供决定时，Architecture Lead 必须创建 `action_type=design_input` 的 Human Action Request，并在 [ARCH-CONTROL 模板](templates/arch-control.md)中记录其投影。每个决策项都要给出具体候选建议或显式 `no_recommendation`、依据、主要风险/后果、仍缺证据及 Owner/关闭条件，以及可直接接受、修改或拒绝的回复格式；不得只列问题或写“等待确认”。候选数值必须标记证据状态，不能用未经验证的精确值替代测量。
 

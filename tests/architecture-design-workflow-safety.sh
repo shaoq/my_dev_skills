@@ -130,10 +130,12 @@ if openai_yaml.is_file():
 portable_core_paths = [
     skill / "SKILL.md",
     skill / "references" / "approval-packet-and-human-gate.md",
+    skill / "references" / "human-action-request.md",
     skill / "templates" / "arch-control.md",
     skill / "templates" / "arch-design.md",
     skill / "templates" / "arch-review.md",
     skill / "templates" / "arch-approval-packet.md",
+    skill / "templates" / "human-action-request.md",
 ]
 platform_marker = re.compile(
     r"(?i)(?:\bmultica\b|\bpdf\b|\bparent_id\b|\bcomment_id\b|\battachment_id\b|\bmobile\b)"
@@ -147,6 +149,35 @@ if packet_template.is_file():
     packet_text = packet_template.read_text(encoding="utf-8")
     if "review_packet_ready" in packet_text or "review_packet_unavailable" in packet_text:
         fail("packet payload embeds post-finalization evidence")
+
+design_template = skill / "templates" / "arch-design.md"
+if design_template.is_file():
+    design_text = design_template.read_text(encoding="utf-8")
+    design_slots = [
+        "Artifact filename / encoding / raw-byte digest",
+        "Design readiness",
+        "## Executive summary",
+        "Recommendation / rationale / confidence",
+        "## Problem, current state and architecture drivers",
+        "## Goals / Non-goals",
+        "## System context, responsibility boundaries and simplified architecture view",
+        "## Components, data flow, control flow, interfaces and consistency",
+        "## Normal and critical failure flows",
+        "## Security and privacy",
+        "## Reliability, performance, capacity and cost",
+        "## Observability and evaluation",
+        "## Alternatives, trade-offs and rejected reasons",
+        "## Migration, rollout, rollback, roll-forward and exit",
+        "## Operations / RACI",
+        "## Determined and undetermined matters",
+        "## Validation, acceptance and R&D decomposition",
+    ]
+    missing_design_slots = [slot for slot in design_slots if slot not in design_text]
+    if missing_design_slots:
+        fail(
+            "ARCH-DESIGN missing standalone architecture slots: "
+            + ", ".join(missing_design_slots)
+        )
 
 control_template = skill / "templates" / "arch-control.md"
 if control_template.is_file():
@@ -177,25 +208,38 @@ human_action_template = skill / "templates" / "human-action-request.md"
 if human_action_template.is_file():
     human_action_text = human_action_template.read_text(encoding="utf-8")
     human_action_slots = [
-        "## Action summary",
+        "## Architecture Decision Brief",
+        "## 当前方案摘要",
+        "## 简化架构图",
+        "## Architecture Team 总体建议",
+        "Recommendation / rationale / confidence",
+        "## 已确定与尚未确定",
+        "## 最重要的备选及后果",
+        "## 当前读者的一项决定",
         "Action ID / type / current status",
         "Why now",
         "Decision Owner / authority scope",
-        "## Decision context",
+        "Current reader / authority binding",
+        "Content-decision activation gate",
+        "Other-owner dependencies (non-actionable)",
         "Decision required",
         "Candidate recommendation",
         "Bounded alternatives",
         "Basis — facts / inferences / principles",
         "Option consequences / material risks",
-        "## Evidence and unresolved items",
+        "## 回复后会发生什么",
+        "## 完整材料入口",
         "Stable human-accessible evidence refs",
+        "Requested client scopes",
+        "Access status by scope",
+        "access_confirmation",
+        "Verifier / verification time",
         "Missing evidence / Owner / closure condition",
         "## Exact response",
-        "## After response",
         "Next stage / remaining blockers / Next Owner / planned writes",
         "## Authority boundary",
         "Does not authorize",
-        "## Audit binding",
+        "## Minimal audit binding",
         "Bound artifact or routing version",
         "Current / superseded",
     ]
