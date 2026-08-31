@@ -48,6 +48,6 @@ multica issue comment add <issue> \
 
 全部 postconditions 通过且 `requires_human_review=true` 后自动执行 `in_review --no-start` 并重读。这表示唯一 Owner 已被准确 `@` 且正在等待方案决定。无法自动证明 client access 时记录 evidence gap/恢复路径；不生成 `access_confirmation` action，也不要求用户授权交付。
 
-后续 current reply 只有在 actor、direct parent、action ref/version、exact response、revision、Issue/workspace、supersession 和 task attribution 全部通过时才匹配 `valid_human_action_response_v1`；匹配后自动 `in_progress --no-start` 并处理决定。无效回复 no-write。
+后续 `design_input|architecture_review` 具名回复使用 `current_action_reference_v1`：actor、同一 Issue/workspace、唯一 current Action ID、从 request 继承的 version/digest、created-after-request、未编辑 revision、受限 current Architecture Agent 首尾 mention 规范化、exact normalized response、supersession 和 candidate task attribution 全部通过时匹配 `valid_human_action_response_v1`。用户可以在 Issue 最新位置回复；actual parent chain 记录为 audit-only。匹配后自动 `in_progress --no-start` 并处理决定。无效回复 no-write；packet token-only 路径保持其原 parent/profile 规则。
 
 本 profile 不写 `arch.packet.current`。approvable packet 使用独立 packet route，但共享同一 mandate/manifest 自动化与失败关闭规则。

@@ -39,7 +39,7 @@ Adapter 必须从 mandate 和当前只读事实确定性生成 manifest，不接
 
 1. 重读 workspace/Issue/Agent、portable stage、attempt 和 current status；
 2. 重算两个 Skill aggregate、全部输入/输出 raw-byte digest；
-3. 重验唯一 Decision Owner、current action、`requires_human_review` 和 parent/task attribution；
+3. 重验唯一 Decision Owner、current action、`requires_human_review` 和 candidate/task attribution；`current_action_reference_v1` 的 parent chain 只作审计，packet/delivery parent selector 继续按各自 profile 校验；
 4. 扫描 retained comments/attachments/projections/sidecars 与 current/superseded identity；
 5. 证明 planned writes 是 mandate 允许操作的有序子集，且没有创建资源、跨 Issue/workspace、实现或部署；
 6. 计算 manifest raw-byte SHA-256，并写入机器可读 task evidence。
@@ -58,7 +58,7 @@ Adapter 必须从 mandate 和当前只读事实确定性生成 manifest，不接
 
 Decision Brief 首行必须准确 mention 唯一 Decision Owner。只有 `requires_human_review=true` 且评论、附件、完整材料入口、mention 和 client access postconditions 全部通过后，才自动写 `in_review --no-start`。非 Review 步骤自动进入下一 stage 或完成当前步骤，不停留等待用户。
 
-有效 Review 回复使用 manifest-bound `valid_human_action_response_v1`，必须精确匹配 actor、direct parent、action ref/version、packet/design digest、comment revision、supersession 和 task attribution。匹配后自动写 `in_progress --no-start` 并重读，再处理内容决定；无效、编辑、错误 Owner/parent 或过期回复不改变状态。
+有效 Review 回复使用 manifest-bound `valid_human_action_response_v1`。具名 `current_action_reference_v1` 必须匹配 actor、work item、唯一 current Action ID、从 request 继承的 version/design digest、created-after-request、comment revision、raw/normalized digest、受限 current Architecture Agent edge mention、supersession 和 candidate task attribution；direct parent 仅记录为 audit。packet token-only/explicit profiles继续匹配其 packet identity 与 parent/profile 约束。匹配后自动写 `in_progress --no-start` 并重读，再处理内容决定；无效、编辑、错误 Owner/Action、非法 mention 或过期回复不改变状态。
 
 ## Failure and scope expansion
 

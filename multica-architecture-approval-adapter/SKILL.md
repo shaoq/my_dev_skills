@@ -15,7 +15,7 @@ description: "Use to project a current portable architecture workflow mandate an
 
 1. **A0 — Decision Brief material route**：current portable action 绑定完整 standalone Design、Research、Control、唯一 Decision Owner，且 current mandate 允许在准确既有 Issue 内完成准备、交付、可访问性验证和状态投影。
 2. **A — packet delivery route**：current compatible delivered `ARCH-APPROVAL-PACKET vN`、准确 Design/Review 和 current mandate 均存在，目标 workspace/Issue/member 唯一。
-3. **B — decision consumption route**：current readiness、target-human binding 和 exact Review reply 可重读；读取本身无平台写入，决定 sidecar 和 `in_progress` projection 作为 current mandate 内的自动操作。
+3. **B — decision consumption route**：current Human Action Request 或 packet readiness、target-human binding 和 exact Review reply 可重读；具名 `current_action_reference_v1` 可来自同一 Issue 最新位置，packet token-only 路径保留原绑定。读取本身无平台写入，决定 sidecar 和 `in_progress` projection 作为 current mandate 内的自动操作。
 
 任一路由的 identity、digest、Owner、stage、attempt 或 target 不唯一时 fail closed。不得从 Issue status、最近评论、显示名、Agent recommendation、旧 authorization token 或模糊肯定构造 core state。
 
@@ -38,7 +38,7 @@ preparation、delivery、attachment/access verification、task-result、status p
 
 - mandate ref、workspace/Issue/Agent、stage、attempt；
 - core/adapter package identity 与输入/输出 raw-byte digests；
-- target member、action/version、parent/task selectors；
+- target member、action/version、candidate/task selectors；具名 Action profile 的 parent chain 只作审计，packet/delivery selector 保持原约束；
 - ordered writes、status transitions、postconditions、retained objects、retry limit 与 supersession。
 
 manifest 完全匹配后立即自动单次消费；它是 machine audit evidence，不是 Human Action，不要求用户签署。任一漂移则保留对象、停止后续写入，并把 manifest、digest、命令结果和 timeline 放入 task evidence；不得生成“授权修复”评论。
@@ -65,11 +65,11 @@ Issue status 只是 portable intent 的平台投影：
 
 - Agent 准备、交付、自动验证、retry 或处理有效回复：`in_progress`；
 - current Decision Brief/完整材料/mention/access postconditions 成功，且 `requires_human_review=true`：自动 `in_review --no-start`；
-- 唯一 Owner 的有效 current 回复通过 actor/direct-parent/action/version/digest/revision/task attribution 后：自动 `in_progress --no-start`，再处理决定；
+- 唯一 Owner 的具名 current Action 回复通过 actor/work item/Action ID/继承的 version-digest/created-after-request/revision/supersession/task attribution 后：自动 `in_progress --no-start`，再处理决定；其 Multica parent/thread 只作审计；
 - 非 Review 步骤成功：自动进入下一合法 stage 或完成当前步骤；
 - 仅在没有 Agent 或 human 可执行路径时：`blocked`；`critical_evidence_gaps` 与可执行方案 Review 共存时仍为 `in_review`。
 
-无效、编辑、错误 Owner/parent、superseded 或错误 task attribution 的回复不改变 status。
+无效、编辑、错误 Owner、错误/重复/superseded Action、未授权 mention 规范化或错误 task attribution 的回复不改变 status。packet token-only reply 的错误 parent/identity 仍无效。
 
 ## Route A0 — material delivery
 
@@ -78,7 +78,7 @@ Issue status 只是 portable intent 的平台投影：
 3. 读取 [human action material bundle](references/human-action-material-bundle.md)与 [human-accessible evidence links](references/human-accessible-evidence-links.md)，执行一次 comment+attachments write。
 4. 重读 exact comment/parent/author/mention/attachments，重算 raw-byte digests，并分别在 desktop/mobile 执行 actual UI activation；已知 Markdown attachment link 必须打开 browser-rendered preview 并呈现完整正文，不能只 fetch 或触发下载。
 5. 只有 `requires_human_review=true` 且全部 Review 前提通过时自动投影 `in_review --no-start`。任一必要材料只有 `download-only`、preview 未呈现或无法验证时保留对象并记录 evidence gap/恢复路径，保持 `in_progress` 或在无恢复路径时 `blocked`，不生成 access-confirmation action。
-6. 后续 exact Review 回复按 `valid_human_action_response_v1` 验证后自动恢复 `in_progress`。
+6. 后续具名 Action 回复按 `current_action_reference_v1` + `valid_human_action_response_v1` 验证；用户可在同一 Issue 最新位置回复，允许规范化一个首尾 current Architecture Agent canonical mention，验证后自动恢复 `in_progress`。
 
 ## Route A — packet delivery and readiness
 
@@ -91,10 +91,10 @@ Issue status 只是 portable intent 的平台投影：
 
 ## Route B — decision consumption
 
-1. 重读 current readiness sidecar、packet comment/attachments、target-human mapping 和 exact decision comment。
-2. 按 [human decision binding](references/human-decision-binding.md) 验证 actor、parent/profile、token、revision、digest 与 supersession。
+1. 具名 Action route 重读 current Human Action Request/material readiness/target-human binding；packet route 重读 current readiness sidecar、packet comment/attachments 与 mapping；两者都按 ID 重读 exact decision comment。
+2. 按 [human decision binding](references/human-decision-binding.md) 选择 `current_action_reference_v1` 或 packet profile，验证 actor、work item、Action/packet identity、revision、digest 与 supersession；不得用 parent 修复错误 Action，也不得用 Action ID 绕过 token-only packet binding。
 3. 自动 no-clobber 写入 decision evidence，并在 readback 通过后恢复 `in_progress` 处理 portable decision。
-4. token+prose、edited、wrong actor/parent、旧 packet 或 mapping drift 只保留审计，不改变 gate/status。
+4. 具名 Action 的错误/重复/过期 identity、edited、wrong actor、非法 mention/附加正文，以及 packet route 的 token+prose、wrong parent/旧 packet/mapping drift，只保留审计，不改变 gate/status。
 
 ## Failure, retry, and legacy migration
 

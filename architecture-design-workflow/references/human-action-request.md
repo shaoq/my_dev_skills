@@ -81,6 +81,8 @@ core 不规定平台 URL、附件或预览语法。没有经验证入口时，br
 
 ## Exact responses by type
 
+携带具名 Action ID 的 `design_input|architecture_review` 回复使用 `current_action_reference_v1`：同一 work item 中准确 Owner 可以在当前最新交互位置提交，平台评论 parent/thread 不是 authority。Action ID 必须唯一 current；Action version/digest 从 current Human Action Request 继承并在消费前重读。普通 `OK|确认|继续`、多个 Action/决定、编辑或 superseded 回复仍无效。
+
 ### Design input
 
 提供可复制格式：
@@ -129,7 +131,7 @@ ACTION <action_id>: reject risk=<risk_id>; reason=<reason>
 
 只投影当前合法转换的直接结果，不提前声称未来 Review、packet、发布、OpenSpec 或实现已经发生。
 
-收到回复后先验证 actor、current action ref、准确回复格式和 supersession。有效回复将 `HUMAN_ACTION_STATE` 记为 `received`、清除 `WAIT_REASON=awaiting_human_confirmation`，并把 `platform_status_intent` 恢复为 `agent_working`，然后才开始该回复授权范围内的 Agent 工作；无效或过期回复保持 current request，不得假装已恢复执行。
+收到回复后先验证 actor、同一 work item、current Action ID、继承的 version/digest、准确回复格式、created-after-request、未编辑和 supersession。对 `current_action_reference_v1`，平台评论位置不是必填身份。有效回复将 `HUMAN_ACTION_STATE` 记为 `received`、清除 `WAIT_REASON=awaiting_human_confirmation`，并把 `platform_status_intent` 恢复为 `agent_working`，然后才开始该回复授权范围内的 Agent 工作；无效或过期回复保持 current request，不得假装已恢复执行。
 
 Human Action Request 是现有控制或 artifact 的人类决策入口，不新增 canonical artifact type。core normalized `planned_writes` 只使用既有目标；请求随 `ARCH-CONTROL` 评论呈现时写 `issue:ARCH-CONTROL`，不得临时创造 `issue:HUMAN-ACTION-REQUEST/...` 等目标。平台 renderer 可以记录自己的 delivery evidence，但不能改写 core normalized 字段。
 

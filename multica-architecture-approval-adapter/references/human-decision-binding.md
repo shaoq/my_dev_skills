@@ -2,11 +2,11 @@
 
 ## Preconditions and non-authorities
 
-Before discovering or consuming any decision, re-read the current `review_packet_ready` sidecar, its exact packet ref/version/digest, canonical packet comment/attachments, and re-verifiable `multica_target_human_v1` mapping sidecar. The canonical member UUID and mapping evidence ref in current readiness are the only authority inputs. A delivery-comment fragment is not a readiness ref.
+Select the binding profile before discovery. For `current_action_reference_v1`, re-read the current Human Action Request、its unique Action ID/version/digest、material readiness、request comment/time and target-human binding. For packet profiles, re-read the current `review_packet_ready` sidecar、exact packet ref/version/digest、canonical packet comment/attachments and `multica_target_human_v1` mapping sidecar. A delivery-comment fragment is not a readiness ref.
 
-Every candidate must be in the same Issue, have `author_type=member`, and have `author_id` byte-for-byte equal to the current readiness canonical UUID. Do not infer authority from display names, email fragments, assignments, membership, past comments, Agent access, reactions, Issue status, recommendation, Review conclusion, readiness, urgency, quoted text, fixture text, or a legal-looking token from an Agent/system/non-target author. Such comments are retained as non-binding audit text only.
+Every candidate must be in the same Issue, have `author_type=member`, and have `author_id` byte-for-byte equal to the selected current binding's canonical UUID. Do not infer authority from display names, email fragments, assignments, membership, past comments, Agent access, reactions, Issue status, recommendation, Review conclusion, urgency, quoted text, fixture text, or a legal-looking Action/token from an Agent/system/non-target author. Such comments are retained as non-binding audit text only.
 
-The only legal tokens are:
+The only legal packet tokens are:
 
 ```text
 approved_design_only
@@ -15,9 +15,35 @@ revision_requested
 rejected
 ```
 
-`OK`, `继续`, emojis, prose containing a token, quotations, Markdown code/quote/fence content, multiple tokens, or an edited existing comment are never a replacement decision. Mapping missing/changed/ambiguous or readiness not current is fail-closed: retain evidence, keep `waiting_human`, and request a newly established unique mapping/readiness as applicable.
+`OK`, `继续`, emojis, prose containing a decision, quotations, Markdown code/quote/fence content, multiple Actions/tokens, or an edited existing comment are never a replacement decision. Mapping missing/changed/ambiguous or selected request/readiness not current is fail-closed: retain evidence, keep the current Review gate, and request a newly established unique binding/readiness as applicable.
 
-Human-readable option consequences and revision instructions are rendering context only. If a canonical member writes a legal token plus prose in one candidate comment, retain that text as non-authoritative audit/context, record `fresh_token_required=yes`, and ask for a new independent token-only comment. Never strip prose and consume the embedded token.
+Human-readable option consequences and revision instructions are rendering context only. If a canonical member writes a legal decision plus prose in one candidate comment, retain that text as non-authoritative audit/context and require a new independent reply. Never strip arbitrary prose and consume an embedded decision.
+
+## Profile: `current_action_reference_v1`
+
+This profile applies to portable `design_input|architecture_review` replies whose exact syntax begins with `ACTION <action-id>:`. It does not replace packet-bound `architecture_approval` token profiles.
+
+A candidate is valid only when all of these reread facts match:
+
+1. the Action ID parses exactly once and resolves to exactly one current, unsuperseded Human Action Request in the same Issue;
+2. candidate author equals the request's unique Decision Owner, `revision=1`, `updated_at` is absent/equal to `created_at`, and server `created_at` is not earlier than the request;
+3. Action version/digest are inherited from that exact current request and reread without drift; users do not repeat them;
+4. after the Multica envelope normalization below, the entire normalized content exactly matches one allowed response for that action type and candidate/risk identity;
+5. task attribution identifies this candidate comment as the human trigger; no other current Action with the same ID or competing valid actor exists.
+
+The candidate can be a child of the Issue thread root or another currently visible comment. Record its actual `parent_id` and full parent chain, but set `parent_chain_authority=audit_only`; neither direct parent nor membership of the Decision Brief chain grants or removes authority for this profile. Never select an action by latest timestamp: the exact current Action ID is the primary binding.
+
+### Multica envelope normalization
+
+Preserve and hash the raw UTF-8 content first. Then the Adapter MAY remove at most one canonical Multica mention from either the start or the end, separated from the decision by Unicode whitespace, only when the mention target is the exact current Architecture Agent reread for this Issue:
+
+```text
+[@<current-agent-display-name>](mention://agent/<current-agent-uuid>)
+```
+
+After removing that one edge mention and trimming only leading/trailing Unicode whitespace, hash the normalized UTF-8 content and require exact action grammar. A wrong Agent/member mention、two or more mentions、a mention in the middle、extra prose/punctuation、quote/fence、multiple Action IDs or multiple decisions is invalid. Mention normalization never changes actor authority and cannot repair a missing/wrong/superseded Action ID.
+
+For distinct valid independent candidates from the one canonical Owner and same current Action, order by server `(created_at, comment_id)` and make the latest effective; earlier valid candidates are superseded audit. More than one effective actor or duplicate current Action identity fails closed.
 
 ## Profile: `multica_packet_comment_reply_v1`
 
@@ -56,9 +82,9 @@ Decode `packet_ref` using the marker's canonical percent-decoding rules. Reject 
 
 ## Evidence, re-read, and replacement
 
-For every accepted or audited candidate, record the fields in [the decision-evidence template](../templates/multica-decision-evidence.md): Issue/comment refs and IDs, full parent-chain IDs, author ID/type, revision when supplied (otherwise `not_provided`), SHA-256 of raw UTF-8 comment content, created/updated/recorded UTC timestamps, packet identity, profile, mapping/readiness sidecar refs, mapping/readiness/comment reread statuses, and evidence status. Multica discovery remains read-only. After all rereads pass, create the decision sidecar automatically only when its no-clobber paths and readback are listed in the current manifest for the confirmed existing shared scope; otherwise retain non-effective audit text. No additional authorization token is requested.
+For every accepted or audited candidate, record the fields in [the decision-evidence template](../templates/multica-decision-evidence.md): Issue/comment refs and IDs, full parent-chain IDs, parent authority, author ID/type, revision, raw and normalized UTF-8 SHA-256, normalized mention identity, created/updated/recorded UTC timestamps, current Action or packet identity, profile, mapping/readiness refs, reread statuses, and evidence status. Multica discovery remains read-only. After all rereads pass, create the decision sidecar automatically only when its no-clobber paths and readback are listed in the current manifest for the confirmed existing shared scope; otherwise retain non-effective audit text. No additional authorization token is requested.
 
-Immediately before core consumption, re-read current readiness, mapping evidence, and the decision comment by its ID. If revision changes (when supplied), content digest changes, identity becomes unavailable, or reread fails, set captured evidence to `invalid`, retain it for audit, and require a new independent comment. An edit never becomes a replacement.
+Immediately before core consumption, re-read the selected current Human Action Request/readiness, mapping evidence, and decision comment by ID. If revision、raw or normalized content digest、Action/packet identity changes or reread fails, set captured evidence to `invalid`, retain it for audit, and require a new independent comment. An edit never becomes a replacement.
 
 For a valid token-only `revision_requested`, separately re-read `decision_context_ref`. A current matching brief records `revision_scope=provided`; no readable brief records `revision_scope=missing`; changed bytes/identity record `revision_scope=changed`. Missing or changed context never creates, replaces, invalidates or edits the legal token evidence; it only asks core for a new `design_input` action or refreshed context.
 

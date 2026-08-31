@@ -64,6 +64,14 @@ platform_status_intent=agent_working|human_review|hard_blocked|terminal
 - 有效 current 回复通过 actor/action/version/digest/supersession 验证后：先记 `received + agent_working`，再处理决定。
 - 只有不存在 Agent 自动路径、可执行方案 Review 或明确的新任务关闭路径时才是 `hard_blocked`。
 
+### `current_action_reference_v1`
+
+`design_input|architecture_review` 的具名回复可以使用 `current_action_reference_v1`。portable authority 由以下事实共同构成：同一 work item、准确 Decision Owner、request 之后产生且未编辑的独立回复、唯一 current Action ID、从 current request 重读并继承的 Action version/digest、一个符合该 action type 的合法决定，以及 current supersession 状态。用户不需要重复机械 version/digest。
+
+平台评论位置、direct parent、thread chain 或自动 mention 都不能进入 portable required fields。回复只要携带准确 current Action ID，就可以从 work item 的最新交互位置提交；adapter 负责在不改变决定语义的前提下处理平台 envelope。Action 缺失、错误、重复、已 supersede，Owner 不匹配，回复早于 request、被编辑、含多个 Action/决定或无法唯一继承 version/digest 时保持 `awaiting_response`，不得按最近时间猜测。
+
+`architecture_approval` 的 packet-bound token/explicit identity 兼容规则保持不变；没有携带 Action ID 的 token-only 回复不能使用本 profile 绕过 packet binding。
+
 platform adapter 可以把这些 intent 映射为本平台状态，但不得把平台状态反向当作 core approval evidence。
 
 ## Audit and compatibility

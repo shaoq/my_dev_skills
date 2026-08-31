@@ -82,6 +82,8 @@
 ACTION <action_id>: <type-specific exact response>
 ```
 
+`design_input|architecture_review` 的具名 Action 回复使用 `current_action_reference_v1`：准确 Owner 可以在当前 work item 的最新交互位置提交，不需要寻找本评论或理解平台 parent/thread。系统从 current request 继承 Action version/digest；回复仍只能包含一个准确 Action ID 和一个合法决定。`architecture_approval` 继续使用 packet-bound token/explicit identity 规则。
+
 ## Authority boundary
 
 - Authorizes：
