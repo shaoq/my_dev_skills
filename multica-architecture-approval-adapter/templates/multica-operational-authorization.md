@@ -27,6 +27,7 @@
 - Scope profile：`scope_profile=multica_operational_scope_v1`
 - Canonical scope payload ref：`{{canonical_scope_payload_ref}}`
 - Scope digest：`scope_digest=sha256:{{canonical_scope_payload_raw_utf8_sha256}}`
+- Comment-triggered parent selector：`{{multica_authorization_response_parent_v1_or_na}}`；执行时只解析为通过 exact request/Owner/content/revision/Issue/workspace/task-attribution 校验的当前 `trigger_comment_id`。
 
 ## Retained objects and failure behavior
 
@@ -38,6 +39,7 @@
 
 - Risks：{{operational_risks_zh}}
 - Excluded operations：{{unlisted_writes_resource_creation_delete_overwrite_or_configuration}}
+- Unlisted authorization/diagnostic/status comments：禁止；仅可通过 task result 返回。
 - Does not authorize：任何架构内容决定、Review conclusion、packet gate、发布范围扩大或未列出的写入。
 
 ## Exact authorize / deny response

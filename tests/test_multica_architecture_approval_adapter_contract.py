@@ -30,8 +30,10 @@ REQUIRED_ADAPTER_SURFACES = (
     "multica-architecture-approval-adapter/references/operational-authorization.md",
 )
 EXPECTED_HUMAN_ACTION_FAMILIES = {
+    "authorization-response-parent-binding": "authorization_response_parent_binding",
     "attachment-first-decision-brief": "attachment_first_decision_brief",
     "buried-approval-choices": "decision_first_approval",
+    "invalid-authorization-response-trigger": "invalid_authorization_response_trigger",
     "missing-operational-authorization": "operational_authorization",
     "partial-failure-retry": "retry_authorization",
     "per-artifact-mobile-access": "per_artifact_access",
@@ -365,6 +367,34 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             cases["partial-failure-retry"]["expected"]["retry_scope"],
         )
 
+        parent_binding = cases["authorization-response-parent-binding"]
+        self.assertEqual(
+            "multica_authorization_response_parent_v1",
+            parent_binding["input"]["planned_parent_selector"],
+        )
+        self.assertEqual(
+            parent_binding["input"]["task_trigger_comment_id"],
+            parent_binding["input"]["resolved_parent_comment_id"],
+        )
+        self.assertEqual("authorized_only", parent_binding["expected"]["write_outcome"])
+        self.assertEqual("in_progress", parent_binding["input"]["issue_status_after_delivery"])
+
+        invalid_trigger = cases["invalid-authorization-response-trigger"]
+        self.assertEqual("no_write", invalid_trigger["expected"]["write_outcome"])
+        self.assertEqual("task_result_only", invalid_trigger["input"]["failure_reporting"])
+        self.assertEqual(
+            {
+                "edited_response",
+                "wrong_author",
+                "wrong_parent",
+                "wrong_content",
+                "cross_issue",
+                "cross_workspace",
+                "attribution_mismatch",
+            },
+            set(invalid_trigger["input"]["rejected_trigger_variants"]),
+        )
+
     def test_human_action_rendering_contract_is_present(self) -> None:
         human_action = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-human-action-request.md"
         material_bundle = REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-action-material-bundle.md"
@@ -373,6 +403,7 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
         approval = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-approval-comment.md"
         decision = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-decision-evidence.md"
         readiness = REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-readiness-evidence.md"
+        agent_interface = REPOSITORY_ROOT / "multica-architecture-approval-adapter/agents/openai.yaml"
 
         missing_files = [
             str(path.relative_to(REPOSITORY_ROOT))
@@ -444,6 +475,15 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 if slot not in text
             )
         self.assertFalse(failures, "human action rendering contract incomplete:\n" + "\n".join(failures))
+
+        interface_text = agent_interface.read_text(encoding="utf-8")
+        for marker in (
+            "Architecture Decision Brief",
+            "complete design material bundle",
+            "approval packet",
+            "operational authorization",
+        ):
+            self.assertIn(marker, interface_text, f"adapter agent interface missing {marker}")
 
         if material_bundle.is_file():
             bundle_contract = material_bundle.read_text(encoding="utf-8")
@@ -524,6 +564,25 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "raw UTF-8 bytes",
                 "LF",
                 "canonical percent encoding",
+                "multica_authorization_response_parent_v1",
+                "trigger_comment_id",
+                "task result",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/capability-preflight-and-write-authorization.md": (
+                "multica_authorization_response_parent_v1",
+                "trigger_comment_id",
+                "revision 1",
+                "task attribution",
+                "task result",
+                "--allow-external-file",
+                "execution working directory",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-action-material-bundle.md": (
+                "parent=multica_authorization_response_parent_v1",
+                "trigger_comment_id",
+                "in_progress",
+                "task result",
+                "--allow-external-file",
             ),
         }
         protocol_failures: list[str] = []

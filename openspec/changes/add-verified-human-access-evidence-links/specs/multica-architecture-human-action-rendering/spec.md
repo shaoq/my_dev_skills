@@ -69,3 +69,18 @@ The adapter SHALL expose the exact Design Markdown attachment and verified compl
 #### Scenario: No verified complete material route exists
 - **WHEN** the Design attachment or a required Research/Control entry fails client opening, exact identity or complete-content verification
 - **THEN** the adapter records the affected artifact/client scope as unavailable, provides the Owner and closing condition, and MUST NOT request the content decision
+
+### Requirement: Comment-triggered delivery binds safely to the authorization response
+For an operational authorization whose response triggers the delivery task, the adapter SHALL canonicalize `parent=multica_authorization_response_parent_v1` in the authorized `planned_writes` instead of requiring the future authorization-response UUID. The scope MUST freeze the exact authorization request comment and expected response identity. Immediately before the first write, the adapter MUST resolve the selector only to the current task's `trigger_comment_id` and verify that the trigger is an unedited revision-1 member comment by the exact operational Decision Owner, is a direct reply to the frozen authorization request, contains exactly the expected authorization token after outer-whitespace trimming, belongs to the same Issue/workspace, and equals the task attribution evidence ref. The actual CLI write MUST use the resolved ID as `--parent`, and post-publication reread MUST confirm it.
+
+The adapter MUST fail closed for any mismatch and MUST NOT select a thread root, previous authorization response, latest comment or fuzzy match. Authorization requests, diagnostics, repair comments, Issue status changes and any other comment not explicitly present in `planned_writes` are forbidden side effects; when no such write is authorized, the adapter SHALL return the request or diagnostic through the task result only. Material preparation and delivery SHALL leave the Issue `in_progress` unless a separately authorized status write says otherwise.
+
+The authorized command profile SHALL freeze its execution working directory and whether external files are allowed. Inputs SHOULD be relative to the authorized common material root. If any input is outside the execution cwd, `planned_writes` MUST include `allow_external_file=true` and the actual CLI command MUST include `--allow-external-file`; the adapter MUST NOT add the flag or change cwd after authorization.
+
+#### Scenario: Current authorization response triggers delivery
+- **WHEN** the current task attribution points to an exact, unedited authorization response satisfying every frozen request/Owner/content/Issue/workspace binding
+- **THEN** the adapter resolves `multica_authorization_response_parent_v1` to that `trigger_comment_id`, performs exactly the authorized Decision Brief plus attachments comment with that actual parent, and leaves the Issue `in_progress`
+
+#### Scenario: Trigger evidence does not match the frozen authorization request
+- **WHEN** the trigger is edited, has the wrong author, parent or content, belongs to another Issue/workspace, or differs from task attribution
+- **THEN** the adapter performs no Issue write, returns fail-closed evidence in the task result, and requires a new authorization only after the changed facts are frozen

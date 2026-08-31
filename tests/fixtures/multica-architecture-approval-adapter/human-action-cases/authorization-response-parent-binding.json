@@ -1,0 +1,31 @@
+{
+  "fixture_id": "authorization-response-parent-binding",
+  "family": "authorization_response_parent_binding",
+  "input": {
+    "authorization_request_comment_id": "C-AUTH-REQUEST",
+    "planned_parent_selector": "multica_authorization_response_parent_v1",
+    "task_trigger_comment_id": "C-AUTH-RESPONSE",
+    "resolved_parent_comment_id": "C-AUTH-RESPONSE",
+    "response_author": "member-operational-owner",
+    "response_parent": "C-AUTH-REQUEST",
+    "response_revision": 1,
+    "response_content": "exact_authorization_token",
+    "task_attribution_comment_id": "C-AUTH-RESPONSE",
+    "issue_status_after_delivery": "in_progress"
+  },
+  "expected": {
+    "action_type": "operational_authorization",
+    "first_screen": "authorization_first",
+    "decision_authority": "not_architecture_approval",
+    "artifact_checks": ["design", "research", "control"],
+    "write_outcome": "authorized_only",
+    "retry_scope": "none",
+    "required_markers": [
+      "symbolic parent selector",
+      "resolve to current task trigger_comment_id",
+      "exact authorization response",
+      "one authorized delivery comment",
+      "Issue remains in_progress"
+    ]
+  }
+}

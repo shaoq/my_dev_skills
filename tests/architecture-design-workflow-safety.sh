@@ -126,6 +126,9 @@ if openai_yaml.is_file():
             fail(f"agents/openai.yaml missing quoted {key}")
     if "$architecture-design-workflow" not in metadata:
         fail("agents/openai.yaml default prompt does not invoke $architecture-design-workflow")
+    for marker in ("standalone architecture design", "Architecture Decision Brief"):
+        if marker not in metadata:
+            fail(f"agents/openai.yaml default prompt missing {marker}")
 
 portable_core_paths = [
     skill / "SKILL.md",

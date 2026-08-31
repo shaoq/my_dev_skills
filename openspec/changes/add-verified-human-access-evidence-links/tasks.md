@@ -31,3 +31,10 @@
 - [x] 5.1 Run focused and related repository tests, Skill quick validation and OpenSpec strict validation.
 - [x] 5.2 Run GitNexus change analysis and inspect the final diff for core/adapter separation and unchanged Multica core.
 - [x] 5.3 Record `activation=not_run`, `sandbox_acceptance=not_run` and `UNIDRAG-12 retry=not_run`; request new exact operational authorizations only after local implementation is verified.
+
+## 6. Authorization-response Parent Binding Regression
+
+- [x] 6.1 Add valid and invalid comment-trigger fixtures covering symbolic authorization-response parent resolution, exact trigger attribution and no unplanned comments; record the expected RED failure against the current Skill.
+- [x] 6.2 Define `multica_authorization_response_parent_v1` in operational authorization, preflight and material delivery guidance, including exact author/request/content/revision/Issue/workspace/task-attribution checks.
+- [x] 6.3 Require unauthorized authorization-request and diagnostic output to use task results only, and preserve Issue `in_progress` unless an exact status write is separately authorized.
+- [x] 6.4 Run focused/full tests, both Skill quick validators, OpenSpec strict validation and final diff/impact review; record `activation=not_run`, `sandbox_acceptance=not_run` and `UNIDRAG-12 retry=not_run`.

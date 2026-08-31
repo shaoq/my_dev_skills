@@ -111,6 +111,31 @@ Web 成功不能推断 mobile；Agent CLI 下载不能推断人类客户端。�
 
 附件上传、评论、可选 PDF 和任何 retry 都是 Multica/shared-scope 写入，必须由当前 `multica_operational_scope_v1` 精确覆盖 Issue、attempt、输入路径、planned writes 和 retained objects。更新本地 Skill 不授权激活或 Issue 写入；激活和 UNIDRAG-12 重试继续需要彼此独立的新授权。
 
+### 8. 授权回复 parent 使用受约束的运行时自绑定
+
+comment-triggered delivery 的 reply parent 是人类授权回复本身。该评论在授权 scope 生成时尚不存在，因此不能把未来 UUID 作为 scope 前提；否则每次新授权回复都会产生新的 UUID，使已授权 parent 永远落后一个版本。
+
+`planned_writes` 改为冻结 canonical symbolic selector：
+
+```text
+parent=multica_authorization_response_parent_v1
+```
+
+scope 同时通过 `bound_identity` 冻结 exact authorization request comment、authorization ID、expected response digest、Issue、workspace、target operational Owner 与 delivery attempt。执行任务时，adapter 只可把选择器解析为当前任务 attribution 中的 `trigger_comment_id`，并在首笔写入前验证：
+
+1. trigger comment 属于同一 workspace/Issue；
+2. 作者是 exact operational Decision Owner member；
+3. parent 是 scope 中冻结的 authorization request comment；
+4. 去除外围空白后的内容准确等于预期 authorization token；
+5. comment revision 为 1，且 created/updated 证据表明未编辑；
+6. task attribution evidence ref 与同一 trigger comment identity 完全一致。
+
+全部通过后，实际 CLI 仍使用 `--parent <resolved-trigger-comment-id>`，并在发布后重读 actual parent。任一条件失败都使授权 no-op/fail closed，不回退到 thread root、旧评论、最近评论或字符串搜索，也不发布诊断评论。
+
+同一 scope 还冻结 execution cwd 与 `allow_external_file` 模式。默认把 cwd 设为已授权的共同材料根目录并使用相对路径；仅当输入确实位于 cwd 外且 `planned_writes` 明确包含 `allow_external_file=true` 时，CLI 才增加 `--allow-external-file`。运行时临时改变 cwd 或补加 flag 都会改变授权事实并要求新授权。
+
+授权请求、授权失败和 postcondition 失败若没有被 exact `planned_writes` 覆盖，只能通过 task result 返回给调用者。Issue 在准备和交付期间保持 `in_progress`；状态写入、授权请求评论和诊断评论都不是 material delivery 的隐含副作用。
+
 ## Risks / Trade-offs
 
 - [附件卡片在不同客户端行为不同] → Web/mobile 分别实测；失败时上传已授权 PDF 或关闭为 unavailable，不根据桌面结果推断。
@@ -119,15 +144,18 @@ Web 成功不能推断 mobile；Agent CLI 下载不能推断人类客户端。�
 - [完整文档较长] → 长内容只在附件；评论固定为 Decision Brief，不复制正文。
 - [多 Owner 造成大量评论] → 只为当前可识别 Decision Owner 渲染当前 action；其他事项留在依赖摘要和 Control，不批量请求无权读者。
 - [平台路由或附件 endpoint 变化] → 每次交付执行当前客户端验证；历史成功不替代当前验证。
+- [符号 parent 被误当成模糊选择] → 只支持单一 profile，并要求 request/response/author/content/revision/Issue/workspace/task attribution 全量相等；不满足即 no write。
+- [失败诊断污染 Issue 或越权触发新任务] → 未列入 `planned_writes` 的评论一律禁止，诊断只返回 task result。
 
 ## Migration Plan
 
 1. 增加会在当前实现上失败的完整 Design、Decision Brief、单 Owner、附件 bundle 和网页/手机访问契约测试。
 2. 更新核心 `ARCH-DESIGN` reference/template 和 Human Action Request contract，保持平台无关。
 3. 更新 Multica adapter 的 Human Action renderer、材料 bundle、operational authorization/readback 和 sandbox acceptance。
-4. 运行相关测试、Skill validation、OpenSpec strict validation 和 GitNexus change analysis。
-5. 本地实施完成后停止；另行请求 Skill activation 授权。
-6. 激活完成后，再为 UNIDRAG-12 生成只包含增量附件/评论/retry 的新授权，并由目标账号完成网页和手机验证。
+4. 增加授权回复 parent 自绑定与非法 trigger 的回归 fixture，验证 exact UUID 预绑定循环在现有契约上失败。
+5. 更新 adapter 的 operational authorization、preflight、material bundle 与入口指令；运行相关测试、Skill validation、OpenSpec strict validation 和 GitNexus change analysis。
+6. 本地实施完成后停止；另行请求 Skill activation 授权。
+7. 激活完成后，再为 UNIDRAG-12 生成只包含增量附件/评论/retry 的新授权，并由目标账号完成网页和手机验证。
 
 回滚只回退本地 Skill/spec/test 文件。已上传的 Issue 对象一律保留审计，不删除、不覆盖；后续尝试使用新版本和新授权。
 

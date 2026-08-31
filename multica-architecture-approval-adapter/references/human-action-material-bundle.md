@@ -39,7 +39,9 @@ The PDF is a reading copy only. It cannot replace the Markdown attachment, desig
 
 ## Operational authorization
 
-Use `operation_variant=delivery` in `multica_operational_scope_v1`. Set `bound_identity` to the current action ID, Design version/digest and opaque delivery attempt. `authorized_paths` lists every exact Decision Brief, canonical Markdown, optional PDF and fallback Markdown input. `planned_writes` contains exactly one ordered Issue comment write with all selected attachments. Do not include packet metadata projection or readiness sidecars for a pre-packet action.
+Use `operation_variant=delivery` in `multica_operational_scope_v1`. Set `bound_identity` to the current action ID, Design version/digest and opaque delivery attempt. `authorized_paths` lists every exact Decision Brief, canonical Markdown, optional PDF and fallback Markdown input. `planned_writes` contains exactly one ordered Issue comment write with all selected attachments. When the human authorization response triggers execution, freeze `parent=multica_authorization_response_parent_v1` in that write and bind the exact authorization request identity; at runtime resolve it only to the verified current task `trigger_comment_id` under the operational authorization rules. Do not freeze the earlier preparation comment as delivery parent. Do not include packet metadata projection or readiness sidecars for a pre-packet action.
+
+Also freeze the command's execution working directory. Keep all paths relative to the authorized common material root when possible. If the content or any attachment is intentionally outside that directory, the authorized command profile must state `allow_external_file=true` and execution must add `--allow-external-file`; neither the cwd nor the flag may be changed after authorization.
 
 The write is one comment, not an independent upload:
 
@@ -54,7 +56,9 @@ multica issue comment add <issue> \
   --output json
 ```
 
-The actual trigger comment ID is mandatory for comment-triggered work. A generated thread root, orphan attachment, later edit, append, relabel, delete or second unlisted write is outside the authorization.
+The actual trigger comment ID is mandatory for the executed CLI command. The symbolic selector exists only in the pre-response canonical authorization scope and MUST resolve to that exact ID before execution. A generated thread root, prior authorization response, latest-comment search, orphan attachment, later edit, append, relabel, delete or second unlisted write is outside the authorization.
+
+Material preparation and delivery leave the Issue `in_progress`. Status changes, authorization-request comments and fail-closed diagnostic comments are separate writes and are not implied by this bundle. If they are absent from exact `planned_writes`, return their content in the task result only.
 
 ## Postconditions
 

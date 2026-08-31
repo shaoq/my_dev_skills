@@ -1,6 +1,6 @@
 ## Why
 
-UNIDRAG-12 的真实回归表明，Human Action Request 把九个权限域的问题堆进一条评论，并以不可点击的 `multica://issues/...` 指向埋在历史评论中的设计。完整方案没有作为独立附件交付，决策者既无法在网页/手机端稳定打开方案，也难以从评论中快速理解总体架构、团队建议和自己真正有权决定的事项。
+UNIDRAG-12 的真实回归表明，Human Action Request 把九个权限域的问题堆进一条评论，并以不可点击的 `multica://issues/...` 指向埋在历史评论中的设计。完整方案没有作为独立附件交付，决策者既无法在网页/手机端稳定打开方案，也难以从评论中快速理解总体架构、团队建议和自己真正有权决定的事项。后续授权交付验证还暴露出一个协议循环：授权 scope 在人类回复前要求冻结 exact parent comment ID，而 comment-triggered delivery 又要求以这条尚未产生的授权回复作为实际 parent；重复授权只会不断产生新的 trigger comment ID。
 
 ## What Changes
 
@@ -14,6 +14,10 @@ UNIDRAG-12 的真实回归表明，Human Action Request 把九个权限域的问
 - 在发布后验证 Design 附件卡片/链接、Research/Control 链接、准确材料身份和完整内容；网页与手机结果分别记录，未实测不得声称已确认。
 - 无法交付并验证完整方案附件时，不得请求正式内容决定；不能以本地路径、临时下载 URL、附件名称或纯文本伪链接代替。
 - 增加完整架构文档、决策简报、附件访问、单 Owner 决策、正向 permalink 与反向 `multica://issues` 的契约回归测试，并保持核心 Skill 不依赖 Multica。
+- 为 comment-triggered 运维授权增加 canonical symbolic parent selector `multica_authorization_response_parent_v1`：授权时冻结选择器和授权请求评论，执行时只在严格验证当前任务的授权回复后解析为该任务的 `trigger_comment_id`。
+- 禁止用未列入 `planned_writes` 的 Issue 评论请求授权、报告诊断或修补失败；没有评论写权限时，授权请求和失败原因只通过 task result 返回。
+- 保持 Issue 在材料准备和交付期间为 `in_progress`；任何状态变更都必须作为独立、明确的 planned write 获得授权。
+- 冻结材料交付的执行 cwd 与 external-file 模式；仅当 scope 明确列出 `allow_external_file=true` 时才可使用 Multica CLI `--allow-external-file`。
 
 ## Capabilities
 
@@ -31,5 +35,6 @@ UNIDRAG-12 的真实回归表明，Human Action Request 把九个权限域的问
 
 - 影响 `architecture-design-workflow` 的 `ARCH-DESIGN`、Human Action Request reference/template 与契约测试。
 - 影响 `multica-architecture-approval-adapter` 的 Human Action Request renderer、附件交付映射、材料引用规则、验收清单及契约测试。
+- 影响 adapter 运维授权的 parent-binding 语义和 comment-triggered delivery 校验，不改变 Multica CLI 的 `--parent <actual-id>` 接口。
 - 不修改 Multica 核心代码、CLI、数据库或 API；不执行 Skill import、Agent binding、Issue 评论或任何平台写入。
 - 既有架构决定和历史审批证据保持有效；未经验证的历史链接不会被追溯声明为可访问。

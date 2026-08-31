@@ -1,0 +1,32 @@
+{
+  "fixture_id": "invalid-authorization-response-trigger",
+  "family": "invalid_authorization_response_trigger",
+  "input": {
+    "planned_parent_selector": "multica_authorization_response_parent_v1",
+    "rejected_trigger_variants": [
+      "edited_response",
+      "wrong_author",
+      "wrong_parent",
+      "wrong_content",
+      "cross_issue",
+      "cross_workspace",
+      "attribution_mismatch"
+    ],
+    "failure_reporting": "task_result_only",
+    "unplanned_issue_comment": "forbidden"
+  },
+  "expected": {
+    "action_type": "operational_authorization",
+    "first_screen": "authorization_first",
+    "decision_authority": "not_architecture_approval",
+    "artifact_checks": [],
+    "write_outcome": "no_write",
+    "retry_scope": "none",
+    "required_markers": [
+      "fail closed",
+      "no issue comment",
+      "return diagnostic in task result only",
+      "new authorization required after changed facts"
+    ]
+  }
+}

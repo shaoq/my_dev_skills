@@ -1,4 +1,4 @@
 interface:
   display_name: "Multica Architecture Approval Adapter"
-  short_description: "Deliver a verified architecture packet to an authorized Multica Issue"
-  default_prompt: "Use $multica-architecture-approval-adapter only with a compatible delivered current architecture approval packet and an explicitly scoped Multica Issue. Preflight capabilities and target-human mapping before any authorized delivery write."
+  short_description: "Deliver reviewable architecture materials and approval packets"
+  default_prompt: "Use $multica-architecture-approval-adapter to render an Architecture Decision Brief with a complete design material bundle or deliver a compatible approval packet to an explicitly scoped Multica Issue. Require exact operational authorization, bind response-triggered parents only through the verified current task trigger, and return unplanned diagnostics through the task result."

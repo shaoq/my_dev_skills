@@ -46,7 +46,9 @@ closing_condition=provide a current delivered packet compatible with core revisi
 
 在写入前读取 [capability preflight and write authorization](references/capability-preflight-and-write-authorization.md)。每个 check 必须记录 deterministic evidence（check、observed command/profile、result、owner、closing condition）。对 unknown、unsupported、错误输出或无法重读的行为一律失败关闭为 `review_packet_unavailable`，保留真实 Review conclusion，并且不写入。
 
-只有同时满足 current `operational_authorization` 明确覆盖该 Issue delivery、所有 input/path scope 和完整 preflight 通过时，才可对该既有 Issue 执行最小必要的 comment、attachment 与 `arch.packet.current` metadata projection 写入。comment-triggered 任务必须使用实际 trigger comment ID：`multica issue comment add <issue> --parent <trigger-comment-id> --attachment <path> --output json`；未由 comment 触发时才可顶层评论。不得假设 packet comment 是 thread root。
+只有同时满足 current `operational_authorization` 明确覆盖该 Issue delivery、所有 input/path scope 和完整 preflight 通过时，才可对该既有 Issue 执行最小必要的 comment、attachment 与 `arch.packet.current` metadata projection 写入。若授权回复本身触发任务，scope 的 `planned_writes` 使用 `parent=multica_authorization_response_parent_v1`，并冻结授权请求身份；执行时仅在 author/request/content/revision/Issue/workspace/task-attribution 全部精确匹配后解析为当前 `trigger_comment_id`，再调用 `multica issue comment add <issue> --parent <trigger-comment-id> --attachment <path> --output json`。不得使用旧回复、最近评论或 thread root。
+
+未列入 `planned_writes` 的授权请求、诊断、修补评论和 Issue 状态变更一律不是隐含副作用；没有对应授权时只通过 task result 返回。A0 准备与交付保持 Issue `in_progress`。
 
 以下操作不属于 Issue delivery，也不得作为本 skill 的隐式副作用：Skill import、Agent binding、Team/Project/Issue 创建、Runtime 配置、CLI install/upgrade、私有/未文档化 API、缺失 resource 创建。它们要求单独、明确的人类授权；没有该授权时停止并报告 owner 与 closing condition。不得以 preflight 失败为理由安装、升级、配置或绕过平台接口。
 
