@@ -16,7 +16,7 @@
 {{simplified_architecture_diagram}}
 ```
 
-## Architecture Team 总体建议
+## Architecture recommendation
 
 - 总体建议：`{{team_recommendation_or_no_recommendation}}`
 - 推荐理由：{{team_recommendation_rationale_zh}}
@@ -53,6 +53,8 @@
 - Authority scope：{{authority_scope_zh}}
 - Current reader / authority binding：`{{unique_unbound_ambiguous}}` / `{{binding_evidence_ref}}`
 - Content-decision activation gate：`{{ready_or_not_ready}}`；未全部验证时不发布本评论的可执行版本，由 workflow mandate 自动补齐验证或记录 evidence gap。
+- Access verification mode：`{{automatic_or_owner_manual}}`
+- Material access state：`opened|manual_check_required|unavailable|not_run`
 - 一句话决定：{{atomic_decision_zh}}
 - Candidate recommendation：`{{candidate_recommendation_or_no_recommendation}}`
 - Bounded alternatives / Option consequences：见上一节。
@@ -72,7 +74,7 @@
   - Control：{{control_human_access_entry}}
   - Review / Packet（仅当前 gate 需要时）：{{review_packet_entries_or_na}}
 - Requested client scopes：`desktop`（Web）/ `mobile`
-- Access status by scope：`opened|unavailable|not_run`
+- Access status by scope：`opened|manual_check_required|unavailable|not_run`；legacy automatic enum=`opened|unavailable|not_run`。
 - Primary action：每个材料入口必须打开 browser-rendered preview；`download-only`、raw-byte fetch、HTTP 200 或文件已保存不等于 `opened`。下载仅作为预览框内的次要动作。
 
 | Material | Scope | Status | Exact identity / complete content | Verifier / verification time | Evidence / closure condition |
@@ -90,6 +92,14 @@
 ```text
 {{type_specific_exact_response}}
 ```
+
+请先打开完整材料再选择方案。若任一入口打不开，不要选择方案，直接回复：
+
+```text
+ACTION {{action_id}}: 材料打不开
+```
+
+此回复只触发材料入口修复，不表示拒绝、修订、批准或风险接受。
 
 对 `design_input|architecture_review` 的 `ACTION <action-id>:` 回复使用 `current_action_reference_v1`：你可以直接在当前 Issue 最新位置提交，不需要寻找本评论或理解评论层级。Multica 若在正文首端或尾端自动加入一个当前 Architecture Agent mention，Adapter 会验证并移除该 envelope 后匹配决定；不要自行加入说明、引用、围栏、其他 mention、多个 Action 或多个决定。正式 packet approval 的 token-only/explicit packet identity 规则保持不变。
 

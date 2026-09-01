@@ -7,7 +7,7 @@ description: "Use when a substantial architecture upgrade, greenfield system, hy
 
 ## Overview
 
-把复杂架构工作作为独立于 OpenSpec 实施的受控流程。先路由和研究，再形成可独立评审的版本化设计；Reviewer approvable conclusion 之后还必须生成并验证 immutable portable approval packet，只有可识别的人类针对准确 packet ref/version/digest 记录明确门禁后，才能发布批准产物或生成研发交接。用户明确开始、继续或重试当前阶段时建立一次平台无关的 `architecture_workflow_mandate_v1`；mandate 内的准备、交付、可访问性验证、状态投影、结果记录和有界重试自动完成，只有真实方案内容决定才暂停等待人类 Review。
+把复杂架构工作作为独立于 OpenSpec 实施的受控流程。先路由和研究，再形成可独立评审的版本化设计；`independent_review` 给出 approvable conclusion 后还必须生成并验证 immutable portable approval packet，只有可识别的人类针对准确 packet ref/version/digest 记录明确门禁后，才能发布批准产物或生成研发交接。用户明确开始、继续或重试当前阶段时建立平台无关的 `architecture_workflow_mandate_v2`；mandate 内的准备、交付、可访问性验证、状态投影、结果记录和有界重试自动完成，只有真实方案内容决定才暂停等待人类 Review。
 
 所有面向用户的说明、问题、状态、评审和报告使用中文。命令、路径、canonical state、代码标识符、协议字段及引用原文保持准确原文。
 
@@ -20,7 +20,8 @@ description: "Use when a substantial architecture upgrade, greenfield system, hy
 - 不把 preparation、delivery、attachment/access verification、status projection、task-result、relay、retry、sidecar 或 postcondition check 变成人工授权点。
 - Architecture workflow 只生成 `ARCH-RD-HANDOFF`；目标项目既有 R&D Team 自行分析需求并决定是否创建 OpenSpec change。
 - 不把 recommendation、readiness、引用文本、Agent 输出或仅进程可读的本地路径当作人工批准或 human-readable access。
-- `human-readable access` 必须由目标读者在当前人类界面中完成 actual rendering：入口经实际激活后呈现准确、完整、可阅读的 artifact。`download-only`、保存到本地、raw-byte fetch、HTTP 200、digest 一致或仅文件名可见都不能单独证明 human-readable rendering。
+- 默认 `access_verification_mode=automatic` 时，`human-readable access` 必须由目标读者在当前人类界面中完成 actual rendering：入口经实际激活后呈现准确、完整、可阅读的 artifact。`download-only`、保存到本地、raw-byte fetch、HTTP 200、digest 一致或仅文件名可见都不能单独证明 human-readable rendering。
+- 若唯一 Decision Owner 已通过当前 mandate 或部署 policy 明确选择自行在其客户端检查材料，可使用 `access_verification_mode=owner_manual`。此模式仍须自动验证准确 artifact identity、完整 raw-byte digest、稳定的同一 work item 导航入口和 Decision Brief；逐 client scope 记录 `manual_check_required`，不得声称 `opened`。它允许发布唯一内容决定并等待 Owner 回复，但必须同时提供 `ACTION <action_id>: 材料打不开` 的恢复入口；该回复不构成内容决定。
 
 ## Canonical control model
 
@@ -34,9 +35,11 @@ completed_design_only | rejected
 
 `revision_requested` 是决定，不是 stage。`WAIT_REASON` 是与 stage 正交的等待原因，可取 `none|design_approval|target_project|awaiting_human_confirmation`；正式 packet 批准仍使用 `stage=waiting_human` 与 `WAIT_REASON=design_approval`，而设计输入、访问确认、风险接受等请求可以保持真实的 `designing|reviewing` stage，并记录 `WAIT_REASON=awaiting_human_confirmation`。依赖、证据或路由缺失时保持当前 stage，并记录 `BLOCKED_REASON`，不得创造 `blocked` 等近义 stage。
 
-开始工作前读取 [workflow mandate and architecture review gates](references/workflow-mandate-and-review-gates.md)和 [execution continuation](references/execution-continuation.md)。每个方案 Review 还必须独立记录 `requires_human_review=true|false` 与 `HUMAN_ACTION_STATE=none|preparing|awaiting_response|received|unavailable|superseded`。请求尚在生成且 Agent 正工作时为 `preparing`；只有 `design_input|architecture_review|architecture_approval` 满足全部 Review 前提，且唯一 Owner、准确回复和可访问材料已交付时，才为 `awaiting_response`；收到并验证准确回复后先记为 `received`，再开始后续 Agent 工作。携带 current Action ID 的 `design_input|architecture_review` 回复使用 `current_action_reference_v1`，其 authority 来自同一 work item 中唯一 current Action、Owner、继承的 version/digest 与合法决定，不来自平台评论位置。平台 adapter 可以据此投影其自身 status，但 core 不规定平台命令、Issue、parent/thread、attachment 或 mention 语法。
+开始工作前读取 [workflow mandate and architecture review gates](references/workflow-mandate-and-review-gates.md)、[execution continuation](references/execution-continuation.md)和 [actionable architecture blocker](references/architecture-blocker-action.md)。每个方案 Review 还必须独立记录 `requires_human_review=true|false`、`access_verification_mode=automatic|owner_manual` 与 `HUMAN_ACTION_STATE=none|preparing|awaiting_response|received|unavailable|superseded`。请求尚在生成且 actor 正工作时为 `preparing`；只有 `design_input|architecture_review|architecture_approval` 满足全部 Review 前提，且唯一 Owner、准确回复和可访问材料已交付时，才为 `awaiting_response`。`automatic` 要求 requested scopes 为 `opened`；明确的 `owner_manual` 要求机器身份/digest/稳定入口通过并把 scope 标为 `manual_check_required`。收到并验证准确回复后先记为 `received`，再开始后续 actor work。携带 current Action ID 的 `design_input|architecture_review` 回复使用 `current_action_reference_v1`，其 authority 来自同一 work item 中唯一 current Action、Owner、继承的 version/digest 与合法决定，不来自平台评论位置。平台 adapter 可以据此投影其自身 status，但 core 不规定平台命令、Issue、parent/thread、attachment 或 mention 语法。
 
-任何非终结步骤准备结束且 `platform_status_intent=agent_working` 时，必须生成 `execution_continuation_v1`，并从执行环境回读 `state=accepted|active` 的准确 evidence ref；只有 Next Owner、任务描述或未消费触发意图时不得结束当前工作。无法证明 continuation 时必须继续当前恢复路径，或诚实转为 `waiting_human|blocked|terminal`，不能留下无人执行的工作状态。Agent-to-Agent handoff 属于 `requires_human_review=false` 的自动操作，不要求人类授权。
+任何非终结步骤准备结束且 `platform_status_intent=actor_working` 时，必须生成 `execution_continuation_v2`，并从执行环境回读 `state=accepted|active` 的准确 evidence refs；只有 Next Owner、任务描述或未消费触发意图时不得结束当前工作。无法证明 continuation 时必须继续当前恢复路径，或诚实转为 `waiting_human|blocked|terminal`，不能留下无人执行的工作状态。actor handoff 属于 `requires_human_review=false` 的自动操作，不要求人类授权。
+
+缺少 routing、Owner binding、scope 或 evidence reference 时，使用 `responsibility=dependency_input` 和 discovery-first 的 [ARCHITECTURE-BLOCKER-ACTION 模板](templates/architecture-blocker-action.md)。新 action 固定 `architecture_blocker_action_v3`、`discovery_policy=automatic_before_human` 与 `provide_input|request_discovery`；v1/v2 只读审计。先由既有 `coordination|research` actor 在授权范围内调查：唯一 verified binding 自动继续，多个候选只请求简单选择，零候选才发布具名 blocker。此时必须把缺口改写成一个普通业务问题，并给出“由我负责 / 指定负责人 / 我不确定，请给出建议”三类可直接回复；不得用 RACI、目录、策略记录或内部 binding fields 代替问题。系统从准确回复的 actor、Action 已冻结范围、comment ref/revision/time 与 readback 派生 machine evidence，正式来源只在用户明确表示存在或 deployment policy 要求时追问。有效回复只有在准确 resume/discovery continuation 回读为 `accepted|active` 后才清除 blocker；无法唯一确定 instruction owner 时返回 `needs_new_mandate_v1`，不得写入或猜测。
 
 本工作流使用以下稳定 blocker：`missing_subject_project`、`missing_target_project`、`missing_openspec_explore`、`missing_brainstorming`、`critical_evidence_gaps`、`review_packet_unavailable`、`approved_artifact_unavailable`。没有 blocker 时记录 `none`；新的原因必须在控制契约中先定义，不能临时造同义值。
 
@@ -61,7 +64,7 @@ completed_design_only | rejected
 
 每次合法转换都更新 [ARCH-CONTROL 模板](templates/arch-control.md)中的 Issue、Owner、输入版本、证据、下一动作和转换记录。
 
-只有下一步需要人类改变方案输入、作出架构 Review/风险判断或批准 current packet 时，才读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；面向当前读者的 `Architecture Decision Brief` 只请求其唯一有权决定的一项内容，其他 Owner 只作 non-actionable dependency summary。Owner、项目或目标未唯一绑定时停止 current mandate 并说明需要新的任务指令，不把 routing 或 access confirmation 渲染为方案 Review。首屏依次给一段式方案摘要、简化架构图、Team 建议/理由/置信度、已确定/未确定内容、关键备选后果、当前决定、回复后行为和完整材料入口；完整方案保留在独立版本化 artifact，不复制进 brief。每个材料引用必须区分稳定 identity、可导航入口和逐 client scope 自动验证；只有实际激活入口并完成 human-readable rendering 才可标记 human-accessible。未验证 URL、本地路径、文件名卡片、`download-only` 或仅 Agent 可读入口不得标记 human-accessible。当请求已经交付且唯一 Owner 可以行动时，设 `HUMAN_ACTION_STATE=awaiting_response`；`critical_evidence_gaps` 可以继续作为事实缺口记录，但不能把这类 actionable Human Action Request 误报成“没有可执行路径”的硬阻塞。
+只有下一步需要人类改变方案输入、作出架构 Review/风险判断或批准 current packet 时，才读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；面向当前读者的 `Architecture Decision Brief` 只请求其唯一有权决定的一项内容，其他 Owner 只作 non-actionable dependency summary。Owner、项目或目标未唯一绑定时发布 actionable `dependency_input` blocker，不把 routing 或 access confirmation 渲染为方案 Review。首屏依次给一段式方案摘要、简化架构图、Architecture recommendation/理由/置信度、已确定/未确定内容、关键备选后果、当前决定、回复后行为和完整材料入口；完整方案保留在独立版本化 artifact，不复制进 brief。每个材料引用必须区分稳定 identity、可导航入口和逐 client scope 状态。`automatic` 模式只有实际激活入口并完成 human-readable rendering 才可标记 `opened`；`owner_manual` 模式只可标记 `manual_check_required`，并把能否打开交给 Decision Owner 通过专用回复反馈。当请求已经交付且唯一 Owner 可以行动时，设 `HUMAN_ACTION_STATE=awaiting_response`；`critical_evidence_gaps` 可以继续作为事实缺口记录，但不能把这类 actionable Human Action Request 误报成“没有可执行路径”的硬阻塞。
 
 ## Workflow
 
@@ -104,17 +107,17 @@ Subject Project 或已批准交接的 Target Project 缺失时，停止 current 
 
 读取 [solution design](references/solution-design.md)，用 [ARCH-DESIGN 模板](templates/arch-design.md)生成独立 canonical `ARCH-DESIGN-vN.md`。它必须绑定输入 `ARCH-RESEARCH` 版本、完整 raw-byte digest 和 artifact-local Design readiness，不依附 OpenSpec 或 Issue 历史才能理解。未批准文件只留在 Issue/material delivery；只有批准版本进入正式架构文档目录。
 
-当研究或设计因 `critical_evidence_gaps` 需要可识别人类提供决定时，Architecture Lead 必须创建 `action_type=design_input` 的 Human Action Request，并在 [ARCH-CONTROL 模板](templates/arch-control.md)中记录其投影。每个决策项都要给出具体候选建议或显式 `no_recommendation`、依据、主要风险/后果、仍缺证据及 Owner/关闭条件，以及可直接接受、修改或拒绝的回复格式；不得只列问题或写“等待确认”。候选数值必须标记证据状态，不能用未经验证的精确值替代测量。
+当研究或设计因 `critical_evidence_gaps` 需要可识别人类提供内容决定时，`coordination` responsibility actor 必须创建 `action_type=design_input` 的 Human Action Request，并在 [ARCH-CONTROL 模板](templates/arch-control.md)中记录其投影。每个决策项都要给出具体候选建议或显式 `no_recommendation`、依据、主要风险/后果、仍缺证据及 Owner/关闭条件，以及可直接接受、修改或拒绝的回复格式；不得只列问题或写“等待确认”。候选数值必须标记证据状态，不能用未经验证的精确值替代测量。
 
 澄清建议与正式 `ARCHITECTURE_RECOMMENDATION` 分离。人类对候选建议的回复只改变明确列出的设计输入，不替代测量证据、其他责任 Owner 的决定、Review conclusion、packet readiness 或准确 packet ref/version/digest 的人工批准。
 
-Reviewer 随后读取 [architecture review](references/architecture-review.md)，保持被审设计只读，并用 [ARCH-REVIEW 模板](templates/arch-review.md)输出唯一结论：`BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS` 或 `APPROVABLE`。每个 finding 都绑定准确设计版本并包含证据、影响、Owner 和关闭条件。
+`independent_review` responsibility actor 随后读取 [architecture review](references/architecture-review.md)，保持被审设计只读，并用 [ARCH-REVIEW 模板](templates/arch-review.md)输出唯一结论：`BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS` 或 `APPROVABLE`。其 authority identity 必须与 current design author 分离；每个 finding 都绑定准确设计版本并包含证据、影响、Owner 和关闭条件。
 
 Review 若识别出必须由不同 Owner 分别判断的非阻断风险，在结论依赖这些判断时，为每个 Risk ID 创建独立 `action_type=architecture_review` 请求，并记录 `review_subtype=risk_acceptance`。每份请求必须列出风险条件、接受/修改/拒绝的逐项后果和准确回复，且明确属于非批准信息；不得用一次“接受全部”跨越权限域，也不得在所需证据齐备前生成依赖它的 approvable conclusion 或 packet。
 
 评审结论同时驱动控制状态计算，即使当前会话只读、无法持久化，也必须报告计算后的 canonical stage：`BLOCKED` 且关键事实/安全证据缺失时回到 `researching`；设计内容需修订时回到 `designing`。不得因“本次没有写入”而继续报告旧的 `reviewing`。
 
-`NEEDS_REVISION` 不创建 approval packet。只有 conclusion 为 `APPROVABLE_WITH_WARNINGS|APPROVABLE` 时，Architecture Lead 才读取 [approval packet and human gate](references/approval-packet-and-human-gate.md)，使用 [ARCH-APPROVAL-PACKET 模板](templates/arch-approval-packet.md)从准确 design/review 原始 bytes 生成 delivered immutable payload。packet digest 在 payload 冻结后外部计算；readiness/unavailable evidence 只通过 ref/version/digest 绑定，不得写回 packet。
+`NEEDS_REVISION` 不创建 approval packet。只有 conclusion 为 `APPROVABLE_WITH_WARNINGS|APPROVABLE` 时，`coordination` responsibility actor 才读取 [approval packet and human gate](references/approval-packet-and-human-gate.md)，使用 [ARCH-APPROVAL-PACKET 模板](templates/arch-approval-packet.md)从准确 design/review 原始 bytes 生成 delivered immutable payload。packet digest 在 payload 冻结后外部计算；readiness/unavailable evidence 只通过 ref/version/digest 绑定，不得写回 packet。
 
 缺少当前 readiness、digest/access 验证失败或只有 Agent 进程可读时，保留真实 Review conclusion，保持 `reviewing` 并设置 `BLOCKED_REASON=review_packet_unavailable`。只有外部 `review_packet_ready` envelope 同时绑定准确 refs/versions/digests、confirmed human access、verifier 和 UTC verification time 后才进入 `waiting_human`。
 
@@ -152,15 +155,19 @@ Normalized 字段保持正交：`packet_ref` 只记录稳定 artifact ref（例�
 
 `completed_design_only` 与 `handed_off` 只能在对应 ADR、详细设计以及（如适用）`ARCH-RD-HANDOFF` 已实际持久化并验证后报告。只读、plan 或行为测试会话即使能生成完整待发布内容，canonical stage 也停在 `publishing`；`planned_writes` 列出当前待发布目标，不得把“逻辑上可完成”写成终态。
 
-## Role boundaries
+## Responsibility boundaries
 
-| Role | Owns | Must not do |
+| Responsibility | Owns | Must not do |
 |---|---|---|
-| Architecture Lead | intake、路由、`ARCH-CONTROL`、approval packet、readiness 与人工决定记录 | 代替用户批准或改写 delivered packet |
-| Architecture Analyst | `ARCH-RESEARCH` 与证据限制 | 把建议伪装成事实 |
-| Solution Architect | `ARCH-DESIGN vN` | 创建 OpenSpec 或实施 |
-| Architecture Reviewer | 只读 `ARCH-REVIEW` | 修改被审版本或批准自身方案 |
-| Target R&D Team | 接收 handoff 后独立进入自身流程 | 把 handoff 当作已创建 OpenSpec |
+| `coordination` | intake、路由、`ARCH-CONTROL`、packet、readiness 与决定记录 | 代替人类批准或改写 delivered packet |
+| `research` | `ARCH-RESEARCH` 与证据限制 | 把建议伪装成事实 |
+| `solution_design` | `ARCH-DESIGN vN` | 创建 OpenSpec 或实施 |
+| `independent_review` | 只读 `ARCH-REVIEW` | 修改被审版本、与作者复用 authority 或批准自身方案 |
+| `dependency_input` | 补齐单项 routing/Owner/scope/evidence 指令 | 作出方案内容决定 |
+| `human_decision` | 对准确 current action/packet 作原子决定 | 扩大 authority scope 或替代其他 Owner |
+| `downstream_delivery` | 接收 handoff 后进入目标流程 | 把 handoff 当作已创建 OpenSpec |
+
+上述 responsibility 绑定到 portable actor/authority，而不是内建 Team、成员数量或部署角色名；standalone 单 actor 只要保持 `independent_review` authority 分离也可使用本 skill。
 
 ## Progressive disclosure
 
@@ -180,3 +187,4 @@ Normalized 字段保持正交：`packet_ref` 只记录稳定 artifact ref（例�
 - 只写“等待确认”、只列批准 token，或让不同权限 Owner 用一次“接受全部”作决定。
 - 为材料交付、访问检查、状态、retry、relay 或 verification 请求 `AUTHORIZE OPERATION`。
 - 把任何平台的 workspace、work item、actor、message、material delivery 或 command 字段加入 portable required fields。
+- 把系统尚未调查到的 Owner、authority 或 evidence 正式值作为默认表单要求 instruction owner 猜测或照抄。

@@ -466,7 +466,7 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             human_action: (
                 "mention://member/{{decision_owner_member_id}}",
                 "## Architecture Decision Brief", "## 当前方案摘要", "## 简化架构图",
-                "## Architecture Team 总体建议", "总体建议", "推荐理由", "置信度",
+                "## Architecture recommendation", "总体建议", "推荐理由", "置信度",
                 "## 已确定与尚未确定", "## 最重要的备选及后果",
                 "## 当前读者的一项决定", "action_type={{action_type}}", "Decision Owner",
                 "Current reader / authority binding", "Other-owner dependencies (non-actionable)",
@@ -489,7 +489,7 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             ),
             approval: (
                 "## Architecture Decision Brief", "## 当前方案摘要", "## 简化架构图",
-                "## Architecture Team 总体建议", "总体建议", "推荐理由", "置信度",
+                "## Architecture recommendation", "总体建议", "推荐理由", "置信度",
                 "## 已确定与尚未确定", "Other-owner dependencies (non-actionable)",
                 "## 最重要的备选及后果", "## 当前读者的一项决定",
                 "Decision Owner", "Current reader / authority binding",
@@ -616,6 +616,65 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
         operational_text = operational.read_text(encoding="utf-8")
         for token in ("approved_design_only", "approved_for_spec", "revision_requested", "rejected"):
             self.assertNotIn(token, operational_text, f"operational authorization must not contain approval token {token}")
+
+    def test_owner_manual_material_check_contract_is_present(self) -> None:
+        cases_path = FIXTURE_ROOT / "owner-manual-material-check-cases.json"
+        cases = json.loads(cases_path.read_text(encoding="utf-8"))
+
+        ready = cases["owner-manual-check-ready"]
+        self.assertEqual("owner_manual", ready["input"]["access_verification_mode"])
+        self.assertEqual("in_review", ready["expected"]["platform_status"])
+        self.assertEqual("manual_check_required", ready["expected"]["material_access_state"])
+        self.assertTrue(ready["expected"]["must_offer_material_unavailable_reply"])
+
+        strict_default = cases["strict-default-without-owner-policy"]
+        self.assertEqual("blocked", strict_default["expected"]["platform_status"])
+        identity_failure = cases["manual-check-with-identity-failure"]
+        self.assertEqual("not_ready", identity_failure["expected"]["content_decision_activation_gate"])
+        unavailable_reply = cases["owner-reports-material-unavailable"]
+        self.assertEqual("none", unavailable_reply["expected"]["content_decision"])
+        self.assertEqual("repair_or_republish_material_entry", unavailable_reply["expected"]["next_action"])
+
+        surfaces = {
+            REPOSITORY_ROOT / "architecture-design-workflow/references/human-action-request.md": (
+                "access_verification_mode=automatic|owner_manual",
+                "manual_check_required",
+                "ACTION <action_id>: 材料打不开",
+                "不得声称 `opened`",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-accessible-evidence-links.md": (
+                "owner_manual",
+                "manual_check_required",
+                "stable same-Issue entry",
+                "MAY enter `in_review`",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-action-material-bundle.md": (
+                "owner_manual",
+                "manual_check_required",
+                "材料打不开",
+                "repair_or_republish_material_entry",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-human-action-request.md": (
+                "Access verification mode",
+                "owner_manual",
+                "manual_check_required",
+                "ACTION {{action_id}}: 材料打不开",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/SKILL.md": (
+                "owner_manual",
+                "manual_check_required",
+                "材料打不开",
+            ),
+        }
+        failures: list[str] = []
+        for path, markers in surfaces.items():
+            text = path.read_text(encoding="utf-8")
+            failures.extend(
+                f"{path.relative_to(REPOSITORY_ROOT)} missing {marker}"
+                for marker in markers
+                if marker not in text
+            )
+        self.assertFalse(failures, "owner-manual material check contract incomplete:\n" + "\n".join(failures))
 
         protocol_slots = {
             REPOSITORY_ROOT / "architecture-design-workflow/references/workflow-mandate-and-review-gates.md": (

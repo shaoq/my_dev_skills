@@ -13,6 +13,14 @@ absent → delivering → delivered_unverified → ready
 
 Neither a comment nor metadata alone is delivery/readiness/approval authority. Preserve superseded, duplicate, partial, failed, and conflicting objects for audit; never auto-delete or edit them.
 
+## Actionable blocker status reconciliation
+
+`architecture_blocker_action_v3` 使用独立 single-consumption reconciliation；`architecture_blocker_action_v1|architecture_blocker_action_v2` 只作 audit-only。写前按 Action ID、attempt、instruction-owner Member、Issue 和 supersession 扫描既有 blocker comments/tasks，并验证 `automatic_before_human` discovery evidence、business question、human reply recipe 与 evidence derivation policy。完全匹配的 current comment 只复用并回读；冲突、重复或旧 attempt 保留审计，不编辑或删除。
+
+唯一 verified binding 不发布人类 blocker，直接创建 resume continuation。多个候选或 `unavailable_with_evidence` 成功交付并回读唯一 Member mention、single action 与双 response mode 后，Issue 必须为 `blocked` 且 `BLOCKER_ACTION_STATE=awaiting_input`。有效 `provide_input` 记录 `received`，有效 `request_discovery` 记录 `discovery_needed`；只有 mapped resume/discovery task readback 为 accepted/active 后才写 `in_progress --no-start`。若 task 未入队、mapping 漂移、readback 失败或 status 回读不匹配，执行 blocked rollback；不得遗留 orphaned `in_progress`。
+
+无法在任何写入前唯一解析 instruction owner 时不创建 projection/comment/task，返回 `needs_new_mandate_v1`，Issue unchanged、current task completed with non-success、downstream task none。
+
 ## Reconciliation before every write
 
 Start with an Issue thread scan and read `arch.packet.current`. First parse every syntactically legal profile marker as defined in [delivery mapping and marker](delivery-mapping-and-marker.md), before author eligibility. For the current packet ref/version, a different digest is terminal `identity_conflict`; an exact identity on a wrong/non-agent author is terminal `marker_author_conflict`. Neither outcome may write `arch.packet.current`, even if metadata points at an apparently exact delivery. Only unrelated packet refs are audit-only; same-ref higher/lower versions remain relevant to stale/supersession handling. Then classify eligible exact-author comments by current packet identity and reread attachment completeness.
@@ -65,7 +73,7 @@ Only emit `review_packet_ready` using [the readiness template](../templates/mult
 7. the projection read-back and final no-more-writes scan remain current and canonical.
 8. after that final scan, the complete readiness envelope has been atomically written and reread as a `shared_workspace_sidecar_v1` record with a non-`none` self `evidence_ref`, as defined in [durable evidence records](durable-evidence-records.md).
 
-The readiness brief check additionally requires a current Human Action Request ref/version and the fixed `Architecture Decision Brief` order: one-paragraph solution summary, simplified architecture, Team recommendation/rationale/confidence, determined/undetermined matters, alternatives/consequences, the one authorized decision, After-response projection, clickable complete materials, exact response and minimal current/superseded binding. The packet gate adds stable Review/Packet entries and accepted-risk summary or explicit `none`. Validate every user-facing entry using [human-accessible evidence links](human-accessible-evidence-links.md); an internal `multica://issues/...` audit identity is never sufficient. Each artifact's requested desktop/mobile access confirmation must be individually `opened`; an incomplete or superseded rendering closes as unavailable with `failed_checks=brief_rendering_status|per_artifact_access_confirmation` as applicable.
+The readiness brief check additionally requires a current Human Action Request ref/version and the fixed `Architecture Decision Brief` order: one-paragraph solution summary, simplified architecture, Architecture recommendation/rationale/confidence, determined/undetermined matters, alternatives/consequences, the one authorized decision, After-response projection, clickable complete materials, exact response and minimal current/superseded binding. The packet gate adds stable Review/Packet entries and accepted-risk summary or explicit `none`. Validate every user-facing entry using [human-accessible evidence links](human-accessible-evidence-links.md); an internal `multica://issues/...` audit identity is never sufficient. Each artifact's requested desktop/mobile access confirmation must be individually `opened`; an incomplete or superseded rendering closes as unavailable with `failed_checks=brief_rendering_status|per_artifact_access_confirmation` as applicable.
 
 ## Automatic bounded retry after partial failure
 

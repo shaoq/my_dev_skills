@@ -1,0 +1,62 @@
+[
+  {
+    "case_id": "standalone-current-session-active",
+    "profile": "execution_continuation_v2",
+    "state": "active",
+    "next_actor_ref": "session:current",
+    "next_actor_authority_ref": "human:current",
+    "next_responsibility": "solution_design",
+    "evidence_mode": "local_session",
+    "has_claim": true,
+    "legacy_role": "none",
+    "expected": "active"
+  },
+  {
+    "case_id": "standalone-cross-session-unclaimed",
+    "profile": "execution_continuation_v2",
+    "state": "planned",
+    "next_actor_ref": "session:future",
+    "next_actor_authority_ref": "human:current",
+    "next_responsibility": "coordination",
+    "evidence_mode": "shared_artifact",
+    "has_claim": false,
+    "legacy_role": "none",
+    "expected": "planned"
+  },
+  {
+    "case_id": "legacy-lead-migration",
+    "profile": "execution_continuation_v1",
+    "state": "accepted",
+    "next_actor_ref": "runtime:lead-1",
+    "next_actor_authority_ref": "human:lead-1",
+    "next_responsibility": "none",
+    "evidence_mode": "runtime_task",
+    "has_claim": true,
+    "legacy_role": "Architecture Lead",
+    "expected": "migration_ready"
+  },
+  {
+    "case_id": "legacy-unknown-role",
+    "profile": "execution_continuation_v1",
+    "state": "accepted",
+    "next_actor_ref": "runtime:unknown",
+    "next_actor_authority_ref": "human:unknown",
+    "next_responsibility": "none",
+    "evidence_mode": "runtime_task",
+    "has_claim": true,
+    "legacy_role": "Architecture Operator",
+    "expected": "fail_closed"
+  },
+  {
+    "case_id": "nonterminal-empty-actor",
+    "profile": "execution_continuation_v2",
+    "state": "blocked",
+    "next_actor_ref": "none",
+    "next_actor_authority_ref": "none",
+    "next_responsibility": "dependency_input",
+    "evidence_mode": "human_response",
+    "has_claim": false,
+    "legacy_role": "none",
+    "expected": "fail_closed"
+  }
+]

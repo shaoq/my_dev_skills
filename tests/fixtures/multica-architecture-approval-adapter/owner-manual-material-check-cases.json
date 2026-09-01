@@ -1,0 +1,70 @@
+{
+  "owner-manual-check-ready": {
+    "input": {
+      "action_type": "design_input",
+      "decision_owner_binding": "unique",
+      "access_verification_mode": "owner_manual",
+      "owner_manual_check_policy": "explicit",
+      "attachment_identity": "exact",
+      "attachment_digest_readback": "matched",
+      "stable_same_issue_entry": true,
+      "automatic_client_rendering": "not_available"
+    },
+    "expected": {
+      "human_action_state": "awaiting_response",
+      "platform_status": "in_review",
+      "material_access_state": "manual_check_required",
+      "content_decision_activation_gate": "ready",
+      "must_offer_material_unavailable_reply": true
+    }
+  },
+  "strict-default-without-owner-policy": {
+    "input": {
+      "action_type": "design_input",
+      "decision_owner_binding": "unique",
+      "access_verification_mode": "automatic",
+      "owner_manual_check_policy": "absent",
+      "attachment_identity": "exact",
+      "attachment_digest_readback": "matched",
+      "stable_same_issue_entry": true,
+      "automatic_client_rendering": "not_available"
+    },
+    "expected": {
+      "human_action_state": "unavailable",
+      "platform_status": "blocked",
+      "material_access_state": "unavailable",
+      "content_decision_activation_gate": "not_ready"
+    }
+  },
+  "manual-check-with-identity-failure": {
+    "input": {
+      "action_type": "design_input",
+      "decision_owner_binding": "unique",
+      "access_verification_mode": "owner_manual",
+      "owner_manual_check_policy": "explicit",
+      "attachment_identity": "mismatch",
+      "attachment_digest_readback": "mismatch",
+      "stable_same_issue_entry": true,
+      "automatic_client_rendering": "not_available"
+    },
+    "expected": {
+      "human_action_state": "unavailable",
+      "platform_status": "blocked",
+      "content_decision_activation_gate": "not_ready"
+    }
+  },
+  "owner-reports-material-unavailable": {
+    "input": {
+      "current_action_reply": "ACTION <ACTION_ID>: 材料打不开",
+      "reply_actor": "decision_owner",
+      "reply_created_after_request": true
+    },
+    "expected": {
+      "content_decision": "none",
+      "human_action_state": "preparing",
+      "platform_status": "in_progress",
+      "next_responsibility": "coordination",
+      "next_action": "repair_or_republish_material_entry"
+    }
+  }
+}

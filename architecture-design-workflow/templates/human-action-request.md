@@ -12,7 +12,7 @@
 <portable simplified architecture diagram>
 ```
 
-## Architecture Team 总体建议
+## Architecture recommendation
 
 - Recommendation / rationale / confidence：
 - Candidate recommendation：`<candidate_id + recommendation>|no_recommendation`
@@ -47,6 +47,8 @@
 - Decision Owner / authority scope：
 - Current reader / authority binding：`unique|unbound|ambiguous` / `<evidence ref>`
 - Content-decision activation gate：`ready|not_ready`；未验证材料时由 workflow mandate 自动完成验证或记录 evidence gap，不得展示内容决定回复。
+- Access verification mode：`automatic|owner_manual`
+- Material access state：`opened|manual_check_required|unavailable|not_run`
 - 一句话决定：
 - Decision required：
 - Bounded alternatives：见上一节；只有本 action 的回复格式可执行。
@@ -80,6 +82,12 @@
 
 ```text
 ACTION <action_id>: <type-specific exact response>
+```
+
+若材料入口无法打开，请不要选择任何方案，回复：
+
+```text
+ACTION <action_id>: 材料打不开
 ```
 
 `design_input|architecture_review` 的具名 Action 回复使用 `current_action_reference_v1`：准确 Owner 可以在当前 work item 的最新交互位置提交，不需要寻找本评论或理解平台 parent/thread。系统从 current request 继承 Action version/digest；回复仍只能包含一个准确 Action ID 和一个合法决定。`architecture_approval` 继续使用 packet-bound token/explicit identity 规则。

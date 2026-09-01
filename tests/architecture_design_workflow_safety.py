@@ -35,12 +35,15 @@ required_skill_files = [
     "references/solution-design.md",
     "references/architecture-review.md",
     "references/workflow-mandate-and-review-gates.md",
+    "references/execution-continuation.md",
+    "references/architecture-blocker-action.md",
     "references/human-action-request.md",
     "references/approval-packet-and-human-gate.md",
     "references/adr-publication.md",
     "references/rnd-handoff.md",
     "references/runtime-and-validation.md",
     "templates/arch-control.md",
+    "templates/architecture-blocker-action.md",
     "templates/arch-research.md",
     "templates/arch-design.md",
     "templates/arch-review.md",
@@ -172,7 +175,7 @@ if human_action_template.is_file():
         "## Architecture Decision Brief",
         "## 当前方案摘要",
         "## 简化架构图",
-        "## Architecture Team 总体建议",
+        "## Architecture recommendation",
         "Recommendation / rationale / confidence",
         "## 已确定与尚未确定",
         "## 最重要的备选及后果",
@@ -227,7 +230,9 @@ human_action_state_contract = {
         "architecture_approval",
     ],
     skill / "references" / "workflow-mandate-and-review-gates.md": [
-        "architecture_workflow_mandate_v1",
+        "architecture_workflow_mandate_v2",
+        "v1 dual-read",
+        "v2-only write",
         "requires_human_review",
         "design_input",
         "architecture_review",
@@ -244,6 +249,44 @@ human_action_state_contract = {
         "awaiting_response",
     ],
 }
+
+portable_execution_contract = {
+    skill / "SKILL.md": [
+        "architecture_workflow_mandate_v2",
+        "execution_continuation_v2",
+        "architecture-blocker-action.md",
+        "dependency_input",
+    ],
+    skill / "references" / "execution-continuation.md": [
+        "execution_continuation_v2",
+        "next_actor_ref",
+        "next_actor_authority_ref",
+        "next_responsibility",
+        "accepted|active",
+        "v1 dual-read",
+        "v2-only write",
+    ],
+    skill / "references" / "architecture-blocker-action.md": [
+        "architecture_blocker_action_v2",
+        "automatic_before_human",
+        "provide_input|request_discovery",
+        "discovery_needed",
+        "resolution_instruction_owner_ref",
+        "needs_new_mandate_v1",
+    ],
+    skill / "templates" / "architecture-blocker-action.md": [
+        "ACTION_ID",
+        "DISCOVERY_SCOPE",
+        "REQUEST_DISCOVERY_REPLY",
+        "RESUME_ACTOR_REF",
+        "BLOCKER_ACTION_STATE",
+    ],
+}
+for path, markers in portable_execution_contract.items():
+    contract_text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    for marker in markers:
+        if marker not in contract_text:
+            fail(f"{path.relative_to(root)} missing portable execution marker: {marker}")
 
 portable_access_contract = {
     skill / "SKILL.md": [

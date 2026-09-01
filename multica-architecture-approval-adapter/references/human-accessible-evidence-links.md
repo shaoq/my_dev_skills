@@ -42,6 +42,14 @@ Record each requested `web|mobile` scope independently as `opened|unavailable|no
 
 If any required artifact lacks a preview action or the actual activation downloads instead of rendering, the Adapter MUST NOT enter `in_review`. Keep the workflow in `in_progress` while an automatic recovery remains, or use `blocked` only when no Agent or human execution path exists; record the observable closing condition.
 
+## Explicit owner-manual verification
+
+The strict rule above is the default `access_verification_mode=automatic`. For `design_input|architecture_review` only, the Adapter MAY use `access_verification_mode=owner_manual` when the unique Decision Owner has explicitly chosen to inspect the materials in their own web/mobile client and that policy evidence is current. Formal packet `architecture_approval` remains automatic.
+
+Before this mode MAY enter `in_review`, the Adapter still verifies the exact attachment identity, media type, size and raw-byte digest, the current Decision Brief, and a stable same-Issue entry bound to that attachment/comment. Each requested scope is recorded as `manual_check_required`, never `opened`; the card identifies the Owner and policy evidence. An unauthenticated Agent browser is not a hard blocker in this explicit mode.
+
+The card tells the Owner to open the materials before choosing and provides `ACTION <action-id>: 材料打不开`. That response records no content decision and starts automatic repair or republication. Identity/digest mismatch, a missing stable entry, ambiguous Owner, or absent policy evidence still closes as unavailable.
+
 Use this ordered fallback:
 
 1. stable attachment entry for attachment-backed complete material;

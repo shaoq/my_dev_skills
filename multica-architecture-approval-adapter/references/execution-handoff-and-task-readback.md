@@ -2,23 +2,22 @@
 
 ## Purpose
 
-`multica_execution_handoff_v1` 是 portable `execution_continuation_v1` 在一个准确既有 Multica Issue 上的自动投影。它证明下一名 Architecture Agent 的实际 task 已被平台接收，而不是只在 `ARCH-CONTROL` 中写了 Next Owner、改变 Issue status 或发布普通 mention。
-
-handoff 始终 `requires_human_review=false`，属于 current workflow mandate 内的非 Review 自动操作，不请求 `AUTHORIZE OPERATION`。
+`multica_execution_handoff_v1` 是 portable `execution_continuation_v2` 在一个准确既有 Multica Issue 上的自动投影。它把 generic actor/responsibility 映射到既有 Agent，证明下一 task 已被平台接收；普通 mention、Next Owner 或状态更新不能代替 task readback。handoff 始终 `requires_human_review=false`。
 
 ## Frozen handoff envelope
 
 ```text
 handoff_profile=multica_execution_handoff_v1
-handoff_id=<issue-id>:<stage>:<input-artifact-version>:<attempt>
+handoff_id=<issue-id>:<stage>:<attempt>:<continuation-id>
 continuation_id=<portable-continuation-id>
 workspace_id=<existing-workspace-id>
 issue_id=<existing-issue-id>
-next_executor_id=<exact existing Agent id>
-next_executor_role=<Architecture role>
+next_actor_ref=<portable actor ref>
+next_actor_authority_ref=<portable authority ref>
+next_responsibility=<portable responsibility>
+next_agent_id=<exact existing Agent id>
 action=<one bounded task>
-input_artifact_ref=<current stable ref>
-input_artifact_version=<current version>
+input_artifact_refs=<stable current refs>
 completion_condition=<observable closing condition>
 trigger_surface=dedicated handoff comment
 requires_human_review=false
@@ -32,28 +31,28 @@ readback_evidence_ref=<exact task readback ref>
 supersedes=<older handoff id or none>
 ```
 
-评论正文必须精确 mention `next_executor_id` 对应的一个 Agent，并完整呈现 handoff_id、角色、action、输入 artifact/version 和 completion condition。不得包含第二个 Agent mention，也不得把 Decision Owner mention 当作执行交接。
+Adapter 先按 current workspace Team directory 将 `next_actor_ref + next_actor_authority_ref + next_responsibility` 唯一映射到一个既有 Agent。映射缺失、冲突或多值时不得按显示名、assignee、最近作者或空闲状态猜测；应发布/保持 actionable blocker。
 
 ## Dedicated comment and self-handoff
 
-handoff 必须使用 dedicated handoff comment，与 `ARCH-CONTROL`、artifact、Decision Brief、Review 回复和 task-result 评论分离。普通 `ARCH-CONTROL` 内的任何 Architecture Lead 自 mention 或下一成员 mention都不是有效触发表面，必须 `no_trigger`。
+dedicated handoff comment 必须准确 mention `next_agent_id` 对应的唯一 Agent，并完整呈现 handoff ID、responsibility、action、input artifact refs 与 completion condition。它与 `ARCH-CONTROL`、Decision Brief、Review 回复和 task-result 分离。普通控制评论内的自 mention/成员 mention 必须 `no_trigger`。
 
-当下一执行者就是当前 Architecture Lead 时，仍使用独立 self-handoff、新 attempt/唯一 handoff ID、单一 action 和 completion condition。self-handoff 与跨成员 handoff 使用相同的 single-consumption fence；不得通过复用旧 handoff、在普通控制评论中提到自己或递归发布多个评论维持运行。
+当下一 actor 就是当前 actor 时仍使用独立 self-handoff、新 attempt、唯一 handoff ID、单一 action 和 completion condition。self-handoff 与跨成员 handoff 使用相同 single-consumption fence。
 
 ## Trigger and readback postcondition
 
-写入前重读 exact workspace、Issue、current Agent directory、portable continuation、attempt、retained comments 和 candidate tasks。写入后执行有界 readback，只接受同时匹配以下字段的 task：
+写入前重读 workspace、Issue、Agent directory、continuation、attempt、retained comments 和 candidate tasks。写入后执行有界 readback，只接受同时满足：
 
-- 同一 Issue/workspace；
-- assignee/runner 为 `next_executor_id`；
-- task attribution 包含准确 handoff_id、continuation_id 和 attempt；
-- task 在 handoff comment 之后创建；
-- task 状态为 `queued|running`；或为 `waiting_local_directory` 且 runtime 在线、task attribution 准确、`predecessor_task_id` 是当前 task，并有 `same in_place directory lock` 的可重读 evidence。其他目录等待不能推断为已接收。
+- 同一 workspace/Issue；
+- assignee/runner 为 `next_agent_id`；
+- attribution 含准确 handoff ID、continuation ID、actor、responsibility 和 attempt；
+- task 在 handoff comment 后创建；
+- task 为 `queued|running`；或为 `waiting_local_directory` 且 runtime 在线、`predecessor_task_id` 是当前 task，并有 `same in_place directory lock` evidence。
 
-`accepted_task_status=queued|waiting_local_directory`：匹配 `queued` 时直接 accepted；匹配 `waiting_local_directory` 时，只有上述前序目录锁关系全部成立才 accepted，因为当前 task 释放目录正是其可观察启动条件。`active_task_status=running` 时 portable state 为 active。`queued_task_id`、实际状态、predecessor、目录锁证据和 readback evidence ref 必须写入 task evidence。只有完成该回读，当前 task 才能结束并保持 `in_progress + WAIT_REASON=none`。
+`accepted_task_status=queued|waiting_local_directory` 映射 portable `accepted`；`active_task_status=running` 映射 portable `active`。只有 `accepted|active` 才允许当前 task 结束并保持 `in_progress + WAIT_REASON=none`。`queued_task_id`、实际状态、predecessor、锁证据和 readback evidence 必须记录。
 
 ## Replay and failure closure
 
-handoff ID 是 single-consumption。若已有匹配 task，则复用其 evidence 并 reconciliation no-op，不再发布第二个 handoff。若已有 task 已完成，必须从其 current result 派生新的 continuation；completed 历史本身不能证明后续仍在执行。
+handoff ID 是 single-consumption。已有匹配 task 时复用 evidence 并 reconciliation no-op；completed 历史不能证明后续仍执行。
 
-有界 readback 找不到匹配 task、目标不唯一、mention 未触发、attempt/version 漂移、task attribution 不完整，或 `waiting_local_directory` 无法证明只等待当前前序 task 的同一目录锁时，continuation 不得成为 accepted/active。当前 Agent 仍可恢复时继续当前 task；真实等待方案决定时进入 `in_review`；不存在 Agent/human 路径时进入 `blocked` 并记录 Owner/closing condition；已完成则进入终态。任何失败路径都不得遗留 orphaned `in_progress + WAIT_REASON=none`。
+若映射失败、mention 未触发、task 未入队、attribution 不完整、attempt 漂移或目录锁不可证明，continuation 不得成为 accepted/active。当前 actor 可恢复时继续当前 task；需要依赖输入时投影 actionable blocker；真实方案决定时进入 `in_review`；终结时进入 terminal。任何失败路径都不得遗留 orphaned `in_progress + WAIT_REASON=none`。

@@ -17,17 +17,19 @@ class ArchitectureExecutionContinuationContractTest(unittest.TestCase):
         self.assertTrue(reference.is_file(), "missing portable execution continuation contract")
         text = reference.read_text(encoding="utf-8")
         for marker in (
-            "execution_continuation_v1",
+            "execution_continuation_v2",
             "continuation_id",
-            "next_executor_ref",
-            "next_executor_role",
-            "input_artifact_ref",
-            "input_artifact_version",
+            "next_actor_ref",
+            "next_actor_authority_ref",
+            "next_responsibility",
+            "input_artifact_refs",
             "completion_condition",
             "planned|accepted|active|waiting_human|blocked|terminal",
-            "platform_status_intent=agent_working",
+            "local_session|shared_artifact|runtime_task|human_response",
             "accepted|active",
-            "evidence_ref",
+            "evidence_refs",
+            "v1 dual-read",
+            "v2-only write",
         ):
             self.assertIn(marker, text, f"portable continuation contract missing {marker}")
         for platform_marker in (
@@ -44,10 +46,10 @@ class ArchitectureExecutionContinuationContractTest(unittest.TestCase):
         text = reference.read_text(encoding="utf-8")
         for marker in (
             "multica_execution_handoff_v1",
-            "next_executor_id",
-            "next_executor_role",
-            "input_artifact_ref",
-            "input_artifact_version",
+            "next_actor_ref",
+            "next_actor_authority_ref",
+            "next_responsibility",
+            "input_artifact_refs",
             "completion_condition",
             "handoff_id",
             "queued_task_id",
@@ -87,9 +89,9 @@ class ArchitectureExecutionContinuationContractTest(unittest.TestCase):
 
     def test_existing_skill_surfaces_route_to_continuation_contracts(self) -> None:
         required = {
-            CORE / "SKILL.md": ("execution_continuation_v1", "execution-continuation.md"),
+            CORE / "SKILL.md": ("execution_continuation_v2", "execution-continuation.md"),
             CORE / "references/workflow-mandate-and-review-gates.md": (
-                "execution_continuation_v1",
+                "execution_continuation_v2",
                 "accepted|active",
             ),
             CORE / "templates/arch-control.md": (
@@ -100,6 +102,7 @@ class ArchitectureExecutionContinuationContractTest(unittest.TestCase):
             ADAPTER / "SKILL.md": (
                 "multica_execution_handoff_v1",
                 "execution-handoff-and-task-readback.md",
+                "execution_continuation_v2",
             ),
             ADAPTER / "references/architecture-operation-manifest.md": (
                 "handoff_id",

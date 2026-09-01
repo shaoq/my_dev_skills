@@ -6,7 +6,7 @@ Apply this reference only after core compatibility、target-human mapping、capa
 
 Before constructing a comment, calculate SHA-256 over the raw bytes of the exact delivered `ARCH-DESIGN`, `ARCH-REVIEW`, and `ARCH-APPROVAL-PACKET`. Preserve bytes, encoding, filenames, media types, whitespace, and newlines. The brief is a new concise comment, not a copy or reserialization of the attachments.
 
-Render [the approval-comment template](../templates/multica-approval-comment.md) with the actual core Human Action Request and packet values. Its first screen must identify the Decision Owner, why the decision is ready, Team recommendation/reason, accepted warnings and four legal outcomes with Chinese consequences; accurate reply instructions and three stable attachment refs follow. Full marker, digest and reconciliation audit detail stays below those sections. Do not put full design/review/packet bodies in the comment.
+Render [the approval-comment template](../templates/multica-approval-comment.md) with the actual core Human Action Request and packet values. Its first screen must identify the Decision Owner, why the decision is ready, Architecture recommendation/reason, accepted warnings and four legal outcomes with Chinese consequences; accurate reply instructions and three stable attachment refs follow. Full marker, digest and reconciliation audit detail stays below those sections. Do not put full design/review/packet bodies in the comment.
 
 Create a fresh `delivery_attempt_id` before reconciliation. If a task was triggered by comment `T`, use `T` as `--parent`; do not substitute the root of its thread. Record the returned packet-comment ID, not a trigger or thread-root ID, as the packet binding identity.
 

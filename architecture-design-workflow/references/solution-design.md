@@ -16,7 +16,7 @@
 ## Required structure
 
 1. Identity、status、Design readiness、canonical filename/encoding/raw-byte digest 与输入证据；
-2. 执行摘要，以及 Architecture Team 的 Recommendation / rationale / confidence；
+2. 执行摘要，以及 Architecture recommendation / rationale / confidence；
 3. 问题、当前状态、架构驱动因素、事实、假设、约束和未知项；
 4. Goals / Non-goals；
 5. 系统上下文、责任/信任边界和简化架构图；
@@ -34,7 +34,7 @@
 
 ## Blocking clarification output
 
-当 `critical_evidence_gaps` 的关闭需要人类选择或确认设计输入时，不得只列未知项或空白问卷。Lead 为每个 authority scope 和原子决定创建独立 `action_type=design_input` Human Action Request，并在 `ARCH-CONTROL` 中引用它。面向一个当前读者的请求只呈现其唯一 authority scope 内的一项可操作决定；其他 Owner 只列为 non-actionable dependencies。Owner 未唯一绑定时先请求 routing/owner-binding，不让当前读者代替专业 Owner 决定内容。请求填写：
+当 `critical_evidence_gaps` 的关闭需要人类选择或确认设计输入时，不得只列未知项或空白问卷。`coordination` responsibility actor 为每个 authority scope 和原子决定创建独立 `action_type=design_input` Human Action Request，并在 `ARCH-CONTROL` 中引用它。面向一个当前读者的请求只呈现其唯一 authority scope 内的一项可操作决定；其他 Owner 只列为 non-actionable dependencies。Owner 未唯一绑定时先发布 `dependency_input` blocker，不让当前读者代替专业 Owner 决定内容。请求填写：
 
 1. `Decision required`：当前人类可以决定的准确问题；
 2. `Candidate recommendation`：基于现有证据的具体候选值，或显式 `no_recommendation`；

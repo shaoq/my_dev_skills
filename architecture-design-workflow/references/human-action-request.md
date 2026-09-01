@@ -17,11 +17,15 @@ HUMAN_ACTION_OWNER=<unique human or role|none>
 HUMAN_ACTION_REF=<stable current request ref|none>
 WAIT_REASON=none|target_project|design_approval|awaiting_human_confirmation
 platform_status_intent=agent_working|human_review|hard_blocked|terminal
+access_verification_mode=automatic|owner_manual
+material_access_state=opened|manual_check_required|unavailable|not_run
 ```
 
 这些字段与 architecture stage、Review conclusion、gate 和 `BLOCKED_REASON` 分开计算。`preparing` 表示 Agent 仍在准备材料；准确请求已经交付给唯一 Owner 后使用 `awaiting_response` 与 `WAIT_REASON=awaiting_human_confirmation`，即使 stage 仍是 `designing|reviewing`。正式 packet 批准仍使用 `stage=waiting_human`、`WAIT_REASON=design_approval`，同时 action state 为 `awaiting_response`。
 
 `platform_status_intent=human_review` 只表示平台应让人看见当前请求处于待其处理的审核态；平台 adapter 决定具体状态名与写入方式。`critical_evidence_gaps` 本身不是 hard blocker：只要存在已交付、Owner 唯一、回复可执行的 current Human Action Request，就仍有明确推进路径。只有 Owner 无法绑定、请求无法交付或依赖确实不存在且没有任何可执行关闭动作时，才使用 `HUMAN_ACTION_STATE=unavailable` 与 `platform_status_intent=hard_blocked`。
+
+routing、Owner binding、scope 或 evidence reference 属于 `dependency_input`，使用独立 actionable blocker，固定 `requires_human_review=false`。提供这些字段的 actor 不因此获得 `human_decision`、设计接受、风险接受或批准权限，也不创建 Decision Brief。
 
 ## Action types
 
@@ -47,7 +51,7 @@ platform_status_intent=agent_working|human_review|hard_blocked|terminal
 
 1. 当前方案的一段式摘要；
 2. 简化架构图；
-3. Architecture Team 总体建议、理由和置信度；
+3. Architecture recommendation、理由和置信度；
 4. 已确定与尚未确定的内容；
 5. 最重要的备选及后果；
 6. 当前读者真正有权决定的一项内容；
@@ -60,7 +64,7 @@ platform_status_intent=agent_working|human_review|hard_blocked|terminal
 ## Current reader and authority
 
 - 一个 brief 只绑定一个 current action、一个 Decision Owner 和一个 authority scope。
-- renderer 必须记录 Current reader / authority binding、`requires_human_review` 和 `Content-decision activation gate`；只有唯一匹配且当前请求所需材料在全部 requested client scopes 已验证时，才展示内容 action 的 Exact response。
+- renderer 必须记录 Current reader / authority binding、`requires_human_review`、`access_verification_mode` 和 `Content-decision activation gate`。`automatic` 只有全部 requested client scopes 为 `opened` 时展示内容回复；`owner_manual` 只有显式 policy evidence、唯一 Owner、准确材料 identity/digest 和稳定入口均通过时展示内容回复，并把逐 scope 状态保留为 `manual_check_required`。
 - 其他 Owner 的未决 action 只能列在 `Other-owner dependencies (non-actionable)`，包含 action ID、Owner、依赖影响和关闭条件，不得显示可执行回复表单。
 - Decision Owner 为未知角色、零匹配或多匹配时，当前 action 只能是 routing/owner-binding；不能要求当前读者代替该角色决定内容。
 
@@ -71,6 +75,18 @@ platform_status_intent=agent_working|human_review|hard_blocked|terminal
 某个 scope 只有在具名 verifier 执行 actual reader activation，并在目标人类界面内看到准确、完整、可阅读的 artifact rendering、核对 identity 后才能记录 `opened`。一个 scope 的成功不能推出另一个 scope；Agent 进程、CLI、raw-byte fetch、HTTP 200、digest 一致、`download-only` 入口或“文件已经保存”不能替代人的客户端证据。下载后的本地文件还可能受宿主系统来源标记、隔离策略、应用关联或设备不可达影响，除非目标 reader 实际打开并呈现正文，否则仍为 `unavailable|not_run`。若新发布入口必须在发布后才能验证，先在同一 mandate 内自动交付并执行客户端验证；验证完成后才可生成 current Human Action Request 请求内容决定。无法自动证明时记录 evidence gap 和可观察恢复路径，不把访问确认当成人工授权或内容批准。
 
 core 不规定平台 URL、附件或预览语法。没有经验证入口时，brief 保留建议和 unavailable 报告，但不得请求正式内容决定；需要正式批准且 packet 不可访问时继续适用既有 `review_packet_unavailable`。
+
+### Owner 手动检查模式
+
+`access_verification_mode=owner_manual` 只在唯一 Decision Owner 已通过 current mandate 或部署 policy 明确表示“由我在网页/手机端手动检查材料”时使用。Runtime 仍须自动完成 artifact type/version/digest、完整 raw bytes、current/superseded identity、同一 work item 稳定导航入口和 Decision Brief 的回读。未完成这些机器检查时仍为 `unavailable`；不得用 owner-manual policy 绕过 identity 或 digest 失败。
+
+通过后，各 requested scope 记录 `manual_check_required`、Owner 和 policy evidence ref，不得声称 `opened`，但 content-decision activation gate 可为 `ready`，`HUMAN_ACTION_STATE=awaiting_response`。决策卡必须明确提示“请先打开完整材料；若打不开，不要选择方案”，并提供：
+
+```text
+ACTION <action_id>: 材料打不开
+```
+
+该回复只报告 delivery/access failure，`content_decision=none`；系统把 action 置回 `preparing`，由 `coordination` responsibility 自动执行 `repair_or_republish_material_entry`，投影为 actor working，不要求 operational authorization。修复并重新交付后生成新 attempt；不得把“材料打不开”解释为拒绝、修订、批准或风险接受。
 
 ## Recommendation and alternatives
 

@@ -2,7 +2,7 @@
 
 ## Boundary
 
-文件名为兼容既有引用保留；新契约不使用 human write authorization。Issue delivery 只在 current `architecture_workflow_mandate_v1` 与自动派生的 `architecture_operation_manifest_v1` 同时 current、匹配且可重验时执行。`AUTHORIZE OPERATION`、`multica_operational_scope_v1` 或历史 task-result authorization comment 不是 precondition。
+文件名为兼容既有引用保留；新契约不使用 human write authorization。Issue delivery 只在 current `architecture_workflow_mandate_v2` 与自动派生的 `architecture_operation_manifest_v1` 同时 current、匹配且可重验时执行。历史 `architecture_workflow_mandate_v1` 只作 dual-read 审计，任何新副作用先迁移到 superseding v2 attempt。`AUTHORIZE OPERATION`、`multica_operational_scope_v1` 或历史 task-result authorization comment 不是 precondition。
 
 Skill import、Agent binding、资源创建、Runtime 配置、CLI 安装/升级、私有 API、跨 Issue/workspace、overwrite/delete/edit 历史对象和业务实现不属于普通 Issue delivery。它们只有在明确的新任务指令建立对应 mandate 时才可进入新的 manifest；缺失资源永不自动创建。
 

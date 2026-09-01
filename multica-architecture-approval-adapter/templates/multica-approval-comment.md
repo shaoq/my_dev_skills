@@ -12,7 +12,7 @@
 {{simplified_architecture_diagram}}
 ```
 
-## Architecture Team 总体建议
+## Architecture recommendation
 
 - 总体建议：`{{architecture_recommendation}}`
 - 推荐理由：{{recommendation_rationale_zh}}
@@ -59,10 +59,10 @@
 
 | Response | Next stage | Remaining blockers | Next Owner | 直接 planned writes | 权限边界与不可逆影响 |
 |---|---|---|---|---|---|
-| `approved_design_only` | `publishing` | `none|approved_artifact_unavailable` | Architecture Lead | 控制记录、ADR、详细设计 | 不生成 R&D handoff；历史通过 supersede/revoke 演进 |
-| `approved_for_spec` | `publishing`；目标缺失时 `waiting_human` | `none|missing_target_project|approved_artifact_unavailable` | Architecture Lead；目标缺失时 Routing Owner | 控制记录、ADR、详细设计、目标存在时 handoff | 不自动创建研发资源或实现产物 |
-| `revision_requested` | `designing` | `none`；说明缺失时 `revision_scope=missing` context | Solution Architect / Design Decision Owner | 控制记录、新设计版本 | revision brief 另行提供；旧 packet 不改写 |
-| `rejected` | `rejected` | `none` | Architecture Lead 记录终态 | 控制记录 | 终态；继续需要新的明确工作 |
+| `approved_design_only` | `publishing` | `none|approved_artifact_unavailable` | `coordination` actor | 控制记录、ADR、详细设计 | 不生成 R&D handoff；历史通过 supersede/revoke 演进 |
+| `approved_for_spec` | `publishing`；目标缺失时 `waiting_human` | `none|missing_target_project|approved_artifact_unavailable` | `coordination` actor；目标缺失时 routing instruction owner | 控制记录、ADR、详细设计、目标存在时 handoff | 不自动创建研发资源或实现产物 |
+| `revision_requested` | `designing` | `none`；说明缺失时 `revision_scope=missing` context | `solution_design` actor / Design Decision Owner | 控制记录、新设计版本 | revision brief 另行提供；旧 packet 不改写 |
+| `rejected` | `rejected` | `none` | `coordination` actor 记录终态 | 控制记录 | 终态；继续需要新的明确工作 |
 
 ## 完整材料入口
 

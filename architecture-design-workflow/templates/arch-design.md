@@ -100,7 +100,7 @@
 
 ### Undetermined
 
-| Decision | Owner / authority scope | Team recommendation / confidence | Evidence that changes it | Closure condition |
+| Decision | Owner / authority scope | Architecture recommendation / confidence | Evidence that changes it | Closure condition |
 |---|---|---|---|---|
 |  |  |  |  |  |
 

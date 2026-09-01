@@ -4,13 +4,19 @@
 
 Current routes consume `architecture-design-workflow` contract `architecture_workflow_operation_automation_v1` and record the exact activated core package aggregate, including `SKILL.md`、workflow-mandate/Human-Action/solution-design references and templates. The legacy immutable packet route may continue to read packets produced by revision `1d4b860b48e15f678d78a71bf2c38557ab9c2951`, but legacy operational requests remain audit-only. The adapter MUST NOT invent a Git revision for uncommitted bytes, add platform-specific required core fields, or redefine the portable state machine.
 
+Current writer 只接受并产生 `architecture_workflow_mandate_v2` / `execution_continuation_v2` / `architecture_blocker_action_v3` side effects。reader 对 mandate/continuation 执行 v1 dual-read，对 blocker 读取 `architecture_blocker_action_v1|architecture_blocker_action_v2|architecture_blocker_action_v3`；mandate/continuation writer 执行 v2-only write，blocker writer 执行 v3-only write。历史 v1/v2 blocker identity 保留审计，任何 blocker 新写入都由一个 superseding v3 attempt 承担。blocker v3 必须包含 `automatic_before_human`、一个普通 business question、`provide_input|request_discovery`、reply-context evidence derivation、conditional formal-source policy 和既有 discovery actor binding。
+
+## Portable responsibility mapping
+
+responsibility mapping 必须来自 current mandate 的显式 actor/authority/responsibility bindings 与既有 Multica directory：`coordination|research|solution_design|independent_review|dependency_input|human_decision|downstream_delivery` 分别映射到一个准确既有 Agent 或 Member。legacy `Architecture Lead|Architecture Analyst|Solution Architect|Architecture Reviewer` 只在显式兼容 profile 唯一匹配时迁移；未知、冲突或多值时 fail closed，不使用显示名、assignee、最近作者或状态猜测。
+
 ## Exact compatible Human Action and Design markers
 
 The `architecture_decision_brief_v1` material route requires:
 
 - one current portable Human Action Request with `action_type=design_input|architecture_review|architecture_approval`、`requires_human_review=true`、stable action ID/version/status、one Decision Owner/authority scope and exactly one atomic current-reader action;
 - a unique target-human binding; an absent/ambiguous Owner stops the mandate and requires a new task instruction rather than a routing Review action;
-- the fixed Decision Brief order: solution summary, simplified architecture, Team recommendation/rationale/confidence, determined/undetermined matters, alternatives/consequences, one authorized decision, post-response behavior, complete Design/Research/Control entries, exact response and minimal current/superseded audit binding;
+- the fixed Decision Brief order: solution summary, simplified architecture, Architecture recommendation/rationale/confidence, determined/undetermined matters, alternatives/consequences, one authorized decision, post-response behavior, complete Design/Research/Control entries, exact response and minimal current/superseded audit binding;
 - one complete standalone canonical UTF-8 `ARCH-DESIGN-vN.md`, its strictly positive version and externally computed raw-byte SHA-256 digest;
 - Design readiness that accurately distinguishes incomplete, draft-complete, decision-ready and review-ready states; an incomplete design cannot request a content decision;
 - exact Research and Control identities plus human-access entries or deterministic attachment fallbacks; and

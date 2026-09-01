@@ -12,9 +12,11 @@
 
 ## Control fields
 
-- `WAIT_REASON`：`none|design_approval|target_project`
-- Workflow mandate ref / profile：`<ref>|none` / `architecture_workflow_mandate_v1|none`
+- `WAIT_REASON`：`none|design_approval|target_project|awaiting_human_confirmation`
+- Workflow mandate ref / profile：`<ref>|none` / `architecture_workflow_mandate_v2|none`
 - Workflow attempt / allowed operations / invalidation：
+- Current actor / authority / responsibility：`<actor-ref>` / `<authority-ref>` / `<responsibility>`
+- Responsibility bindings：`<responsibility@actor@authority>[,...]`
 - `BLOCKED_REASON`：`none|missing_subject_project|missing_target_project|missing_openspec_explore|missing_brainstorming|critical_evidence_gaps|review_packet_unavailable|approved_artifact_unavailable`
 - Review conclusion：`none|BLOCKED|NEEDS_REVISION|APPROVABLE_WITH_WARNINGS|APPROVABLE`
 - Current packet ref / version / digest：
@@ -37,16 +39,40 @@
 
 终结状态或当前正在等待真实人工决定时填写相应 `terminal|waiting_human`；其他非终结工作不得只写 Next Owner：
 
-- Continuation profile / ID：`execution_continuation_v1` / `<id>`
-- Next executor ref / role：
+- Continuation profile / ID：`execution_continuation_v2` / `<id>`
+- Next actor ref / authority / responsibility：
 - Action：
-- Input artifact ref / version：
+- Input artifact refs：
 - Completion condition：
 - Continuation state：`planned|accepted|active|waiting_human|blocked|terminal`
-- Continuation evidence：`<rereadable-ref>|none`
+- Execution evidence mode：`local_session|shared_artifact|runtime_task|human_response`
+- Continuation evidence：`<rereadable-refs>|none`
+- Blocker action ref：`<action-id>|none`
 - Supersedes：`<continuation-id>|none`
 
-当 `platform_status_intent=agent_working` 且当前 task 将结束时，Continuation state 必须为 `accepted|active` 且 Continuation evidence 可重读。Next Owner、普通控制文本或 planned 状态均不能代替已接收的下一执行任务。
+当 `platform_status_intent=actor_working` 且当前 task 将结束时，Continuation state 必须为 `accepted|active` 且 Continuation evidence 可重读。Next Owner、普通控制文本或 planned 状态均不能代替已接收的下一执行任务。
+
+## Current actionable blocker
+
+没有 dependency input blocker 时写 `n/a`。每个 current blocker 只能有一个 instruction owner 和一个任务：
+
+- Blocker profile / Action ID：`architecture_blocker_action_v3` / `<id>`
+- Discovery policy / result：`automatic_before_human` / `<unique_verified|multiple_verified|unavailable_with_evidence>`
+- Response modes：`provide_input|request_discovery`
+- Business question：`<one plain-language question>`
+- Human declaration replies：`由我负责|负责人是 <可识别的人或团队>|我不确定，请团队给出建议`
+- Machine evidence derivation / formal source policy：`reply_context` / `conditional`
+- Blocked responsibility：`dependency_input`
+- Resolution instruction owner / authority：`<actor-ref>` / `<authority-ref>`
+- Missing input / required reply fields：
+- Exact reply / closing condition：
+- Resume actor / responsibility / completion condition：
+- Requires human review：`false`
+- `BLOCKER_ACTION_STATE`：`awaiting_input|received|superseded|unavailable`
+- Request / response evidence：
+- Resume continuation ref：`<execution_continuation_v2-ref>|none`
+
+只有有效回复已产生并回读 `accepted|active` resume continuation 时才清除 blocker。无法唯一绑定 instruction owner 时记录 `needs_new_mandate_v1`，不写入外部目标。
 
 ## Current human actions
 
@@ -79,14 +105,17 @@ Human Action Request 不新增 canonical artifact type 或 `planned_writes` 目�
 
 评论中同时声明：候选建议及 `接受 / 修改 / 拒绝` 回复只处理这里列出的设计输入，属于非批准信息；不得替代测量证据、其他责任 Owner 的决定、Review conclusion、packet readiness、`ARCHITECTURE_RECOMMENDATION` 或准确 packet ref/version/digest 的 human decision。
 
-## Role assignment
+## Responsibility bindings
 
-| Role | Owner | Handoff evidence |
-|---|---|---|
-| Architecture Lead |  |  |
-| Architecture Analyst |  |  |
-| Solution Architect |  |  |
-| Architecture Reviewer |  |  |
+| Responsibility | Actor ref | Authority ref | Handoff evidence |
+|---|---|---|---|
+| `coordination` |  |  |  |
+| `research` |  |  |  |
+| `solution_design` |  |  |  |
+| `independent_review` |  |  |  |
+| `dependency_input` |  |  |  |
+| `human_decision` |  |  |  |
+| `downstream_delivery` |  |  |  |
 
 ## Transition log
 

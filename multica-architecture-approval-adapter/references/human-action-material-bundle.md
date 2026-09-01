@@ -10,7 +10,7 @@ route 要求：
 - 一个 current action、一个唯一 Decision Owner、一个 authority scope；
 - 完整 standalone `ARCH-DESIGN-vN.md` 与准确 Research/Control identities；
 - 一个既有 workspace/Issue；
-- current `architecture_workflow_mandate_v1` 与可消费 `architecture_operation_manifest_v1`。
+- current `architecture_workflow_mandate_v2` 与可消费 `architecture_operation_manifest_v1`；历史 `architecture_workflow_mandate_v1` 只作 audit，不承载新写入。
 
 不要求或生成 operational authorization。
 
@@ -44,9 +44,9 @@ multica issue comment add <issue> \
   --output json
 ```
 
-必要时先自动 `in_progress --no-start`。重读新 comment，要求准确 Agent、actual parent、固定 Decision Brief headings、一个 actionable action、canonical mention 和所有附件 bindings；重下载 Markdown 并匹配 digest。分别通过 actual UI activation 验证 web/mobile 的 browser-rendered preview、exact identity 与 complete content；raw-byte fetch、HTTP 200 或 `download-only` 不能把 scope 标为 `opened`。
+必要时先自动 `in_progress --no-start`。重读新 comment，要求准确 Agent、actual parent、固定 Decision Brief headings、一个 actionable action、canonical mention 和所有附件 bindings；重下载 Markdown 并匹配 digest。默认 `access_verification_mode=automatic` 时分别通过 actual UI activation 验证 web/mobile 的 browser-rendered preview、exact identity 与 complete content；raw-byte fetch、HTTP 200 或 `download-only` 不能把 scope 标为 `opened`。唯一 Owner 已明确选择自行检查时，`design_input|architecture_review` 可使用 `owner_manual`：机器验证 attachment identity/digest 与 stable same-Issue entry，逐 scope 记录 `manual_check_required`，不得声称 `opened`。
 
-全部 postconditions 通过且 `requires_human_review=true` 后自动执行 `in_review --no-start` 并重读。这表示唯一 Owner 已被准确 `@` 且正在等待方案决定。无法自动证明 client access 时记录 evidence gap/恢复路径；不生成 `access_confirmation` action，也不要求用户授权交付。
+当前模式的全部 postconditions 通过且 `requires_human_review=true` 后自动执行 `in_review --no-start` 并重读。这表示唯一 Owner 已被准确 `@` 且正在等待方案决定。`automatic` 无法证明 client access 时记录 evidence gap/恢复路径；显式 `owner_manual` 不以匿名 Agent 浏览器失败阻塞，但必须在决策卡提供 `ACTION <action-id>: 材料打不开`。该回复固定 `content_decision=none`，把 action 置回 `preparing`，自动执行 `repair_or_republish_material_entry`，不生成 `access_confirmation` action，也不要求用户授权交付。
 
 后续 `design_input|architecture_review` 具名回复使用 `current_action_reference_v1`：actor、同一 Issue/workspace、唯一 current Action ID、从 request 继承的 version/digest、created-after-request、未编辑 revision、受限 current Architecture Agent 首尾 mention 规范化、exact normalized response、supersession 和 candidate task attribution 全部通过时匹配 `valid_human_action_response_v1`。用户可以在 Issue 最新位置回复；actual parent chain 记录为 audit-only。匹配后自动 `in_progress --no-start` 并处理决定。无效回复 no-write；packet token-only 路径保持其原 parent/profile 规则。
 
