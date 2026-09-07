@@ -446,7 +446,7 @@ Check an explicitly selected target group of active OpenSpec changes for complet
    If there are non-archivable changes, additionally output:
    > "未完成: <name-3>
    >   → 运行 `/opsx:apply <name>` 补实施
-   >   → 或 `/new-worktree-apply <name>` 在 worktree 中实施
+   >   → 或 `/new-worktree-apply <name> --target <TARGET_BRANCH>` 在同一冻结目标的 worktree 中实施
    >   → 如有合规缺失，运行 `/opsx:explore` 分析需要补充的 companion 产出"
 
    If no archivable changes:

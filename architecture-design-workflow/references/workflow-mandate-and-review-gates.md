@@ -84,7 +84,7 @@ platform_status_intent=actor_working|human_review|hard_blocked|terminal
 
 ### `architecture_blocker_action_v3`
 
-依赖输入阻塞读取 [actionable architecture blocker](architecture-blocker-action.md)。`architecture_blocker_action_v1|architecture_blocker_action_v2` 仅双读审计，新写只使用 v3。只有 discovery-first 已执行，instruction owner、一个普通业务问题、`provide_input|request_discovery`、closing condition、resume/discovery actor 和 evidence 都 current 时，才可报告 blocker delivery 成功。人类声明的机器字段必须从准确回复上下文派生，正式来源只按明确条件追问。
+依赖输入阻塞读取 [actionable architecture blocker](architecture-blocker-action.md)。`architecture_blocker_action_v1|architecture_blocker_action_v2` 仅双读审计，新写只使用 v3。只有 discovery-first 已执行，instruction owner、一个普通业务问题、基于 current evidence 的单一 `recommendation_intent` 及理由/置信度/边界/有序备选、`provide_input|request_discovery`、closing condition、resume/discovery actor 和 evidence 都 current 时，才可报告 blocker delivery 成功。唯一 verified binding 自动继续；证据无法排序、low/unknown 或 unavailable 时推荐 `request_discovery`，不得从平台角色推断领域责任。人类声明的机器字段必须从准确回复上下文派生，正式来源只按明确条件追问。
 
 instruction owner 是有权提供下一任务绑定的人，不等于缺失的 domain Owner。若无法从 mandate trigger 或既有显式 binding 唯一解析，必须在任何外部写入前返回 `needs_new_mandate_v1`；Issue effect 为 unchanged、current Runtime task 结果为 completed-with-non-success、downstream task 为 none。
 

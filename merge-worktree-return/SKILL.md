@@ -89,7 +89,7 @@ EXPECTED_SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>
 
 ## Step 3：选择并验证目标（只读）
 
-按以下顺序选择 `TARGET_BRANCH`：显式 `--target`、主工作树当前有效本地分支、`origin/HEAD` 本地同名分支、`main/master/trunk` 首个本地分支。显式目标无效时不回退。记录：
+按以下顺序选择 `TARGET_BRANCH`：显式 `--target`、主工作树 porcelain 记录中的命名分支（对应本地 ref 存在）、`origin/HEAD` 本地同名分支（对应本地 ref 存在）、`main/master/trunk` 首个存在的本地分支。显式目标无效时不回退。候选资格只由分支来源和本地 ref 存在性决定；worktree holder、identity、HEAD/ref、cleanliness 等都在选中后验证，不能用来跳过高优先级候选。记录：
 
 ```text
 TARGET_SOURCE=explicit
@@ -110,6 +110,7 @@ TARGET_SOURCE=inferred:<primary-worktree|origin-head|fallback-name>
 - `git -C <TARGET_WORKTREE_DIR> status --porcelain --untracked-files=all` 严格为空。
 
 禁止通过 checkout/switch、auto-commit、stash 或 reset 使目标满足条件。
+选中候选后，任一 worktree holder、topology、identity、HEAD/ref 或 clean 检查失败都报告该候选的 blocker 并停止，不尝试较低优先级 target。
 
 ## Step 4：读取来源、OpenSpec 和验证计划（只读）
 

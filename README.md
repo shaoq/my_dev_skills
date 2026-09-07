@@ -132,7 +132,7 @@ Step 4: 检查完成度（按 target 分组）
   /check-changes-completed --target develop --change change-a --change change-b
 
   → 五维检查（任务 / artifacts / 代码落地 / 依赖 / 合规）
-  → 自动补标记已交付但未勾选的任务
+  → 默认只读报告可回填项；加 `--backfill` 才补标记
   → 输出"可归档"和"未完成"清单
 
 Step 5: 归档已完成的 change
@@ -166,13 +166,15 @@ Step 2: 在 worktree 中实施
 ─────────────────────────────
   /new-worktree-apply add-user-auth --target develop                    # Claude Code
   $new-worktree-apply add-user-auth --target develop                    # Codex
+  /new-worktree-apply add-user-auth                                    # inferred target，确认后执行
   /new-worktree-apply add-user-auth --target develop --openspec-root twin-rag
   $new-worktree-apply add-user-auth --target develop --dry-run
 
-  → `--target` 是必填项；目标必须已由 clean worktree 持有，并冻结 `TARGET_HEAD`
+  → 显式 target 直接走确定性路径；省略时按共享优先级推断并展示完整计划确认一次
+  → 目标必须已由 clean worktree 持有，并冻结 `TARGET_HEAD`
   → `--openspec-root twin-rag` 精确选择 `twin-rag/openspec/changes/add-user-auth`
   → 显式命令、明确自然语言、Team/subagent 或其他 Skill 都可传递有限实施意图；调用来源不会扩大授权范围
-  → 完整预检和最终复检稳定后直接执行，不再请求第二次确认；`--dry-run` 始终只读
+  → 显式 target 完整预检和最终复检稳定后直接执行；推断 target 确认后再复检；`--dry-run` 始终只读且不确认写入
   → 验证 commit 中完整仓库相对 artifacts 与预检快照完全一致
   → 从该 hash 创建 `worktree-add-user-auth` → 执行实施 → 补标记 → 提交
 
@@ -209,7 +211,7 @@ Step 5: 归档
 | **parall-new-proposal** | `/parall-new-proposal` | 并行提案拆分 | 需求描述文本 |
 | **openspec-review-change** | Claude Code: `/openspec-review-change`<br>Codex: `$openspec-review-change` | 实施前只读提案审查 | `[change-name] [--openspec-root <repo-relative-path>]` |
 | **parall-new-worktree-apply** | `/parall-new-worktree-apply` | 并行实施多个 changes | `[--target <target-branch>]` |
-| **new-worktree-apply** | `/new-worktree-apply` / `$new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> --target <branch> [--openspec-root <path>] [--dry-run]` |
+| **new-worktree-apply** | `/new-worktree-apply` / `$new-worktree-apply` | 单个 worktree 实施 | `<proposal-name> [--target <branch>] [--openspec-root <path>] [--dry-run]` |
 | **merge-worktree-return** | `/merge-worktree-return` | worktree 合并回目标分支 | `[proposal-name] [--target <target-branch>]` |
 | **check-changes-completed** | `/check-changes-completed` | 目标感知的五维完成度检查 | `--target <branch> --change <name> [--change <name> ...]` |
 | **verify-impl-consistency** | `/verify-impl-consistency` | 三维语义一致性诊断 | `[<change-name> --base <target-branch>]` |
@@ -428,15 +430,16 @@ python3 -m unittest tests/test_architecture_design_workflow_runner.py
 **做什么**: 为单个 proposal 创建 git worktree 并在其中实施。
 
 **核心机制**:
-- 可由 Claude `/new-worktree-apply`、Codex `$new-worktree-apply`、明确自然语言、Team/subagent 或其他 skill 按实施意图路由；不设置 `model:`，始终继承调用方当前模型。`--target` 每次必填，绝不回退到主工作树、`origin/HEAD` 或 `main`/`master`/`trunk`
+- 可由 Claude `/new-worktree-apply`、Codex `$new-worktree-apply`、明确自然语言、Team/subagent 或其他 skill 按实施意图路由；不设置 `model:`，始终继承调用方当前模型
+- 目标分支按“显式 `--target` → 主工作树登记的命名本地分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`”选择；候选资格只看来源能否解析为现有本地 ref，显式目标无效不回退，选中候选后的 topology/identity/clean 检查失败也不尝试低优先级候选
 - 调用路由、写入授权、工具权限和安全验证是独立控制：`allowed-tools` 只预批准工具，不决定模型或调用入口；GitNexus 等工具仍按正常 Runtime 权限流程使用
-- 明确的实施请求经完整只读预检和最终复检后直接执行，**默认不再有第二次确认**；授权仅覆盖规范来源 worktree 创建、OpenSpec apply、proposal 范围本地验证和来源提交
+- 明确实施请求提供显式 target 时走 deterministic path，完整只读预检和最终复检稳定后不二次确认；推断 target 时走 interactive path，展示目标来源、冻结 hash 和完整写计划并确认一次；授权仅覆盖规范来源 worktree 创建、OpenSpec apply、proposal 范围本地验证和来源提交
 - `--dry-run` 使用相同的 target、拓扑、source parent 物理包含、manifest 和计划写入预检，但不创建 branch/worktree、不 apply、不 stage、不 commit；其快照不能复用于后续真实调用
 - 已移除 `--authorized-by-issue` 和 `issue-authorization/v1`：传入旧选项零写失败并提示改为上述显式调用；`--authorized`、`--yes` 等泛化批准选项也不是别名
 - OpenSpec 项目根默认为仓库根 `.`；`--openspec-root twin-rag` 精确表示
   `twin-rag/openspec/changes/<proposal>`，可与 `--target` 任意排序且不会递归搜索、猜测或回退
 - 目标分支必须已被一个注册且 clean 的 worktree 持有；流程不会为了满足目标条件切换或自动提交其他 worktree
-- 只读预检只冻结一次不可变 `PREFLIGHT_SNAPSHOT`；最终写前复检把目标、工作树、source parent 物理路径、所选 OpenSpec 项目、仓库相对 artifacts 与计划写入收集到独立 `REVALIDATION_SNAPSHOT` 并逐字段比较；漂移时零写失败并要求新的用户显式调用
+- deterministic path 只冻结一次不可变 `PREFLIGHT_SNAPSHOT`；interactive path 为每次确认冻结带轮次的 snapshot 并指向最新确认轮次。最终写前复检逐字段比较；deterministic 漂移要求 fresh invocation，interactive 漂移先使旧确认失效，最新事实有 blocker 时停止，仍合法时才展示新计划并重新确认
 - 规范映射固定为 proposal `<proposal>`、branch `worktree-<proposal>`、path `.claude/worktrees/<proposal>`；任何现有 ref/path/worktree 冲突都停止，不复用或追加后缀
 - 从显式冻结的不可变 commit hash 精确创建：`git worktree add <path> -b worktree-<proposal> <TARGET_HEAD>`
 - 创建前要求 `.claude/worktrees` 已作为仓库内的真实物理目录存在且没有父级符号链接逃逸，并递归验证完整 artifact manifest 已存在于 `TARGET_HEAD` 且与预检内容逐字节一致；创建后还须重新验证来源项目物理路径、OpenSpec 状态和 manifest，才从已验证项目目录 apply
@@ -445,7 +448,7 @@ python3 -m unittest tests/test_architecture_design_workflow_runner.py
 **注意事项**:
 - **BREAKING**：旧 `--branch` 已由 `--target` 替代；传 `--branch` 时不产生任何 Git 写操作，只显示迁移命令
 - 省略 `--openspec-root` 与显式 `--openspec-root .` 完全等价；非法、越界或符号链接逃逸路径均在确认前失败关闭
-- 所有 Git 写操作只在不可变预检基线最终复检之后执行；参数、target、worktree、source parent、manifest 或计划写入漂移时直接零写失败，不自动更新快照、换目标、重试或追加确认
+- 所有 Git 写操作只在不可变预检基线最终复检之后执行；deterministic path 漂移时零写并要求 fresh invocation；interactive path 漂移时旧确认失效并完整重检，若出现 blocker 就停止，只有仍为合法计划时才建立下一轮确认。两个路径都不自动换目标或重试
 - 默认范围不授权 merge、发布、部署、生产写入、不可逆迁移、数据删除、提权、真实凭据或无关 Git 清理；proposal 要求此类动作时在动作前阻塞并交由独立授权流程
 - 分支名必须符合 worktree 命名规则（kebab-case，max 64 chars）
 - 若规范 branch/path 已存在则报错停止，**不覆盖、不复用、不自动清理**

@@ -36,8 +36,11 @@ required_reply_fields=<provide_input fields or none>
 derive_machine_evidence_from_reply=actor identity|frozen business scope|comment ref/revision/time|reread
 formal_source_policy=conditional
 context_refs=<current evidence refs>
-recommendation=<bounded recommendation or no_recommendation>
-recommendation_rationale=<facts, inference and confidence boundary>
+recommendation_intent=provide_self|provide_candidate|request_discovery
+recommendation_reason=<plain-language facts and inference>
+recommendation_confidence=high|medium|low|unknown
+recommendation_boundary=<what the recommendation does and does not decide>
+ordered_alternatives=<remaining intents in evidence order, each with condition and consequence>
 closing_condition=<observable condition>
 resume_actor_ref=<unique actor that validates a provided binding>
 resume_actor_authority_ref=<matching authority>
@@ -61,11 +64,23 @@ supersedes=<older blocker action or none>
 
 未验证候选、显示名、Issue creator/assignee、最近评论者或 instruction owner 本身不能自动成为 domain Owner。
 
+## Recommendation projection
+
+只要仍需发布人类 blocker，core 必须从 current discovery evidence 生成一个明确的 portable recommendation，而不是把三种 response intent 作为平级清单：
+
+1. `unique_verified` 不生成 recommendation；直接建立 continuation。
+2. 多个 verified candidates 只有在 current evidence 能明确排序时，才可推荐 `provide_candidate`；若证据同时支持当前用户承担该冻结业务范围，才可推荐 `provide_self`。
+3. 多候选不可排序、`unavailable_with_evidence`、`recommendation_confidence=low|unknown` 或证据只来自平台角色/最近交互时，必须推荐 `request_discovery`。
+4. `recommendation_reason` 必须用普通语言区分已观察事实与推断；`recommendation_boundary` 必须明确这是待验证 dependency input，**not domain acceptance**、Architecture Review、risk acceptance、approval 或 implementation authorization。
+5. `ordered_alternatives` 只列剩余允许 intent，并逐项说明它何时适用及回复后的主要行为；不得让用户自行从无差别列表猜测。
+
+core 不生成 Action ID、本地化句子、mention、comment 顺序或任何平台状态。adapter 只可投影这些语义，不得改变推荐意图或权限边界。
+
 ## Reply rules
 
 `provide_input` 有两种 profile：`verified_binding` 用于 instruction owner 已掌握完整 binding；`human_declaration` 用于用户只回答 v3 Action 已冻结的业务问题。内部 `owner_identity`、`authority_scope`、`evidence_ref`、`evidence_version`、`evidence_date`、`human_readable_access_evidence` 不得成为默认人类表单。
 
-人类首屏必须采用正向 recipe：为什么暂停；Architecture recommendation、理由和置信度；一个 `business_question`；至多三个可直接复制的回复；回复后行为；可选审计入口。问题使用业务动作和结果描述责任范围，不使用治理记录类型代替问题。
+人类决策面必须采用正向 recipe：为什么暂停；一个 `business_question`；标为推荐的单一回复及理由、置信度和边界；有序备选及适用条件；回复后行为；可选审计入口。问题使用业务动作和结果描述责任范围，不使用治理记录类型代替问题。具体首屏预算和平台布局由 adapter 决定。
 
 `human_declaration` 的 portable intents 为：当前用户声明负责，或指定一个可识别的人/群组负责。它们只形成待验证 dependency input。core 以 `derive_machine_evidence_from_reply` 规定 adapter 必须从准确 actor、Action 已冻结的 business scope、comment ref/revision/time 与 readback 派生机器字段，不要求人类重复输入，也不直接产生 domain acceptance。
 

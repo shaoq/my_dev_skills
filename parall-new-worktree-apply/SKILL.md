@@ -34,7 +34,13 @@ git rev-parse --show-toplevel
 git worktree list --porcelain
 ```
 
-按显式 `--target`、主工作树当前有效本地分支、`origin/HEAD` 本地同名分支、`main/master/trunk` 的顺序选择 `TARGET_BRANCH`；显式目标不存在时不回退。
+按显式 `--target`、主工作树 porcelain 记录中的命名分支（对应本地 ref 存在）、`origin/HEAD` 本地同名分支（对应本地 ref 存在）、`main/master/trunk` 首个存在的本地分支选择 `TARGET_BRANCH`；显式目标不存在时不回退。候选资格只由分支来源和本地 ref 存在性决定；worktree holder、identity、HEAD/ref 和 cleanliness 都在选中后验证，不能用来跳过高优先级候选。记录：
+
+```text
+TARGET_SOURCE=explicit
+# 或
+TARGET_SOURCE=inferred:<primary-worktree|origin-head|fallback-name>
+```
 
 从注册表解析唯一 `TARGET_WORKTREE_DIR`。要求：
 
@@ -43,6 +49,8 @@ git worktree list --porcelain
 - `TARGET_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)`。
 - target worktree HEAD 等于 `TARGET_HEAD`。
 - `git -C <TARGET_WORKTREE_DIR> status --porcelain --untracked-files=all` 严格为空。
+
+选中候选后，任一 worktree holder、topology、identity、HEAD/ref 或 clean 检查失败都报告该候选的 blocker 并停止，不尝试较低优先级 target。
 
 定义 `REPO_ROOT=<PRIMARY_WORKTREE_DIR>`。记录控制器能否把后续 spawn、merge 和 cleanup 的真实 CWD 持久绑定到 `TARGET_WORKTREE_DIR`；如果不能，在预检停止。不得用一条 `git -C` 假装控制器上下文已切换，也不得用 checkout 修复错误分支。
 
@@ -75,7 +83,7 @@ Kahn 算法生成 Wave；每 Wave 按 change 名字母序分 Batch，每 Batch �
 
 摘要必须显示：
 
-- `TARGET_BRANCH`、选择来源、`TARGET_WORKTREE_DIR`、`TARGET_HEAD`、clean/HEAD-ref 结果。
+- `TARGET_BRANCH`、标准化 `TARGET_SOURCE`、`TARGET_WORKTREE_DIR`、`TARGET_HEAD`、clean/HEAD-ref 结果。
 - `EXPECTED_TARGET_HEAD` 初值等于确认的 `TARGET_HEAD`。
 - 每个 Wave/Batch、canonical source branch/path 和 `ARTIFACT_MANIFEST_DIGEST`。
 - 每个 Batch 共享冻结 hash、每个 Worker apply/commit、来源内 rebase、冻结 source hash、目标内 exact-hash merge、验证和条件式普通 cleanup。
@@ -90,7 +98,7 @@ Kahn 算法生成 Wave；每 Wave 按 change 名字母序分 Batch，每 Batch �
 
 ## Step 4：确认后完整复检（只读）
 
-重跑 Step 0–2，并要求参数、目标注册/ref/HEAD/clean、控制器上下文能力、change 集合、manifest、依赖图、Wave/Batch、canonical collision 和验证命令全部与摘要一致。
+重跑 Step 0–2，并要求参数、`TARGET_SOURCE`、目标注册/ref/HEAD/clean、控制器上下文能力、change 集合、manifest、依赖图、Wave/Batch、canonical collision 和验证命令全部与摘要一致。
 
 任一变化使确认失效，返回 Step 3。全部一致后设置：
 

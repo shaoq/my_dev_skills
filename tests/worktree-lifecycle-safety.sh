@@ -160,13 +160,28 @@ PROPOSAL_SKILL="$PROJECT_ROOT/parall-new-proposal/SKILL.md"
 COMPLETION_SKILL="$PROJECT_ROOT/check-changes-completed/SKILL.md"
 README_FILE="$PROJECT_ROOT/README.md"
 WORKTREE_SPEC="$PROJECT_ROOT/openspec/specs/worktree-targeting/spec.md"
-RETURN_DELTA="$PROJECT_ROOT/openspec/changes/allow-deferred-post-merge-cleanup/specs/worktree-targeting/spec.md"
+INVOCATION_SPEC="$PROJECT_ROOT/openspec/specs/skill-invocation-governance/spec.md"
+RETURN_DELTA="$PROJECT_ROOT/openspec/changes/archive/2026-08-29-allow-deferred-post-merge-cleanup/specs/worktree-targeting/spec.md"
 
 require_text "$NEW_SKILL" 'SOURCE_BRANCH=worktree-<proposal-name>' 'single-create declares canonical source branch'
 require_text "$NEW_SKILL" 'SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>' 'single-create declares canonical source path'
 require_text "$NEW_SKILL" 'ARTIFACT_MANIFEST' 'single-create validates the complete artifact manifest'
 require_text "$NEW_SKILL" 'git worktree add <SOURCE_WORKTREE_DIR> -b <SOURCE_BRANCH> <TARGET_HEAD>' 'single-create uses the frozen commit hash'
-require_text "$NEW_SKILL" 'argument-hint: <proposal-name> --target <target-branch> [--openspec-root <path>] [--dry-run]' 'single-create requires an explicit target in its argument contract'
+require_text "$NEW_SKILL" 'argument-hint: <proposal-name> [--target <target-branch>] [--openspec-root <path>] [--dry-run]' 'single-create advertises an optional explicit target'
+require_text "$NEW_SKILL" '主工作树登记的命名本地 ref、`origin/HEAD` 本地同名 ref、`main/master/trunk` 现有本地 ref' 'single-create uses the shared target inference order'
+require_text "$NEW_SKILL" 'TARGET_SOURCE=inferred:<primary-worktree|origin-head|fallback-name>' 'single-create records the inferred target source'
+require_text "$NEW_SKILL" 'AUTHORIZATION_PATH=deterministic' 'single-create has an explicit-target deterministic path'
+require_text "$NEW_SKILL" 'AUTHORIZATION_PATH=interactive' 'single-create has an inferred-target interactive path'
+require_text "$NEW_SKILL" '显式目标不存在时不回退' 'single-create never falls back from an invalid explicit target'
+require_text "$NEW_SKILL" '选中候选后' 'single-create never skips a selected candidate after later validation fails'
+require_text "$NEW_SKILL" '候选资格只由分支来源和本地 ref 存在性决定' 'single-create separates candidate eligibility from post-selection validation'
+require_text "$NEW_SKILL" 'PREFLIGHT_SNAPSHOT[<round>]' 'single-create versions repeated interactive snapshots'
+require_text "$NEW_SKILL" 'ACTIVE_CONFIRMED_SNAPSHOT' 'single-create identifies the active confirmed snapshot'
+require_text "$NEW_SKILL" '最新事实存在任何 blocker' 'single-create stops instead of reconfirming a blocker'
+require_text "$RETURN_SKILL" '选中候选后' 'return never skips a selected candidate after later validation fails'
+require_text "$PARALLEL_SKILL" 'TARGET_SOURCE=explicit' 'parallel apply records an explicit target source'
+require_text "$PARALLEL_SKILL" 'TARGET_SOURCE=inferred:<primary-worktree|origin-head|fallback-name>' 'parallel apply records the inferred target source'
+require_text "$PARALLEL_SKILL" '选中候选后' 'parallel apply never skips a selected candidate after later validation fails'
 for skill_file in "$NEW_SKILL" "$RETURN_SKILL" "$PARALLEL_SKILL" "$PROPOSAL_SKILL" "$COMPLETION_SKILL"; do
   forbid_text "$skill_file" 'disable-model-invocation:' "$(basename "$(dirname "$skill_file")") permits model and Team invocation"
   forbid_text "$skill_file" 'model:' "$(basename "$(dirname "$skill_file")") inherits the current model"
@@ -188,7 +203,7 @@ require_text "$NEW_SKILL" '不得覆盖或重新冻结 `PREFLIGHT_SNAPSHOT`' 'si
 require_text "$NEW_SKILL" 'PREWRITE_SOURCE_PARENT_OK' 'single-create gates worktree creation on physical parent containment'
 require_text "$NEW_SKILL" '--dry-run' 'single-create supports explicit read-only dry run'
 require_text "$NEW_SKILL" '不得创建 branch/worktree、调用 apply、stage 或 commit' 'dry run prohibits every write stage'
-require_text "$NEW_SKILL" '不请求第二次确认' 'trusted explicit invocation removes the second confirmation'
+require_text "$NEW_SKILL" '不请求第二次确认' 'explicit-target single-create removes the second confirmation'
 require_text "$NEW_SKILL" '被移除，且不执行任何写入' 'legacy issue authorization has a zero-write migration failure'
 require_text "$NEW_SKILL" '--authorized、--yes' 'generic authorization flags are rejected before writes'
 require_text "$NEW_SKILL" 'requires a fresh invocation' 'preflight drift requires a fresh invocation'
@@ -197,14 +212,14 @@ require_text "$NEW_SKILL" 'Step 1–6 只读' 'only pre-write steps are declared
 forbid_text "$NEW_SKILL" 'Step 1–7 只读' 'worktree creation step is not incorrectly declared read-only'
 require_text "$NEW_SKILL" '对 `SOURCE_WORKTREE_DIR`、`SOURCE_PROJECT_DIR`、其 `openspec/`、`openspec/changes/` 和 proposal 目录' 'created source project requires physical path validation'
 require_text "$NEW_SKILL" '完整目录边界包含关系' 'created source project rejects symlink escapes by directory boundary'
-forbid_text "$NEW_SKILL" 'AskUserQuestion' 'single-create does not request interactive confirmation'
+require_text "$NEW_SKILL" 'AskUserQuestion' 'single-create can confirm an inferred target plan'
+require_text "$NEW_SKILL" '使用交互工具请求无默认值' 'single-create inferred target confirmation has no default or timeout'
 require_text "$NEW_SKILL" '`--authorized-by-issue` 已被移除' 'single-create reports a legacy Issue authorization migration'
 forbid_text "$NEW_SKILL" 'issue-authorization/v1' 'single-create removes Issue authorization envelopes'
 forbid_text "$NEW_SKILL" 'authorization_id' 'single-create removes task-platform authorization ids'
 forbid_text "$NEW_SKILL" 'assigned_team_id' 'single-create removes Team authorization fields'
 forbid_text "$NEW_SKILL" 'issuer' 'single-create removes issuer authorization fields'
-forbid_text "$NEW_SKILL" '默认交互模式' 'single-create removes interactive mode switching'
-forbid_text "$NEW_SKILL" '自治模式' 'single-create removes autonomous mode switching'
+forbid_text "$NEW_SKILL" '自治模式' 'single-create does not restore task-platform autonomous mode switching'
 require_text "$RETURN_SKILL" 'AskUserQuestion' 'return flow retains interactive compatibility confirmation capability'
 require_text "$PARALLEL_SKILL" '使用交互工具请求无默认值' 'parallel flow retains mandatory confirmation'
 require_occurrences "$PROPOSAL_SKILL" 'WRITE_AUTHORIZATION_GATE=open' 1 'proposal creation has exactly one material-write authorization gate'
@@ -266,6 +281,15 @@ require_text "$README_FILE" 'inferred target 或 dirty source' 'README documents
 require_text "$WORKTREE_SPEC" 'A clear return request with an explicit target, a strictly clean canonical source, and a complete stable preflight SHALL proceed' 'canonical spec requires deterministic return behavior'
 require_text "$WORKTREE_SPEC" '`parall-new-worktree-apply` MUST retain one explicit affirmative response' 'canonical spec preserves the parallel confirmation boundary'
 forbid_text "$WORKTREE_SPEC" '`merge-worktree-return` and `parall-new-worktree-apply` MUST obtain one explicit affirmative response' 'canonical spec no longer applies unconditional confirmation to deterministic returns'
+require_text "$WORKTREE_SPEC" 'When the option is omitted, `new-worktree-apply`, `merge-worktree-return`, and `parall-new-worktree-apply` SHALL select `TARGET_BRANCH`' 'canonical spec shares target inference across all worktree skills'
+require_text "$WORKTREE_SPEC" 'an inferred target MUST instead receive one explicit affirmative response' 'canonical spec confirms inferred single-apply targets'
+require_text "$WORKTREE_SPEC" 'Candidate eligibility SHALL depend only on branch-source resolution and local ref existence' 'canonical spec separates candidate eligibility from validation'
+require_text "$WORKTREE_SPEC" 'ACTIVE_CONFIRMED_SNAPSHOT' 'canonical spec versions interactive confirmation rounds'
+require_text "$WORKTREE_SPEC" 'If the latest facts contain any blocker' 'canonical spec stops instead of confirming a blocker'
+forbid_text "$INVOCATION_SPEC" '`merge-worktree-return` MUST retain one affirmative confirmation immediately before documented material writes' 'invocation governance does not contradict deterministic return'
+require_text "$INVOCATION_SPEC" 'An inferred target MUST receive one affirmative confirmation' 'invocation governance confirms inferred single apply'
+require_text "$COMPLETION_SKILL" '/new-worktree-apply <name> --target <TARGET_BRANCH>' 'completion handoff preserves its frozen target'
+forbid_text "$README_FILE" '漂移时零写失败并要求新的用户显式调用' 'README does not collapse both drift paths into deterministic behavior'
 require_text "$RETURN_DELTA" '### Requirement: Preflight authorization and integration confirmation' 'delta updates the shared authorization requirement for archive consistency'
 require_text "$RETURN_DELTA" '### Requirement: Pre-write snapshot revalidation' 'delta updates shared revalidation semantics for both return paths'
 

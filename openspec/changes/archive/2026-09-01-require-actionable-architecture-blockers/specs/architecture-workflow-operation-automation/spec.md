@@ -88,6 +88,22 @@ core MUST 在任何外部写入前唯一解析 instruction owner；无法解析�
 - **WHEN** mandate、trigger evidence 与既有 binding 都不能唯一解析 instruction owner
 - **THEN** core 不生成 blocker/continuation，并要求一个具名 trigger actor/authority/work item/task 的新 v2 mandate
 
+### Requirement: 显式 Owner 手动检查不得被匿名浏览器能力阻塞
+
+系统 SHALL 默认使用 `access_verification_mode=automatic`。对于 `design_input|architecture_review`，当唯一 Decision Owner 已明确选择自行在其客户端检查材料时，系统 MAY 使用 `owner_manual`；它 MUST 自动验证准确 artifact identity/digest、完整 bytes、Decision Brief 与稳定 work-item 入口，逐 scope 记录 `manual_check_required` 而不是 `opened`。正式 `architecture_approval` MUST 继续使用 automatic packet readiness。
+
+#### Scenario: Owner 明确自行检查且机器证据完整
+- **WHEN** Owner policy、唯一 binding、附件 identity/digest、完整内容回读和稳定入口均通过，但 Agent 没有已认证客户端
+- **THEN** 系统发布唯一方案决定，设置 `HUMAN_ACTION_STATE=awaiting_response` 并投影 `in_review`；不得因匿名浏览器只能看到登录页而投影 blocked
+
+#### Scenario: Owner 报告材料打不开
+- **WHEN** current Owner 回复 `ACTION <action-id>: 材料打不开`
+- **THEN** 系统记录 `content_decision=none`，恢复 coordination actor 自动执行 `repair_or_republish_material_entry`，不得把该回复解释为拒绝、修订、风险接受或批准
+
+#### Scenario: 机器证据失败
+- **WHEN** attachment identity/digest、稳定入口、唯一 Owner 或 owner-manual policy 任一失败
+- **THEN** content-decision activation gate 保持 not-ready，并给出准确修复路径
+
 ## MODIFIED Requirements
 
 ### Requirement: 当前 workflow mandate 自动完成非 Review 操作
@@ -145,19 +161,3 @@ core MUST 在任何外部写入前唯一解析 instruction owner；无法解析�
 #### Scenario: 只安装 portable core
 - **WHEN** Runtime 只提供 `architecture-design-workflow`
 - **THEN** 工作流使用 local/shared artifact refs、当前会话 actor/authority 和 portable evidence 完成研究、设计、Review、批准与发布门禁
-
-### Requirement: 显式 Owner 手动检查不得被匿名浏览器能力阻塞
-
-系统 SHALL 默认使用 `access_verification_mode=automatic`。对于 `design_input|architecture_review`，当唯一 Decision Owner 已明确选择自行在其客户端检查材料时，系统 MAY 使用 `owner_manual`；它 MUST 自动验证准确 artifact identity/digest、完整 bytes、Decision Brief 与稳定 work-item 入口，逐 scope 记录 `manual_check_required` 而不是 `opened`。正式 `architecture_approval` MUST 继续使用 automatic packet readiness。
-
-#### Scenario: Owner 明确自行检查且机器证据完整
-- **WHEN** Owner policy、唯一 binding、附件 identity/digest、完整内容回读和稳定入口均通过，但 Agent 没有已认证客户端
-- **THEN** 系统发布唯一方案决定，设置 `HUMAN_ACTION_STATE=awaiting_response` 并投影 `in_review`；不得因匿名浏览器只能看到登录页而投影 blocked
-
-#### Scenario: Owner 报告材料打不开
-- **WHEN** current Owner 回复 `ACTION <action-id>: 材料打不开`
-- **THEN** 系统记录 `content_decision=none`，恢复 coordination actor 自动执行 `repair_or_republish_material_entry`，不得把该回复解释为拒绝、修订、风险接受或批准
-
-#### Scenario: 机器证据失败
-- **WHEN** attachment identity/digest、稳定入口、唯一 Owner 或 owner-manual policy 任一失败
-- **THEN** content-decision activation gate 保持 not-ready，并给出准确修复路径

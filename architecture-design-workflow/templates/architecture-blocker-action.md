@@ -18,7 +18,11 @@
 - Machine evidence derivation：`derive_machine_evidence_from_reply=actor identity|frozen business scope|comment ref/revision/time|reread`
 - Formal source：`formal_source_policy=conditional`
 - Context refs：`<refs>`
-- Recommendation / rationale / confidence：`<value|no_recommendation>` / `<basis>` / `<boundary>`
+- `RECOMMENDATION_INTENT`：`provide_self|provide_candidate|request_discovery`
+- `RECOMMENDATION_REASON`：`<plain-language facts and inference>`
+- `RECOMMENDATION_CONFIDENCE`：`high|medium|low|unknown`
+- `RECOMMENDATION_BOUNDARY`：`<dependency-input effect and explicit non-approval boundary>`
+- `ORDERED_ALTERNATIVES`：`<remaining intents, each with applicability condition and consequence>`
 - Closing condition：`<observable condition>`
 - `RESUME_ACTOR_REF` / responsibility：`<actor-ref>` / `<responsibility>`
 - `BLOCKER_ACTION_STATE`：`discovering|awaiting_input|received|discovery_needed|superseded|unavailable`
@@ -27,4 +31,4 @@
 - Resume continuation：`<execution_continuation_v2-ref>|none`
 - Supersedes：`<action-id>|none`
 
-这不是方案 Review。先执行 discovery；唯一 verified binding 自动继续，多个候选只请求简单选择，没有候选时只问一个普通业务问题。用户可声明自己负责、指定负责人或表示不确定；系统派生机器证据并由后续 actor 验证。内部 binding schema 和正式来源不得成为默认人类表单。
+这不是方案 Review。先执行 discovery；唯一 verified binding 自动继续。仍需人类输入时只问一个普通业务问题，并基于 current evidence 推荐一项 intent；多候选不可排序、证据不可用或置信度低/未知时推荐 `request_discovery`。用户可声明自己负责、指定负责人或表示不确定；系统派生机器证据并由后续 actor 验证。推荐只补齐 dependency input，不构成 domain acceptance、Review、approval 或实现授权。内部 binding schema 和正式来源不得成为默认人类表单。

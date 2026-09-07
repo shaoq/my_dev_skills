@@ -12,6 +12,8 @@ ADAPTER = ROOT / "multica-architecture-approval-adapter"
 PORTABLE_CASES = ROOT / "tests/fixtures/architecture-design-workflow/portable-v2-cases.json"
 BLOCKER_CASES = ROOT / "tests/fixtures/multica-architecture-approval-adapter/actionable-blocker-cases.json"
 HUMAN_REPLY_CASES = ROOT / "tests/fixtures/multica-architecture-approval-adapter/human-friendly-blocker-cases.json"
+RECOMMENDATION_CASES = ROOT / "tests/fixtures/architecture-design-workflow/blocker-recommendation-cases.json"
+CORRECTION_CASES = ROOT / "tests/fixtures/multica-architecture-approval-adapter/blocker-reply-correction-cases.json"
 
 RESPONSIBILITIES = {
     "coordination",
@@ -164,7 +166,96 @@ def normalize_human_reply(case: dict[str, object]) -> dict[str, str]:
     }
 
 
+def recommendation_outcome(case: dict[str, object]) -> str:
+    if not case["reason_present"] or not case["boundary_present"]:
+        return "fail_closed"
+    if case["discovery_result"] == "unique_verified":
+        return "auto_continue"
+    if case["evidence_source"] in {
+        "issue_creator",
+        "issue_assignee",
+        "recent_commenter",
+        "instruction_owner_identity",
+    }:
+        return "recommend_request_discovery"
+    if (
+        case["discovery_result"] == "unavailable_with_evidence"
+        or not case["candidates_ranked"]
+        or case["confidence"] in {"low", "unknown"}
+    ):
+        return "recommend_request_discovery"
+    if case["recommendation_intent"] in {"provide_self", "provide_candidate"}:
+        return f"recommend_{case['recommendation_intent']}"
+    return "fail_closed"
+
+
+def reply_correction_outcome(case: dict[str, object]) -> str:
+    action_id = str(case["action_id"])
+    reply = str(case["reply_text"]).strip()
+    canonical = {
+        f"ACTION {action_id}: 由我负责",
+        f"ACTION {action_id}: 我不确定，请团队给出建议",
+    }
+    if reply in canonical:
+        return "canonical_reply"
+    if not all(
+        bool(case[field])
+        for field in (
+            "reply_actor_matches",
+            "same_issue",
+            "created_after",
+            "unedited",
+            "single_action",
+        )
+    ):
+        return "silent_noop"
+    if case["contains_placeholder"]:
+        return "silent_noop"
+    self_intent = reply in {"我负责", "我负责提供"}
+    discovery_intent = reply in {"我不确定", "请团队调查", "我不确定，请团队给出建议"}
+    if not (self_intent ^ discovery_intent):
+        return "silent_noop"
+    if case["correction_already_exists"]:
+        return "correction_noop"
+    if not case["capacity_available"]:
+        return "correction_unavailable"
+    return "correction_published"
+
+
 class ActionableArchitectureBlockerContractTest(unittest.TestCase):
+    def test_portable_recommendations_are_evidence_based_and_bounded(self) -> None:
+        cases = json.loads(RECOMMENDATION_CASES.read_text(encoding="utf-8"))
+        self.assertEqual(
+            {
+                "unique-binding-auto-continues",
+                "ranked-candidate-is-recommended",
+                "unranked-candidates-request-discovery",
+                "unavailable-evidence-requests-discovery",
+                "issue-role-cannot-infer-owner",
+                "recommendation-without-boundary-fails-closed",
+            },
+            {case["case_id"] for case in cases},
+        )
+        for case in cases:
+            self.assertEqual(case["expected"], recommendation_outcome(case), case["case_id"])
+
+    def test_invalid_but_unambiguous_replies_only_receive_one_correction(self) -> None:
+        cases = json.loads(CORRECTION_CASES.read_text(encoding="utf-8"))
+        self.assertEqual(
+            {
+                "clear-self-intent-missing-action-id",
+                "canonical-self-reply-uses-normal-consumption",
+                "duplicate-correction-is-noop",
+                "correction-capacity-failure-keeps-blocked",
+                "wrong-actor-is-silent",
+                "multiple-intents-are-silent",
+                "placeholder-is-silent",
+            },
+            {case["case_id"] for case in cases},
+        )
+        for case in cases:
+            self.assertEqual(case["expected"], reply_correction_outcome(case), case["case_id"])
+
     def test_portable_fixtures_cover_v2_standalone_and_v1_migration(self) -> None:
         cases = json.loads(PORTABLE_CASES.read_text(encoding="utf-8"))
         self.assertEqual(
@@ -224,9 +315,12 @@ class ActionableArchitectureBlockerContractTest(unittest.TestCase):
         text = (ADAPTER / "templates/multica-blocker-comment.md").read_text(encoding="utf-8")
         for required in (
             "# 架构工作为什么暂停",
-            "## 团队建议",
             "## 你只需要回答一个问题",
-            "## 可以直接回复",
+            "## 建议你现在这样回复（推荐）",
+            "推荐理由",
+            "当前置信度",
+            "适用边界",
+            "## 其他回复何时适用",
             "ACTION <action-id>: 由我负责",
             "ACTION <action-id>: 负责人是 <姓名或团队>",
             "ACTION <action-id>: 我不确定，请团队给出建议",
@@ -246,6 +340,47 @@ class ActionableArchitectureBlockerContractTest(unittest.TestCase):
             "multiple_verified",
         ):
             self.assertNotIn(forbidden, text)
+        mention = text.index("[@<instruction-owner-name>]")
+        recommendation = text.index("## 建议你现在这样回复（推荐）")
+        evidence = text.index("## 查看依据（可选）")
+        self.assertLess(mention, recommendation)
+        self.assertLess(recommendation, evidence)
+        self.assertLessEqual(recommendation - mention, 800)
+
+    def test_core_and_adapter_publish_recommendation_and_correction_contracts(self) -> None:
+        surfaces = {
+            CORE / "references/architecture-blocker-action.md": (
+                "recommendation_intent=provide_self|provide_candidate|request_discovery",
+                "recommendation_confidence=high|medium|low|unknown",
+                "ordered_alternatives",
+                "Issue creator/assignee",
+                "not domain acceptance",
+            ),
+            CORE / "templates/architecture-blocker-action.md": (
+                "RECOMMENDATION_INTENT",
+                "RECOMMENDATION_REASON",
+                "RECOMMENDATION_CONFIDENCE",
+                "RECOMMENDATION_BOUNDARY",
+                "ORDERED_ALTERNATIVES",
+            ),
+            ADAPTER / "references/actionable-blocker-projection-and-reply.md": (
+                "reply_correction_candidate_v1",
+                "reply_correction_v1",
+                "action_id + request_revision",
+                "invalid comment ref/revision/raw digest",
+                "800 Unicode code points",
+                "不得 mention Architecture Agent",
+            ),
+        }
+        failures: list[str] = []
+        for path, markers in surfaces.items():
+            text = path.read_text(encoding="utf-8") if path.is_file() else ""
+            failures.extend(
+                f"{path.relative_to(ROOT)} missing {marker}"
+                for marker in markers
+                if marker not in text
+            )
+        self.assertFalse(failures, "decision-ready blocker contract incomplete:\n" + "\n".join(failures))
 
     def test_core_surfaces_publish_complete_v2_and_blocker_contracts(self) -> None:
         surfaces = {

@@ -1,0 +1,68 @@
+[
+  {
+    "case_id": "unique-binding-auto-continues",
+    "discovery_result": "unique_verified",
+    "candidates_ranked": true,
+    "recommendation_intent": "provide_candidate",
+    "confidence": "high",
+    "evidence_source": "verified_authority_record",
+    "reason_present": true,
+    "boundary_present": true,
+    "expected": "auto_continue"
+  },
+  {
+    "case_id": "ranked-candidate-is-recommended",
+    "discovery_result": "multiple_verified",
+    "candidates_ranked": true,
+    "recommendation_intent": "provide_candidate",
+    "confidence": "medium",
+    "evidence_source": "verified_authority_record",
+    "reason_present": true,
+    "boundary_present": true,
+    "expected": "recommend_provide_candidate"
+  },
+  {
+    "case_id": "unranked-candidates-request-discovery",
+    "discovery_result": "multiple_verified",
+    "candidates_ranked": false,
+    "recommendation_intent": "request_discovery",
+    "confidence": "low",
+    "evidence_source": "verified_candidate_set",
+    "reason_present": true,
+    "boundary_present": true,
+    "expected": "recommend_request_discovery"
+  },
+  {
+    "case_id": "unavailable-evidence-requests-discovery",
+    "discovery_result": "unavailable_with_evidence",
+    "candidates_ranked": false,
+    "recommendation_intent": "request_discovery",
+    "confidence": "unknown",
+    "evidence_source": "none_available",
+    "reason_present": true,
+    "boundary_present": true,
+    "expected": "recommend_request_discovery"
+  },
+  {
+    "case_id": "issue-role-cannot-infer-owner",
+    "discovery_result": "multiple_verified",
+    "candidates_ranked": true,
+    "recommendation_intent": "provide_self",
+    "confidence": "high",
+    "evidence_source": "issue_creator",
+    "reason_present": true,
+    "boundary_present": true,
+    "expected": "recommend_request_discovery"
+  },
+  {
+    "case_id": "recommendation-without-boundary-fails-closed",
+    "discovery_result": "multiple_verified",
+    "candidates_ranked": true,
+    "recommendation_intent": "provide_candidate",
+    "confidence": "medium",
+    "evidence_source": "verified_authority_record",
+    "reason_present": true,
+    "boundary_present": false,
+    "expected": "fail_closed"
+  }
+]

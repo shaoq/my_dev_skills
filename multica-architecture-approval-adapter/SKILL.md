@@ -17,7 +17,7 @@ description: "Use to project a current portable architecture workflow mandate an
 2. **A — packet delivery route**：current compatible delivered `ARCH-APPROVAL-PACKET vN`、准确 Design/Review 和 current mandate 均存在，目标 workspace/Issue/member 唯一。
 3. **B — decision consumption route**：current Human Action Request 或 packet readiness、target-human binding 和 exact Review reply 可重读；具名 `current_action_reference_v1` 可来自同一 Issue 最新位置，packet token-only 路径保留原绑定。读取本身无平台写入；current Action task/control evidence、packet decision sidecar 和 `in_progress` projection 作为 current mandate 内的自动操作。
 4. **C — execution continuation route**：current portable `execution_continuation_v2` 的 actor/authority/responsibility 可唯一映射到现有 Agent，且 mandate 允许在同一 Issue 内自动发布一次独立 handoff、触发并回读下一 task。
-5. **D — actionable blocker route**：current portable `architecture_blocker_action_v3` 可将 instruction owner 唯一映射到既有 Member，并将 resume/discovery actor 与 responsibility 唯一映射到既有 Agent；按 [actionable blocker projection and reply](references/actionable-blocker-projection-and-reply.md)执行 discovery-first、投影一个普通业务问题、消费 `provide_input|request_discovery`、恢复 task 或 blocked rollback。
+5. **D — actionable blocker route**：current portable `architecture_blocker_action_v3` 可将 instruction owner 唯一映射到既有 Member，并将 resume/discovery actor 与 responsibility 唯一映射到既有 Agent；按 [actionable blocker projection and reply](references/actionable-blocker-projection-and-reply.md)执行 discovery-first、投影一个普通业务问题与首屏推荐、严格消费 canonical `provide_input|request_discovery`、对单一明确但格式无效的回复至多纠错一次、恢复 task 或 blocked rollback。
 
 任一路由的 identity、digest、Owner、stage、attempt 或 target 不唯一时 fail closed。不得从 Issue status、最近评论、显示名、Agent recommendation、旧 authorization token 或模糊肯定构造 core state。
 
@@ -59,7 +59,7 @@ current mandate 和 manifest 可以覆盖：
 - bounded reconciliation/retry 和旧 request supersession；
 - 有效 current Review 回复的读取、sidecar 和后续处理启动。
 - 按 [execution handoff and task readback](references/execution-handoff-and-task-readback.md)发布一个独立的 `multica_execution_handoff_v1`、精确 mention 下一 Agent，并回读准确 task ID/status。
-- 按 [actionable blocker projection and reply](references/actionable-blocker-projection-and-reply.md)先自动 discovery，再投影必要的 `blocked`、发布唯一 instruction-owner 简明 blocker comment、消费准确 `provide_input|request_discovery` 并在 task 接收后恢复 `in_progress`。
+- 按 [actionable blocker projection and reply](references/actionable-blocker-projection-and-reply.md)先自动 discovery，再投影必要的 `blocked`、发布唯一 instruction-owner 的 decision-ready blocker comment、消费准确 `provide_input|request_discovery`；单一明确但格式无效的回复只可触发一次状态不变纠错，task 接收后才恢复 `in_progress`。
 
 禁止：创建 workspace/Project/Team/Agent/Issue/Skill/shared scope，跨 Issue/workspace 写入，私有 API，overwrite/delete/edit 历史对象，replace-all binding，业务实现、部署、采购或未列入 manifest 的写入。范围扩大时停止并说明需要新的任务指令，不生成 operational token。
 
@@ -75,7 +75,7 @@ Issue status 只是 portable intent 的平台投影：
 - blocker 的 `provide_input|request_discovery` 回复验证成功但 resume/discovery task 尚未回读为 `queued|running`：保持或回滚 `blocked`；只有 task accepted/active 后才 `in_progress --no-start`；
 - 不存在 current actionable blocker、Agent 或 human 可执行路径时：`blocked` 且说明需要新的任务指令；`critical_evidence_gaps` 与可执行方案 Review 共存时仍为 `in_review`。
 
-无效、编辑、错误 Owner、错误/重复/superseded Action、未授权 mention 规范化或错误 task attribution 的回复不改变 status。packet token-only reply 的错误 parent/identity 仍无效。
+无效、编辑、错误 Owner、错误/重复/superseded Action、未授权 mention 规范化或错误 task attribution 的回复不改变 status。准确 Owner 的单一明确意图若只缺 current Action ID 或使用受控非 canonical 短句，可按 reference 自动发布至多一次友好纠错；该路径不消费回复、不 mention Agent、不创建 task，且 Issue 继续 blocked。packet token-only reply 的错误 parent/identity 仍无效。
 
 ## Route A0 — material delivery
 
@@ -114,9 +114,10 @@ Issue status 只是 portable intent 的平台投影：
 
 1. 读取 current blocker v3 与 mandate，确认 instruction owner、单项 missing input、`automatic_before_human`、一个普通 `business_question`、discovery scope/actor、`provide_input|request_discovery`、closing condition 和 resume actor 全部 current；v1/v2 只能作为 superseded audit evidence。
 2. 唯一解析 instruction owner Member、resume Agent 与既有 `coordination|research` discovery Agent；无法解析时在任何写入前返回 `needs_new_mandate_v1`。
-3. 在授权 scope 内只读 discovery：唯一 verified binding 自动派生 resume handoff；多个候选或有证据的 unavailable 才使用 [Multica blocker comment](templates/multica-blocker-comment.md)。评论按“为什么暂停→团队建议/理由/置信度→一个业务问题→三个可直接回复→回复后行为→可选依据”渲染；默认不得显示 RACI、组织/服务目录、策略批准记录或 machine binding 字段。投影 `blocked --no-start` 后回读唯一 mention/action。
-4. 准确 Owner 的 created-after-request、未编辑、single-action 回复通过后：`ACTION <id>: 由我负责` 与 `ACTION <id>: 负责人是 <可识别对象>` 规范化为 `provide_input/human_declaration`，从 comment author、Action 冻结范围、ref/revision/time 与 readback 派生 machine evidence，再映射 resume Agent 验证；`ACTION <id>: 我不确定，请团队给出建议` 规范化为 `request_discovery` 并映射 discovery Agent。正式来源只在用户明确表示存在或 deployment policy 要求时追问。只有对应 task 回读 queued/running 才投影 `in_progress --no-start`。
-5. task 未入队、authority 越界或 mapping/readback 漂移时 blocked rollback；保留历史对象，new attempt supersede 旧 action，不留下 orphaned in_progress，不请求 operational authorization。
+3. 在授权 scope 内只读 discovery：唯一 verified binding 自动派生 resume handoff；仍需人类输入时使用 [Multica blocker comment](templates/multica-blocker-comment.md)，把 core recommendation 与 current Action ID 组合。评论按“mention→为什么暂停→一个业务问题→推荐完整 Action/理由/置信度/边界→有序备选→回复后行为→可选依据”渲染；推荐必须位于 mention 后 800 Unicode code points 内且早于审计字段。默认不得显示 RACI、组织/服务目录、策略批准记录或 machine binding 字段。投影 `blocked --no-start` 后回读唯一 mention/action。
+4. 准确 Owner 的 created-after-request、未编辑、single-action canonical 回复通过后：`ACTION <id>: 由我负责` 与 `ACTION <id>: 负责人是 <可识别对象>` 规范化为 `provide_input/human_declaration`，从 comment author、Action 冻结范围、ref/revision/time 与 readback 派生 machine evidence，再映射 resume Agent 验证；`ACTION <id>: 我不确定，请团队给出建议` 规范化为 `request_discovery` 并映射 discovery Agent。正式来源只在用户明确表示存在或 deployment policy 要求时追问。只有对应 task 回读 queued/running 才投影 `in_progress --no-start`。
+5. canonical 消费失败时，只对准确 Owner、同一 Issue、created-after、未编辑、single current blocker 且意图唯一的文本标记 `reply_correction_candidate_v1`；按 `action_id + request_revision` 最多一次发布 `reply_correction_v1`，绑定 invalid comment ref/revision/raw digest，给出唯一完整 canonical Action。纠错不消费、不 mention Agent、不触发 task、不改变 blocked/awaiting_input 或任何 gate；其他无效回复静默 no-op。
+6. task 未入队、authority 越界、correction capacity/readback 失败或 mapping/readback 漂移时 blocked rollback；保留历史对象，new attempt supersede 旧 action，不留下 orphaned in_progress，不请求 operational authorization。
 
 ## Failure, retry, and legacy migration
 
