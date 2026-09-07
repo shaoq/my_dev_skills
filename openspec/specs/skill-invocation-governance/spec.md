@@ -2,9 +2,7 @@
 
 ## Purpose
 Define independent controls for model inheritance, intent routing, material-write authorization, tool preapproval, and deterministic safety validation.
-
 ## Requirements
-
 ### Requirement: Skills inherit the caller-selected model
 Repository skills SHALL continue using the model selected by the caller or host unless a separate requirement explicitly requests a model override. Invocation policy fields MUST NOT simulate model pinning, and affected OpenSpec orchestration skills MUST omit `model:` frontmatter.
 

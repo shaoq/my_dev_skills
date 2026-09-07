@@ -91,7 +91,7 @@ Each worktree skill SHALL accept `--target <target-branch>` as its explicit targ
 - **WHEN** the primary worktree yields no eligible named local ref and `origin/HEAD` names an existing local branch
 - **THEN** the skill selects the local branch named by `origin/HEAD` with `TARGET_SOURCE=inferred:origin-head`
 
-#### Scenario: Conventional integration fallback is required
+#### Scenario: Conventional fallback is required
 - **WHEN** neither the primary worktree nor `origin/HEAD` yields an existing local ref
 - **THEN** the skill selects the first existing local branch in the order `main`, `master`, `trunk` with `TARGET_SOURCE=inferred:fallback-name`
 
@@ -171,9 +171,9 @@ Each worktree skill SHALL finish its read-only preflight and display the command
 
 #### Scenario: No interaction tool is available
 - **WHEN** no platform interaction tool is available for an inferred single apply, interactive return, or parallel apply
-- **THEN** the integration skill asks in its response, ends the current execution, and waits for the next user message
+- **THEN** the skill asks in its response, ends the current execution, and waits for the next user message
 
-#### Scenario: New worktree preflight has a blocker
+#### Scenario: Single apply preflight has a blocker
 - **WHEN** `new-worktree-apply` finds incomplete OpenSpec artifacts, a dirty target worktree, an occupied canonical identity, an unsafe source parent, a required checkout, or out-of-scope work
 - **THEN** it stops before writing and reports the exact blocker rather than asking whether to bypass it
 
@@ -204,7 +204,7 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 - **WHEN** every return argument, identity, ref, HEAD, clean state, task classification, verification command, and planned write matches the immutable deterministic preflight baseline
 - **THEN** `merge-worktree-return` may begin the bounded return writes without another confirmation
 
-#### Scenario: Deterministic return snapshot changes before writing
+#### Scenario: Deterministic return snapshot changes before writes
 - **WHEN** final revalidation differs from any material deterministic return preflight fact
 - **THEN** the workflow performs no write, requires a fresh invocation, and does not replace the baseline or enter the interactive path
 
@@ -558,7 +558,7 @@ Worktree lifecycle instructions, commands, guardrails, error messages, and recov
 
 #### Scenario: Preflight binds the selected project
 - **WHEN** read-only preflight succeeds for a selected OpenSpec project
-- **THEN** the preflight snapshot includes whether the option was explicit, the normalized root, invocation project directory, expected source project directory, repository-relative change prefix, manifest paths, and manifest digest
+- **THEN** the preflight snapshot includes whether the root option was explicit, the normalized root, invocation project directory, expected source project directory, repository-relative change prefix, manifest paths, and manifest digest
 
 #### Scenario: Selected project changes before writing
 - **WHEN** argument parsing, normalized or physical project paths, containment results, OpenSpec status, change prefix, manifest paths, blobs, digest, or target snapshot differs during pre-write revalidation
