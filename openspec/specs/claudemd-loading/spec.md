@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+定义完成度检查如何发现、加载并容错处理项目根目录及变更相关子目录中的 `CLAUDE.md`，为 D5 合规检查提供明确且可重复的规范输入。
+
+## Requirements
 
 ### Requirement: 定位项目根目录 CLAUDE.md
 

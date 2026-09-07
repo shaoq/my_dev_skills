@@ -1,4 +1,8 @@
-## MODIFIED Requirements
+## Purpose
+
+Define how D2 discovers conventional API schema files and, when none exist, selects code-first analysis for supported frameworks so schema-to-implementation consistency checks are not silently skipped.
+
+## Requirements
 
 ### Requirement: Schema file discovery
 The skill SHALL discover API schema files by scanning for common formats: OpenAPI/Swagger (openapi.yaml, swagger.json, openapi.json, swagger.yaml), Protocol Buffers (*.proto), GraphQL Schema (schema.graphql, *.graphql), and JSON Schema files. When no schema files are found, the skill SHALL check TECH_STACK for code-first frameworks (currently: FastAPI) and route to code-first analysis mode instead of skipping D2 entirely.

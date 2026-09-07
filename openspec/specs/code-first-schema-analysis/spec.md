@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Define how code-first FastAPI projects are analyzed when API behavior is expressed through Python source rather than a standalone schema, including Pydantic model discovery, route metadata extraction, and route-to-model quality and consistency checks.
+
+## Requirements
 
 ### Requirement: Pydantic Model registry construction
 The skill SHALL scan all source files for Pydantic `BaseModel` subclass definitions and build a `MODEL_REGISTRY` containing: model name, source file, field names, field types, and `Field()` parameters (description, examples, constraints).

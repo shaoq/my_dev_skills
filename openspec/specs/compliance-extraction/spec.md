@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+定义 D5 如何从已发现的 `CLAUDE.md` 中提取中英文合规要求、映射内置合规类型，并在多个规则来源之间按类型去重和保留更具体的约束。
+
+## Requirements
 
 ### Requirement: 通过正则提取合规要求
 
