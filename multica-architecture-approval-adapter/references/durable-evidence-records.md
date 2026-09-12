@@ -2,7 +2,7 @@
 
 ## Evidence profiles
 
-`shared_workspace_sidecar_v1` remains the only durable shared-workspace profile and is mandatory for formal packet approval evidence. A non-approval `current_action_reference_v1` (`design_input|architecture_review`) MAY instead use `multica_issue_task_evidence_v1`: the exact immutable member comment identity/content digests plus the platform-managed task result and `ARCH-CONTROL` projection listed in the current manifest. This profile does not create storage, metadata or a sidecar and cannot satisfy `architecture_approval`.
+Two durable evidence profiles are supported. Both persist `architecture_internal_evidence_v1`: exact immutable request/current Action, one canonical Design attachment, internal Research/Control/Review/machine-only Packet digests, visual manifest/receipts/preview projection, task result, status timeline, continuation/handoff readback, reconciliation and supersession. `shared_workspace_sidecar_v1` is external shared-workspace evidence; `multica_issue_task_evidence_v1` is platform-managed. Neither metadata or an Agent statement alone satisfies either profile.
 
 ## `shared_workspace_sidecar_v1`
 
@@ -37,12 +37,43 @@ recorded_at=<RFC3339 UTC>
 
 `evidence_ref` must equal the actual final `workspace://...` location byte-for-byte. A sidecar is durable evidence only after the final ref rereads successfully.
 
+## `multica_issue_task_evidence_v1`
+
+Use this profile only when every evidence object is in the same current Multica Issue and the current manifest freezes all of these readbacks:
+
+```text
+evidence_profile=multica_issue_task_evidence_v1
+evidence_ref=multica://issues/<issue-id>/tasks/<task-id>#architecture-evidence-v1
+request_comment_ref=<exact-current-request-comment>
+request_revision=<exact-revision>
+request_digest=sha256:<raw-utf8-digest>
+packet_ref=<exact-current-packet-ref-or-none>
+packet_version=<exact-current-packet-version-or-none>
+packet_digest=<exact-current-packet-digest-or-none>
+design_attachment_evidence=<exact-single-design-identity-size-and-raw-byte-digest>
+internal_artifact_evidence=<research-control-review-machine-only-packet-identities-and-digests>
+visual_evidence=<manifest-source-html-receipt-light-1440x900-preview-identities-digests-and-statuses>
+target_member=<canonical-member-uuid>
+candidate_comment_ref=<exact-decision-comment-or-none>
+candidate_revision=<exact-revision-or-none>
+candidate_digest=<raw-and-normalized-digests-or-none>
+metadata_projection=<exact-arch.packet.current-value-or-not-applicable>
+control_ref=<exact-ARCH-CONTROL-ref>
+control_digest=sha256:<raw-utf8-digest>
+continuation_handoff_readback=<multica_execution_handoff_v2-task-evidence>
+status_timeline=<ordered-server-status-readbacks>
+supersession_scan=<current-and-conflicting-identities>
+task_result=<completed-platform-task-identity-and-result>
+```
+
+The task ID and Issue ID are read from the platform; never synthesize them. The evidence ref becomes valid only after the platform task result and Control projection are complete and reread. For `owner_attested architecture_approval`, the current request must expose one named Action, all material scopes remain `manual_check_required`, and the effective decision must include `materials_opened` plus one legal decision. Before every consumption, reread the request, packet, attachments, target Member, candidate, metadata, Control, status and supersession set. Any missing or changed value invalidates the evidence. An Issue comment fragment, metadata value alone, local file, download result or Agent claim is never sufficient.
+
 ## Mapping, readiness, and decision records
 
-- A mapping sidecar contains the complete `multica_target_human_v1` mapping record, exact packet identity, workspace/Issue scope, confirmer where applicable, verifier, and member-access result. Without an authorized and rereadable mapping sidecar, mapping is unavailable; delivery readiness is unavailable and a decision cannot be effective.
-- A readiness sidecar contains the complete rendered [readiness envelope](../templates/multica-readiness-evidence.md), including its own `evidence_ref`. Generate it only after the delivery attempt's final no-more-platform-writes scan. A delivery-comment fragment is only pre-projection delivery evidence and is never a readiness sidecar or readiness authority. Without an authorized/re-readable readiness sidecar, emit `review_packet_unavailable`.
-- A formal packet decision sidecar contains the complete rendered [decision record](../templates/multica-decision-evidence.md), including its own `evidence_ref`. Generate it only after re-reading current readiness and the exact decision comment, and only when current mandate/manifest lists this existing shared-scope no-clobber write and reread. A `current_action_reference_v1` design/review input instead records the same decision fields in `multica_issue_task_evidence_v1`; it becomes effective only after the manifest-bound exact candidate/status/task/ARCH-CONTROL rereads pass.
+- Mapping, readiness and formal decision records may use a shared-workspace sidecar, or the same current `multica_issue_task_evidence_v1` task/control evidence for an owner-attested packet. The selected profile must be consistent across target-human mapping, readiness and decision consumption for that Action.
+- Generate readiness evidence only after the delivery attempt's final platform-write scan. A delivery-comment fragment is pre-projection evidence and never readiness authority by itself.
+- Generate formal decision evidence only after re-reading current readiness and the exact decision comment. `current_action_reference_v1` becomes effective only after the manifest-bound exact candidate/status/task/metadata/`ARCH-CONTROL` rereads pass.
 
-The sidecar rules do not authorize a Multica write, a workspace creation, a shared-storage configuration change, or a new external resource. They define how to use an already authorized, existing durable scope. Any missing authority is a fail-closed evidence condition, not a reason to fall back to metadata, a comment URL, a local file, or an Agent claim.
+Neither profile authorizes a Multica write, workspace creation, shared-storage configuration change or external resource. Any missing authority or readback is a fail-closed evidence condition, not a reason to fall back to metadata alone, a local file or an Agent claim.
 
 Every mapping、readiness 或 decision sidecar write must appear in a current `architecture_operation_manifest_v1` with final/temporary relative paths、confirmed existing scope、no-clobber publish、reread and retained objects. One manifest item does not cover another record kind/path. If a final object exists with different bytes or retained set drifted, fail closed; bounded recovery derives a new attempt/new manifest, while overwrite or scope expansion requires a new task instruction—not an authorization token.

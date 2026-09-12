@@ -138,8 +138,18 @@ def validate_fixture(instance: dict[str, Any], schema: dict[str, Any]) -> None:
             raise ValueError("$.expected_result.delivery: ready requires ready/current delivery")
         if delivery["delivery_evidence_ref"] == "none" or readiness["delivery_evidence_ref"] != delivery["delivery_evidence_ref"]:
             raise ValueError("$.expected_result.delivery_evidence_ref: ready requires matching non-none delivery evidence")
-        if not readiness["evidence_ref"].startswith("workspace://"):
-            raise ValueError("$.expected_result.readiness.evidence_ref: ready requires workspace sidecar")
+        evidence_ref = readiness["evidence_ref"]
+        uses_workspace_sidecar = evidence_ref.startswith("workspace://")
+        uses_multica_task_evidence = bool(
+            re.fullmatch(
+                r"multica://issues/[^/]+/tasks/[^#]+#architecture-evidence-v1",
+                evidence_ref,
+            )
+        )
+        if not (uses_workspace_sidecar or uses_multica_task_evidence):
+            raise ValueError(
+                "$.expected_result.readiness.evidence_ref: ready requires durable workspace or Multica task evidence"
+            )
         if (
             target_human["mapping_status"] != "unique"
             or target_human["actor_id"] == "none"
@@ -157,8 +167,15 @@ def validate_fixture(instance: dict[str, Any], schema: dict[str, Any]) -> None:
                 raise ValueError("$.expected_result.readiness.artifacts: ready artifact must match delivery identity")
             if artifact["target_human_mapping_evidence_ref"] != target_human["mapping_evidence_ref"]:
                 raise ValueError("$.expected_result.readiness.artifacts: ready artifact mapping must match target mapping")
-            if not artifact["target_human_mapping_evidence_ref"].startswith("workspace://"):
-                raise ValueError("$.expected_result.readiness.artifacts: ready artifact mapping must be workspace sidecar")
+            mapping_ref = artifact["target_human_mapping_evidence_ref"]
+            if uses_workspace_sidecar and not mapping_ref.startswith("workspace://"):
+                raise ValueError(
+                    "$.expected_result.readiness.artifacts: workspace readiness requires workspace mapping evidence"
+                )
+            if uses_multica_task_evidence and mapping_ref != evidence_ref:
+                raise ValueError(
+                    "$.expected_result.readiness.artifacts: task readiness requires the same Multica task evidence"
+                )
             if artifact["stable_access_ref"] == "none" or artifact["verifier"] == "none" or artifact["verified_at"] == "none":
                 raise ValueError("$.expected_result.readiness.artifacts: ready artifact requires durable verification")
             stable_ref = artifact["stable_access_ref"].lower()
@@ -184,8 +201,16 @@ def validate_fixture(instance: dict[str, Any], schema: dict[str, Any]) -> None:
         for field in ("binding_profile", "evidence_ref", "content_digest", "created_at", "updated_at", "recorded_at"):
             if decision[field] == "none":
                 raise ValueError(f"$.expected_result.decision.{field}: valid decision requires evidence")
-        if not decision["evidence_ref"].startswith("workspace://"):
-            raise ValueError("$.expected_result.decision.evidence_ref: valid decision requires workspace sidecar")
+        if not (
+            decision["evidence_ref"].startswith("workspace://")
+            or re.fullmatch(
+                r"multica://issues/[^/]+/tasks/[^#]+#architecture-evidence-v1",
+                decision["evidence_ref"],
+            )
+        ):
+            raise ValueError(
+                "$.expected_result.decision.evidence_ref: valid decision requires durable workspace or Multica task evidence"
+            )
         if decision["binding_profile"] == "multica_packet_comment_reply_v1":
             if delivery["comment_ref"] not in decision["parent_chain"]:
                 raise ValueError("$.expected_result.decision.parent_chain: reply must contain exact delivery comment")
@@ -304,12 +329,12 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
 
         ready_without_sidecar = copy.deepcopy(cases["successful-delivery"])
         ready_without_sidecar["expected_result"]["readiness"]["evidence_ref"] = "none"
-        with self.assertRaisesRegex(ValueError, r"ready requires workspace sidecar"):
+        with self.assertRaisesRegex(ValueError, r"ready requires durable"):
             validate_fixture(ready_without_sidecar, schema)
 
         valid_decision_without_sidecar = copy.deepcopy(cases["target-human-decision"])
         valid_decision_without_sidecar["expected_result"]["decision"]["evidence_ref"] = "E-6"
-        with self.assertRaisesRegex(ValueError, r"valid decision requires workspace sidecar"):
+        with self.assertRaisesRegex(ValueError, r"valid decision requires durable"):
             validate_fixture(valid_decision_without_sidecar, schema)
 
     def test_fixtures_match_the_normalized_result_schema(self) -> None:
@@ -466,21 +491,14 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             human_action: (
                 "mention://member/{{decision_owner_member_id}}",
                 "## Architecture Decision Brief", "## 当前方案摘要", "## 简化架构图",
-                "## Architecture recommendation", "总体建议", "推荐理由", "置信度",
-                "## 已确定与尚未确定", "## 最重要的备选及后果",
-                "## 当前读者的一项决定", "action_type={{action_type}}", "Decision Owner",
-                "Current reader / authority binding", "Other-owner dependencies (non-actionable)",
-                "Content-decision activation gate", "requires_human_review=true",
-                "Candidate recommendation", "Bounded alternatives", "Option consequences",
-                "## 回复后会发生什么", "## 完整材料入口",
-                "Stable human-accessible evidence refs", "Exact response",
-                "Does not authorize", "Current / superseded",
-                "{{design_attachment_filename}}", "{{design_attachment_digest}}",
-                "{{research_human_access_entry}}", "{{control_human_access_entry}}",
-                "Requested client scopes", "desktop", "mobile",
-                "opened|unavailable|not_run", "Verifier / verification time",
-                "Issue status", "in_review", "in_progress",
-                "current_action_reference_v1", "Issue 最新位置",
+                "Design maturity", "Reviewer conclusion", "关键风险",
+                "Recommendation / rationale / confidence", "## 最重要的备选及后果",
+                "## 当前读者的一项决定", "Decision Owner", "requires_human_review=true",
+                "## 回复后会发生什么", "## 一份完整材料入口",
+                "恰好一份 canonical Design Markdown attachment", "Exact response",
+                "architecture_internal_evidence_v1", "derived_non_authoritative",
+                "desktop|mobile", "opened|manual_check_required|unavailable|not_run",
+                "current_action_reference_v1", "不要求定位 parent/thread",
             ),
             operational: (
                 "Legacy Multica Operational Authorization Record", "audit only",
@@ -488,22 +506,14 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "AUTHORIZE OPERATION",
             ),
             approval: (
-                "## Architecture Decision Brief", "## 当前方案摘要", "## 简化架构图",
-                "## Architecture recommendation", "总体建议", "推荐理由", "置信度",
-                "## 已确定与尚未确定", "Other-owner dependencies (non-actionable)",
-                "## 最重要的备选及后果", "## 当前读者的一项决定",
-                "Decision Owner", "Current reader / authority binding",
-                "Content-decision activation gate", "requires_human_review=true",
-                "Candidate recommendation", "Bounded alternatives", "Option consequences",
-                "只发布批准文档", "R&D handoff", "新设计迭代", "终态",
-                "## 回复后会发生什么", "Remaining blockers", "Next Owner",
-                "none|approved_artifact_unavailable", "## 完整材料入口",
-                "Stable human-accessible evidence refs", "Stable Design ref",
-                "Research", "Control", "Stable Review ref", "Stable Packet ref",
-                "Requested client scopes", "desktop", "mobile",
-                "opened|unavailable|not_run", "Verifier / verification time",
-                "推荐不是批准", "## 准确回复", "## 最小审计绑定",
-                "Current / superseded", "Does not authorize",
+                "## 方案摘要", "Design maturity", "Reviewer conclusion",
+                "Reviewer concise findings", "关键风险", "Architecture recommendation",
+                "## 一份完整方案", "恰好一份 canonical", "derived_non_authoritative",
+                "## 当前 Action", "Decision Owner", "Current / superseded",
+                "approved_design_only", "approved_for_spec", "revision_requested", "rejected",
+                "R&D handoff", "新建 Design/Review/Action", "终态",
+                "## 准确回复", "materials_opened", "材料打不开",
+                "Recommendation、Reviewer conclusion", "无需复制 packet digest",
             ),
             decision: (
                 "decision_context_ref", "decision_context_digest", "revision_scope",
@@ -514,10 +524,13 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "multica_issue_task_evidence_v1",
             ),
             readiness: (
-                "human_action_request_ref", "human_action_request_version",
-                "brief_rendering_status", "design_access_confirmation",
-                "review_access_confirmation", "packet_access_confirmation",
-                "desktop", "mobile",
+                "human_surface_contract=human_review_surface_v1",
+                "internal_evidence_contract=architecture_internal_evidence_v1",
+                "bundle_contract=multica_human_action_material_bundle_v2",
+                "exactly one block", "artifact_kind=design",
+                "browser_evidence=passed|failed|skipped|not_applicable",
+                "visual_review=passed|failed|skipped|not_applicable",
+                "preview_capture=light/1440x900|none", "desktop", "mobile",
             ),
         }
         failures: list[str] = []
@@ -553,18 +566,16 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
         if material_bundle.is_file():
             bundle_contract = material_bundle.read_text(encoding="utf-8")
             for marker in (
-                "multica_human_action_material_bundle_v1",
+                "multica_human_action_material_bundle_v2",
                 "ARCH-DESIGN-vN.md",
                 "text/markdown; charset=utf-8",
                 "raw-byte SHA-256",
-                "ARCH-DESIGN-vN.pdf",
                 "derived_non_authoritative=true",
                 "Research",
                 "Control",
-                "web/mobile",
-                "一次写入",
-                "architecture_operation_manifest_v1",
-                "不要求或生成 operational authorization",
+                "exactly one",
+                "light/1440x900",
+                "Legacy reader",
             ):
                 self.assertIn(marker, bundle_contract, f"material bundle contract missing {marker}")
 
@@ -575,7 +586,7 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "<app_base_url>/<workspace_slug>/issues/<issue_identifier>#comment-<comment_id>",
                 "href",
                 "comment-<comment-id>",
-                "opened|unavailable|not_run",
+                "opened|manual_check_required|unavailable|not_run",
                 "stable attachment",
                 "browser-rendered preview",
                 "actual UI activation",
@@ -694,7 +705,8 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/durable-evidence-records.md": (
                 "current_action_reference_v1",
                 "multica_issue_task_evidence_v1",
-                "cannot satisfy `architecture_approval`",
+                "owner_attested",
+                "metadata or an Agent statement alone",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/target-human-mapping.md": (
                 "access_profile=multica_artifact_access_confirmation_v1",
@@ -759,6 +771,88 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 if slot not in text
             )
         self.assertFalse(protocol_failures, "human action protocol incomplete:\n" + "\n".join(protocol_failures))
+
+    def test_owner_attested_formal_packet_contract_is_present(self) -> None:
+        cases_path = FIXTURE_ROOT / "owner-attested-formal-packet-cases.json"
+        cases = json.loads(cases_path.read_text(encoding="utf-8"))
+
+        ready = cases["owner-attested-packet-ready"]
+        self.assertEqual("architecture_approval", ready["input"]["action_type"])
+        self.assertEqual("owner_attested", ready["input"]["access_verification_mode"])
+        self.assertEqual("review_packet_ready", ready["expected"]["readiness"])
+        self.assertEqual("multica_issue_task_evidence_v1", ready["expected"]["evidence_profile"])
+        self.assertEqual("in_review", ready["expected"]["platform_status"])
+        self.assertEqual("manual_check_required", ready["expected"]["material_access_state"])
+        self.assertTrue(ready["expected"]["must_require_materials_opened"])
+
+        attested = cases["decision-with-material-attestation"]
+        self.assertIn("materials_opened", attested["input"]["current_action_reply"])
+        self.assertEqual("valid", attested["expected"]["decision_evidence_status"])
+        missing_attestation = cases["decision-without-material-attestation"]
+        self.assertEqual("invalid", missing_attestation["expected"]["decision_evidence_status"])
+        unavailable = cases["owner-reports-formal-material-unavailable"]
+        self.assertEqual("none", unavailable["expected"]["content_decision"])
+        self.assertEqual("repair_or_republish_material_entry", unavailable["expected"]["next_action"])
+
+        schema = self.load_schema()
+        task_evidence_ready = copy.deepcopy(self.load_cases()["successful-delivery"])
+        task_ref = "multica://issues/I-3/tasks/T-3#architecture-evidence-v1"
+        task_evidence_ready["expected_result"]["readiness"]["evidence_ref"] = task_ref
+        task_evidence_ready["expected_result"]["target_human"]["mapping_evidence_ref"] = task_ref
+        for artifact in task_evidence_ready["expected_result"]["readiness"]["artifacts"]:
+            artifact["target_human_mapping_evidence_ref"] = task_ref
+        validate_fixture(task_evidence_ready, schema)
+
+        surfaces = {
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/SKILL.md": (
+                "architecture_approval",
+                "owner_attested",
+                "materials_opened",
+                "multica_issue_task_evidence_v1",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-accessible-evidence-links.md": (
+                "owner_attested",
+                "manual_check_required",
+                "materials_opened",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/durable-evidence-records.md": (
+                "architecture_approval",
+                "multica_issue_task_evidence_v1",
+                "shared_workspace_sidecar_v1",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/references/human-decision-binding.md": (
+                "materials_opened",
+                "current_action_reference_v1",
+                "multica_issue_task_evidence_v1",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-human-action-request.md": (
+                "owner_attested",
+                "materials_opened",
+                "材料打不开",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-readiness-evidence.md": (
+                "shared_workspace_sidecar_v1|multica_issue_task_evidence_v1",
+                "owner_attested",
+                "manual_check_required",
+            ),
+            REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-decision-evidence.md": (
+                "materials_opened",
+                "architecture_approval",
+                "multica_issue_task_evidence_v1",
+            ),
+        }
+        failures: list[str] = []
+        for path, markers in surfaces.items():
+            text = path.read_text(encoding="utf-8")
+            failures.extend(
+                f"{path.relative_to(REPOSITORY_ROOT)} missing {marker}"
+                for marker in markers
+                if marker not in text
+            )
+        self.assertFalse(
+            failures,
+            "owner-attested formal packet contract incomplete:\n" + "\n".join(failures),
+        )
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 ## Versioning
 
-每次候选方案的实质变化生成新的 `ARCH-DESIGN vN`。它的 canonical 载体是独立 UTF-8 Markdown 文件 `ARCH-DESIGN-vN.md`；冻结后计算完整 raw-byte SHA-256，旧版本保持可引用，不覆盖 Review 或 Human Action Request 绑定的版本。设计列出输入 `ARCH-RESEARCH` 版本、仓库提交和关键证据。不得从多条 Issue 评论、摘要或 renderer 正文重建 canonical 设计；修订必须产生新版本和新 digest。
+每次候选方案的实质变化生成新的 `ARCH-DESIGN vN`。它的 canonical 载体是独立 UTF-8 Markdown 文件 `ARCH-DESIGN-vN.md`，也是唯一 human_canonical 与唯一 mandatory human artifact；冻结后计算完整 raw-byte SHA-256，旧版本保持可引用，不覆盖 Review 或 Human Action Request 绑定的版本。设计列出输入 `ARCH-RESEARCH` 版本、仓库提交和关键证据。不得从多条 Issue 评论、摘要、Review、Packet 或 renderer 正文重建 canonical 设计；修订必须产生新版本和新 digest。
 
 未批准的设计文件只作为 Issue/material delivery 的版本化输入，不写入架构仓库的正式 decisions/designs 目录。只有批准版本按发布流程进入正式文档目录。
 
@@ -12,6 +12,46 @@
 - `draft_complete`：总体架构完整，但仍有具名决策或证据缺口；
 - `decision_ready`：完整方案已绑定当前一个人类决定及可访问材料；
 - `ready_for_review`：全部 Review entry criteria 已满足。
+
+## Design maturity
+
+每个 Design 必须声明 `design_maturity=directional|spec_ready|implementation_ready`：
+
+- `directional`：方向与主要边界已形成，但仍有会影响 spec 的开放项；禁止 `approved_for_spec`。
+- `spec_ready`：足以指导 OpenSpec proposal/spec/tasks；允许 `approved_for_spec` handoff，但不得伪装为已经 implementation-ready。
+- `implementation_ready`：接口、约束、关键 NFR、迁移/回滚与验收条件足以直接指导实施。
+
+非 `implementation_ready` Design 必须对每项剩余内容记录唯一 Owner、证据缺口、关闭条件和阻止的下游阶段。maturity 不等于 Review conclusion 或 human approval。
+
+## Architecture visual manifest
+
+可正式 Review 的复杂 Design 默认要求一张 6–12 个主要节点的 Architecture 总览图；只有 Reviewer 接受有证据的 `diagram_not_applicable` 才能省略。可按决策价值增加 Workflow、Sequence、Data Flow 或 Lifecycle 图，最多两张附加图，不为内部 Agent handoff 生成展示图。
+
+作者使用 pinned Archify，中文输入声明 `meta.locale=zh-CN`，默认 `quality_profile=showcase`。每张图在 Design 中绑定 `architecture_visual_manifest_v1`：
+
+```text
+diagram_id=<stable ID>
+diagram_type=architecture|workflow|sequence|dataflow|lifecycle
+purpose=<decision value>
+design_sections=<section IDs>
+source_ref=<Typed JSON ref>
+specification_sha256=<sha256>
+artifact_ref=<delivered HTML ref>
+artifact_sha256=<sha256>
+static_preview_ref=<artifact-local PNG ref>
+static_preview_digest=<sha256 over PNG raw bytes>
+capture_theme=light
+capture_viewport=1440x900
+delivery_validation=passed
+browser_evidence=passed
+visual_review=passed
+semantic_findings=closed
+visual_check_receipt_ref=<same current artifact receipt>
+repository_revision=<full revision>|not_applicable
+supersedes=<prior visual identity|none>
+```
+
+Typed JSON、HTML 和 PNG 都是 `derived_non_authoritative`；Markdown Design 保持唯一权威方案。required diagram 只有 `delivery_validation=passed`、`browser_evidence=passed`、`visual_review=passed` 且 semantic findings closed 才能进入正式 Review。`failed|skipped`、stale/mismatched receipt 或 preview digest 一律 fail closed；不得用旧 HTML、旧 PNG 或人工观察冒充当前 receipt。静态预览必须来自同一次成功 `visual-check` 的 light/1440x900 capture。
 
 ## Required structure
 

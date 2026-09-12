@@ -1,5 +1,7 @@
 # Human Action Request
 
+Current requests render `human_review_surface_v1`: one canonical `ARCH-DESIGN-vN.md`, Design maturity, concise Reviewer findings/conclusion, critical risks, recommendation/consequences and one atomic current Action. Research、Control、complete Review and machine-only Packet remain `architecture_internal_evidence_v1`; they are not mandatory human entries. The Owner never copies packet digest because the current Action inherits the verified manifest snapshot.
+
 ## Purpose
 
 只有需要人类改变方案内容、作出架构 Review/风险判断或批准 current packet 的下一动作，才用这份平台无关请求表达。请求必须让 Decision Owner 在不先阅读完整审计记录的情况下，快速理解“为什么现在需要我、我能决定什么、有哪些真实选项、每个选项会发生什么、如何准确回复”。详细证据仍保留并通过稳定引用打开。

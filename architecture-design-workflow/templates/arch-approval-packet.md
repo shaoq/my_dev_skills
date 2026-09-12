@@ -1,5 +1,7 @@
 # ARCH-APPROVAL-PACKET vN
 
+> `surface=machine_only`；本文件属于 `architecture_internal_evidence_v1`，不是 mandatory human material。
+
 ## Identity
 
 - Work Item：
@@ -7,6 +9,10 @@
 - `payload_status=delivered`
 - Created at：RFC 3339 UTC `Z`
 - Supersedes：`none|ARCH-APPROVAL-PACKET vN`
+- Human surface contract：`human_review_surface_v1`
+- Internal evidence contract：`architecture_internal_evidence_v1`
+- Design maturity：`directional|spec_ready|implementation_ready`
+- Current Action ID / version / digest：
 - Packet digest：由 payload 最终冻结后在外部计算并记录
 
 ## Frozen design input
@@ -60,7 +66,7 @@
 | `revision_requested` | 进入新设计迭代，旧 packet 保持不变 |  | revision brief 不是批准；新 packet 需重新 Review |  |
 | `rejected` | current work item 进入终态 |  | 不授权后续工作 | rejected 终态 |
 
-- Exact response：必须包含本 packet ref/version 及外部计算的 packet digest
+- Exact response snapshot：`ACTION <current-action-id>: decision=<legal-token>`；Owner 不复制 packet digest
 - Human Action Request ref：
 
 ## External verification boundary

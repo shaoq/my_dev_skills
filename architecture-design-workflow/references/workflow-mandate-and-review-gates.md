@@ -1,5 +1,7 @@
 # Workflow mandate and architecture review gates
 
+Current writer freezes `human_surface_contract=human_review_surface_v1` and `internal_evidence_contract=architecture_internal_evidence_v1` in every mandate. Only the canonical Design, concise Review/risk/recommendation and one current Action enter the human surface. Research、Control、complete Review、machine-only Packet、continuation/handoff/readback、retry and reconciliation remain internal and do not create ordinary human comments.
+
 ## Purpose
 
 `architecture_workflow_mandate_v2` 表示可识别的 trigger actor 已明确要求开始、继续或重试一个有界架构阶段。它不是内容批准或永久权限；它只允许 current work item/stage/attempt 在冻结 actor、responsibility、输入和 scope 内自动完成非 Review 操作。

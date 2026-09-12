@@ -1,8 +1,14 @@
 # Approval packet and human gate
 
+## Current surface contract
+
+`ARCH-APPROVAL-PACKET` 是 `machine_only` immutable approval manifest，属于 `architecture_internal_evidence_v1`。它冻结 Design/Review identity、maturity、accepted risks、Owner、current Action、access/readiness 与 supersession，但不是人类阅读材料。`human_review_surface_v1` 只暴露一份 canonical Design、简短 Review/风险/推荐、决定后果和一个 current Action；不要求人类打开 Packet、完整 Review、Control 或 Research，也不要求复制 packet digest。current Action 从机器验证过的 packet snapshot 继承 ref/version/digest，回复只绑定 current Action。
+
+旧 packet-bound、三附件或复制 digest 的 attempt 继续按冻结 reader 审计；新 writer 不改写、不消费为当前 surface，升级必须创建 superseding attempt。
+
 ## Purpose
 
-`ARCH-APPROVAL-PACKET vN` 是平台无关、面向人类裁决的不可变 payload。它冻结一个 Work Item 的准确 `ARCH-DESIGN`/`ARCH-REVIEW` 组合、审核简报和合法决定集合，但不包含验证自身 digest 的 post-finalization evidence。
+`ARCH-APPROVAL-PACKET vN` 是平台无关、machine-only 的不可变 manifest。它冻结一个 Work Item 的准确 `ARCH-DESIGN`/`ARCH-REVIEW` 组合、maturity、Owner、current Action、审核摘要和合法决定集合，但不包含验证自身 digest 的 post-finalization evidence，也不作为人类附件。
 
 ## Packet lifecycle
 
@@ -57,9 +63,14 @@ human_actor / access_evidence_refs
 verifier / verified_at
 ```
 
-只有准确 refs/versions/digests、confirmed access、完整审核简报和 approvable Review conclusion 同时成立才可生成。readiness 不等于人工批准。
+只有准确 refs/versions/digests、完整审核简报、approvable Review conclusion 和下述当前 access mode 条件同时成立才可生成。readiness 不等于人工批准。
+
+- `automatic`：目标人类在每个 requested scope 的完整 human-readable rendering 均已由具名 verifier 实际打开并确认。
+- `owner_manual`：唯一 Decision Owner 已通过 current mandate 或 deployment policy 明确选择自行检查；Runtime 已验证准确 artifact identity/type/version/digest、完整 raw bytes、current/superseded identity、同一 work item 的稳定可导航入口和 current Action。每个 requested scope 必须保持 `manual_check_required`，不得声称 `opened`。此时 content-decision activation gate 可以为 ready，但合法决定必须同时包含 Owner 对完整材料已打开的显式声明；材料打不开的准确回复只触发修复，不构成内容决定。
 
 `review_packet_unavailable` 使用同一 identity/digest fields，并增加 `failed_checks`、`owner`、`closing_condition`。缺少 readiness 或任一检查失败时保持 `reviewing`，保留真实 Review conclusion，设置 `BLOCKED_REASON=review_packet_unavailable`。
+
+`owner_manual` 绝不放宽机器完整性门禁。artifact identity、digest、稳定入口、唯一 Owner、current Action 或 durable readiness 任一缺失或漂移时仍生成 `review_packet_unavailable`。Owner 使用“材料打不开”的 exact response 时，当前内容决定必须保持 `none`，action 回到 preparation 并先修复或重新发布材料入口。
 
 ## Architecture recommendation
 
@@ -81,13 +92,13 @@ verifier / verified_at
 - `revision_requested`
 - `rejected`
 
-decision evidence 必须包含 decision、可识别 `human_actor`、当前 packet ref/version/digest、binding profile、evidence ref 和 RFC 3339 UTC recorded time。当前交互 profile 只接受 Runtime 标记为当前 user-role 的消息；引用文本、fixture、Agent 输出、推荐、Review conclusion、紧急措辞、任务分派或模糊肯定均不构成决定。
+decision evidence 必须包含 decision、可识别 `human_actor`、current Action identity、继承的 manifest snapshot、binding profile、evidence ref 和 RFC 3339 UTC recorded time。当前交互 profile 只接受 Runtime 标记为当前 user-role 的消息；引用文本、fixture、Agent 输出、推荐、Review conclusion、紧急措辞、任务分派或模糊肯定均不构成决定。
 
 绑定 superseded packet 的合法决定保留审计但对当前 gate no-op。`revision_requested` 开始新 `ARCH-DESIGN`，并只在 replacement design/review 再次 approvable 后创建新 packet。`rejected` 仅在绑定 current ready packet 时进入终态。
 
 ## Human-facing approval action
 
-current ready packet 等待决定时，生成一个 `action_type=architecture_approval` Human Action Request；历史 `design_approval` 仅作兼容读取。请求首屏先给 Decision Owner、为什么现在可决定、candidate recommendation（若有）和四个选项的中文对比；稳定 design/review/packet refs 放在随后可打开的位置，完整 digest/audit binding 后置。
+current ready manifest 等待决定时，生成一个 `action_type=architecture_approval` Human Action Request；历史 `design_approval` 仅作兼容读取。请求首屏先给 Decision Owner、Design maturity、简短 Review、关键风险、candidate recommendation（若有）和四个选项的中文对比；随后只放一份 canonical Design 的稳定入口，完整 internal refs/digests 后置或隐藏。
 
 四个选项必须分别说明：
 
@@ -96,7 +107,7 @@ current ready packet 等待决定时，生成一个 `action_type=architecture_ap
 - `revision_requested`：进入新设计迭代，不修改旧 packet；修订说明作为独立非授权 context，缺失时另建 `design_input` 请求；
 - `rejected`：current work item 进入 `rejected` 终态，具有明确不可逆流程影响。
 
-每项同时列出立即 stage、remaining blockers、Next Owner、planned writes 和不可逆影响。Exact response 必须包含决定值与 current packet ref/version/digest；说明性文字和 recommendation 均不能替代该准确绑定。
+每项同时列出立即 stage、remaining blockers、Next Owner、planned writes 和不可逆影响。新 writer 的 Exact response 必须包含 current Action ID 与一个决定值；`owner_manual` 还必须包含 Owner 对完整材料已打开的显式声明。Action 从 manifest 继承准确 ref/version/digest，Owner 不复制 packet digest。旧 packet-bound exact response 仅在 frozen legacy reader 中继续解析。
 
 ## Revision context
 

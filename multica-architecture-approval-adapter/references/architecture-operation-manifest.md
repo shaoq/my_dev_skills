@@ -25,7 +25,13 @@ attempt_id=<opaque-attempt-id>
 core_skill_identity=<name-and-aggregate-digest>
 adapter_skill_identity=<name-and-aggregate-digest>
 input_identities=<sorted-identities-and-raw-byte-digests>
-output_identities=<ordered-filenames-and-raw-byte-digests>
+human_surface_contract=human_review_surface_v1
+internal_evidence_contract=architecture_internal_evidence_v1
+output_identities=<one-design-human-output-and-ordered-internal-evidence-digests>
+visual_manifest_identity=<current-ref-and-digest-or-diagram_not_applicable>
+visual_receipt_identity=<current-deliver-and-visual-check-receipts-or-none>
+static_preview_identity=<artifact-local-light-1440x900-ref-digest-and-platform-projection-or-none>
+required_visual_status=<passed|unavailable|not_applicable>
 handoff_id=<current-execution-handoff-id-or-none>
 blocker_action_id=<current-portable-blocker-id-or-none>
 blocker_profile=<architecture_blocker_action_v3|none>
@@ -44,7 +50,7 @@ supersedes=<legacy-request-or-attempt-identities-or-none>
 invalidates_on=<frozen-drift-conditions>
 ```
 
-字段值使用既有 canonical UTF-8 percent encoding；路径必须是已解析且位于 mandate 授权输入根下的相对路径。`planned_writes` 只允许当前 stage 所需的最小集合：work-start `in_progress --no-start`（当前状态不同时）、一条 Decision Brief+附件评论、一条 actionable blocker comment、一个独立 execution handoff comment、task evidence、交付成功后的 `in_review --no-start`（仅 `requires_human_review=true`）、blocker 交付/回滚的 `blocked --no-start`，以及有效回复且 task accepted/active 后的 `in_progress --no-start`。packet route 还可包含既有 `arch.packet.current` projection 和既有 shared-scope sidecar no-clobber publish。execution handoff 必须符合 `multica_execution_handoff_v1`，且其 postconditions 包含准确 `queued_task_id`、实际 `queued_task_status` 与适用的 predecessor/directory-lock 回读。
+字段值使用既有 canonical UTF-8 percent encoding；路径必须是已解析且位于 mandate 授权输入根下的相对路径。`planned_writes` 只允许当前 stage 所需的最小集合：work-start `in_progress --no-start`、一条 Decision Brief + exactly one Design attachment、一条 actionable blocker comment、internal task evidence、交付成功后的 `in_review --no-start`、必要状态投影。execution handoff 必须符合 `multica_execution_handoff_v2` 且 postconditions 包含准确 task/readback；不得规划 dedicated handoff comment。
 
 ## Derivation and pre-write fence
 
@@ -55,9 +61,11 @@ Adapter 必须从 mandate 和当前只读事实确定性生成 manifest，不接
 3. 重验唯一 Decision Owner、current action、`requires_human_review` 和 candidate/task attribution；`current_action_reference_v1` 的 parent chain 只作审计，packet/delivery parent selector 继续按各自 profile 校验；
 4. 扫描 retained comments/attachments/projections/sidecars 与 current/superseded identity；
 5. 证明 planned writes 是 mandate 允许操作的有序子集，且没有创建资源、跨 Issue/workspace、实现或部署；
-6. 对 execution continuation 重验 dedicated handoff comment、唯一 `handoff_id`、准确下一 Agent、task selector 和 single-consumption；普通 `ARCH-CONTROL` 自 mention 不得进入 planned writes；
+6. 对 execution continuation 重验 internal task evidence、唯一 `handoff_id`、准确下一 Agent、task selector 和 single-consumption；dedicated handoff comment 与普通 `ARCH-CONTROL` 自 mention 不得进入 planned writes；
 7. 对 actionable blocker 重验唯一 instruction-owner Member、`architecture_blocker_action_v3`、`automatic_before_human` discovery evidence、一个普通业务问题、single action、三类自然语言回复、reply-context evidence derivation、conditional formal-source policy、resume/discovery responsibility/Agent 与 blocked rollback；
 8. 计算 manifest raw-byte SHA-256，并写入机器可读 task evidence。
+
+Required visual preflight additionally requires current source/HTML/receipt/preview digests, `deliver=passed`、`browser_evidence=passed`、`visual_review=passed`、semantic findings closed and requested-client preview readability. Any failed/skipped/stale/mismatch is unavailable before approval readiness; an older HTML or preview cannot substitute.
 
 任何 unknown、重复、漂移、缺失或额外写入使 manifest 不可消费。不得为了继续而请求 operational authorization、挑选最近评论、猜 UUID、编辑历史或补写诊断评论。
 
@@ -80,9 +88,9 @@ Multica 当前 Issue metadata 使用一个聚合的 **8 KiB metadata bag**（819
 - 自动 retry 只能在 `retry_limit` 内生成新 attempt/new manifest，并必须冻结新的 retained set；旧 manifest 永不修改或再次消费。
 - 当前 task 将结束且 portable intent 仍为 Agent working 时，必须按准确 handoff_id 回读 queued_task_id 与 queued_task_status；`queued` 满足 accepted，`running` 满足 active。`waiting_local_directory` 只有在 runtime 在线、attribution 准确、predecessor 是当前 task 且同一 `in_place` 目录锁 evidence 可重读时才满足 accepted，避免前序 task 等待下游 running、下游又等待前序释放目录的死锁。
 
-Decision Brief 首行必须准确 mention 唯一 Decision Owner。只有 `requires_human_review=true` 且评论、附件、完整材料入口、mention 和当前 access verification mode 的 postconditions 全部通过后，才自动写 `in_review --no-start`。`automatic` 要求 client scopes=`opened`；显式 `owner_manual` 只用于 `design_input|architecture_review`，要求 identity/digest/stable same-Issue entry/policy evidence 并记录 `manual_check_required`。非 Review 步骤自动进入下一 stage 或完成当前步骤，不停留等待用户。
+Decision Brief 首行必须准确 mention 唯一 Decision Owner。只有 `requires_human_review=true` 且评论、附件、完整材料入口、mention 和当前 access verification mode 的 postconditions 全部通过后，才自动写 `in_review --no-start`。`automatic` 要求 client scopes=`opened`；显式 `owner_manual` 用于 `design_input|architecture_review`，要求 identity/digest/stable same-Issue entry/policy evidence；正式 packet 的 `owner_attested` 还要求 current named Action 与 manifest-bound `multica_issue_task_evidence_v1` request/task/`arch.packet.current`/`ARCH-CONTROL` readbacks。两种人工模式均记录 `manual_check_required`。非 Review 步骤自动进入下一 stage 或完成当前步骤，不停留等待用户。
 
-有效 Review 回复使用 manifest-bound `valid_human_action_response_v1`。具名 `current_action_reference_v1` 必须匹配 actor、work item、唯一 current Action ID、从 request 继承的 version/design digest、created-after-request、comment revision、raw/normalized digest、受限 current Architecture Agent edge mention、supersession 和 candidate task attribution；direct parent 仅记录为 audit。packet token-only/explicit profiles继续匹配其 packet identity 与 parent/profile 约束。匹配后自动写 `in_progress --no-start` 并重读，再处理内容决定；无效、编辑、错误 Owner/Action、非法 mention 或过期回复不改变状态。
+有效 Review 回复使用 manifest-bound `valid_human_action_response_v1`。具名 `current_action_reference_v1` 必须匹配 actor、work item、唯一 current Action ID、从 request 继承的 version/design 或 packet digest、created-after-request、comment revision、raw/normalized digest、受限 current Architecture Agent edge mention、supersession 和 candidate task attribution；`owner_attested` 正式批准还必须精确包含 `materials_opened` 与一个 legal decision；direct parent 仅记录为 audit。automatic packet token-only/explicit profiles继续匹配其 packet identity 与 parent/profile 约束。匹配后自动写 `in_progress --no-start` 并重读，再处理内容决定；无效、编辑、错误 Owner/Action、非法 mention 或过期回复不改变状态。
 
 ## Failure and scope expansion
 

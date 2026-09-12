@@ -1,0 +1,56 @@
+{
+  "current_writer": {
+    "bundle_contract": "multica_human_action_material_bundle_v2",
+    "canonical_attachments": ["design"],
+    "forbidden_attachments": ["review", "packet", "control", "research"],
+    "supporting_resources": ["derived_pdf", "archify_html", "light_1440x900_preview"],
+    "supporting_authority": "derived_non_authoritative"
+  },
+  "access_modes": {
+    "automatic": "opened",
+    "owner_attested": "manual_check_required",
+    "material_unavailable_response": "ACTION <action_id>: 材料打不开",
+    "attested_decision": "ACTION <action_id>: materials_opened; decision=<legal-token>"
+  },
+  "visual_activation_cases": [
+    {"case_id": "mobile-preview-opened", "preview": "light/1440x900", "digest": "current", "mobile_readability": "passed", "expected": "ready"},
+    {"case_id": "browser-skipped", "browser_evidence": "skipped", "expected": "unavailable"},
+    {"case_id": "visual-review-failed", "visual_review": "failed", "expected": "unavailable"},
+    {"case_id": "preview-stale", "preview_digest": "mismatch", "expected": "unavailable"}
+  ],
+  "internal_events_without_issue_comment": [
+    "research_progress",
+    "control_transition",
+    "packet_readiness",
+    "execution_continuation",
+    "agent_handoff_readback",
+    "delivery_reconciliation",
+    "retry",
+    "digest_verification",
+    "status_projection_readback"
+  ],
+  "archify_bindings": [
+    {"team": "Architecture Team", "agent": "Solution Architect", "profile": "author"},
+    {"team": "Architecture Team", "agent": "Architecture Reviewer", "profile": "review_only"},
+    {"team": "R&D Team", "agent": "Product & Spec Engineer", "profile": "conditional_author"},
+    {"team": "R&D Team", "agent": "Solution Review Architect", "profile": "review_only"}
+  ],
+  "unbound_agents": [
+    "Architecture Lead",
+    "Architecture Analyst",
+    "R&D Lead",
+    "Development Engineer",
+    "Code Review Engineer",
+    "QA Engineer",
+    "Integration & Archive Engineer",
+    "Workflow Watchdog"
+  ],
+  "activation": {
+    "workspace_write": "requires_explicit_authorization",
+    "import_mode": "conflict_fail",
+    "binding_mode": "additive",
+    "new_attempts_only": true,
+    "partial_binding_failure": "retain_and_report_not_active",
+    "non_target_binding": "forbidden"
+  }
+}

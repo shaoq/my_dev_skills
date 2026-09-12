@@ -20,7 +20,7 @@
     "case_id": "cross-member-queued",
     "platform_status_intent": "agent_working",
     "wait_reason": "none",
-    "handoff_surface": "dedicated_comment",
+    "handoff_surface": "internal_task_evidence",
     "executor_relation": "other_member",
     "task_status": "queued",
     "expected": "accepted"
@@ -29,7 +29,7 @@
     "case_id": "cross-member-waiting-local-directory",
     "platform_status_intent": "agent_working",
     "wait_reason": "none",
-    "handoff_surface": "dedicated_comment",
+    "handoff_surface": "internal_task_evidence",
     "executor_relation": "other_member",
     "task_status": "waiting_local_directory",
     "runtime_status": "online",
@@ -38,10 +38,10 @@
     "expected": "accepted"
   },
   {
-    "case_id": "dedicated-self-handoff-running",
+    "case_id": "internal-self-handoff-running",
     "platform_status_intent": "agent_working",
     "wait_reason": "none",
-    "handoff_surface": "dedicated_comment",
+    "handoff_surface": "internal_task_evidence",
     "executor_relation": "self",
     "task_status": "running",
     "expected": "active"
@@ -50,7 +50,7 @@
     "case_id": "replayed-handoff",
     "platform_status_intent": "agent_working",
     "wait_reason": "none",
-    "handoff_surface": "dedicated_comment",
+    "handoff_surface": "internal_task_evidence",
     "executor_relation": "other_member",
     "task_status": "completed",
     "existing_consumption": true,

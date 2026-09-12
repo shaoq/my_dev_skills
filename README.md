@@ -319,17 +319,23 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 
 **核心机制**：
 
-- canonical 主路径为 `intake → routed → researching → designing → reviewing → waiting_human`；Reviewer approvable 后必须先生成 immutable `ARCH-APPROVAL-PACKET` 并取得绑定准确 digest 的外部 readiness evidence，批准后进入 `publishing`，实际发布验证完成后才进入 `completed_design_only` 或 `handed_off`
-- 用户明确开始、继续或重试当前阶段时建立平台无关的 `architecture_workflow_mandate_v1`；准备、交付、访问验证、状态、relay、retry 和审计自动完成，只有 `design_input|architecture_review|architecture_approval` 的真实方案决定暂停等待人类
+- canonical 主路径为 `intake → routed → researching → designing → reviewing → waiting_human`；`ARCH-DESIGN-vN.md` 是唯一 mandatory Design 和唯一 human-canonical 总体方案
+- current writer 分离 `human_review_surface_v1` 与 `architecture_internal_evidence_v1`：人类只看一份 Design、成熟度、简短 Review/风险/推荐和一个 Action；Research、Control、完整 Review、machine-only Packet、continuation/handoff/readback、retry 和 reconciliation 保存在内部证据
+- Design maturity 为 `directional|spec_ready|implementation_ready`；`directional` 禁止 `approved_for_spec`，后两者保留各自的 OpenSpec handoff/直接实施指导边界
+- Reviewer approvable 后生成 machine-only immutable `ARCH-APPROVAL-PACKET` manifest 并取得 readiness evidence；current Action 继承准确 snapshot，Owner 无需人工打开 Review、Packet、Control 或复制 packet digest
+- 用户明确开始、继续或重试当前阶段时建立平台无关的 `architecture_workflow_mandate_v2`；`v1` 只读审计；准备、交付、访问验证、状态、retry 和审计自动完成，只有 `design_input|architecture_review|architecture_approval` 的真实方案决定暂停等待人类
 - `openspec-explore` 是研究阶段必需依赖；只有目标、边界、约束或方案空间存在实质歧义时才要求 `superpowers:brainstorming`
 - 依赖缺失时保持当前 stage，记录稳定 `BLOCKED_REASON` 并 fail-closed；不自动安装依赖，也不修改 Runtime 配置
 - Review 只允许 `BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS`、`APPROVABLE`；Review 结论、packet readiness 和 `ARCHITECTURE_RECOMMENDATION` 都不等于人类批准
-- 人工 gate 只接受当前 user-role 针对 current ready packet ref/version/raw-byte SHA-256 digest 明确记录的 `approved_design_only`、`approved_for_spec`、`revision_requested` 或 `rejected`
+- 人工 gate 只接受准确 Decision Owner 针对 current Action 的 `approved_design_only`、`approved_for_spec`、`revision_requested` 或 `rejected`；owner-attested 仍要求 `materials_opened`
+- 新输入先生成 `architecture_design_impact_v1`：无架构影响只更新内部 evidence；有影响或 unknown 新建 Design/Review 并 supersede Action/manifest
+- complex Design 默认使用 Archify Architecture 总览图；required visual 只有 deliver/browser/visual/semantic 四项全部通过才可进入正式 Review，light/1440×900 preview 必须来自同一成功 receipt
 - standalone `local_file` profile 要求当前人类确认 shared workspace scope；仅 Agent 能读取本地路径时保持 `reviewing` 并记录 `review_packet_unavailable`
 - 发布前重新验证 packet/design/review 原始 bytes；不匹配时保持 `publishing` 和原批准，记录 `approved_artifact_unavailable`，禁止从审核简报重建近似正文
 - `approved_design_only` 只发布 ADR 和详细设计；`approved_for_spec` 额外生成 `ARCH-RD-HANDOFF`，但 Architecture workflow 本身不创建 OpenSpec proposal
 - 只读或 plan 会话可以生成完整待发布内容，但 stage 保持 `publishing`；只有产物实际持久化并验证后才能报告终态
 - 升级前已经持久化的 `waiting_human` 记录不自动降级或伪造 readiness；显式 refresh 或新 design/review version 后执行新 packet gate
+- 旧三附件 attempt 只读保留，绝不原地转换为新单 Design Action
 
 **调用与角色边界**：
 
@@ -354,11 +360,15 @@ python3 -m unittest tests/test_architecture_design_workflow_runner.py
 
 **做什么**：这是 `architecture-design-workflow` 的独立 sibling skill，用于把已经交付、兼容且仍为 current 的 `ARCH-APPROVAL-PACKET` 映射到一个已明确指定的既有 Multica Issue。它不改变 core 状态机，也不使 Multica 成为 core 的安装或触发依赖：只安装 core 时，standalone profile 仍可工作；adapter 只有在已提供 compatible packet、既有 workspace/Issue 以及当前任务明确要求 Issue delivery 时才触发。
 
-**审核材料**：adapter 评论只展示 packet/design/review 版本、真实 Review conclusion、Architecture Team recommendation 及中文理由/条件/风险、待确认项和四个合法决定 token。完整 `ARCH-DESIGN`、`ARCH-REVIEW`、`ARCH-APPROVAL-PACKET` 必须从评论附件逐一打开；附件冻结的 Markdown 原始字节及 SHA-256 才是权威材料。
+**审核材料**：adapter 评论展示 Design 版本/maturity、简短 Reviewer conclusion/findings、Architecture Team recommendation 及中文理由/风险、一个 current Action 和四种决定后果，并且恰好附带一份 canonical Design Markdown。无需人工打开 Review、Packet、Control 或 Research；它们通过 `architecture_internal_evidence_v1` 回读。PDF、Archify HTML 与 receipt-bound preview 均为 `derived_non_authoritative` supporting resources。
+
+**Archify 角色最小化**：四个 Archify 目标 Agent 是 Architecture Team 的 Solution Architect（author）、Architecture Reviewer（review-only），以及 R&D Team 的 Product & Spec Engineer（conditional author）、Solution Review Architect（review-only）。其他 Lead/Analyst/Development/Code Review/QA/Integration/Watchdog 默认不绑定。required visual 的 `deliver=passed`、`browser_evidence=passed`、`visual_review=passed` 和 semantic findings closed 任一不满足都 fail closed。
+
+仓库内可复用配置源见 [unidocs-rag Architecture/R&D Team profile](multica-architecture-approval-adapter/deployment-profiles/unidocs-rag-architecture-rd-teams.yaml)。它记录 `allen@qq.com` / `unidocs-rag` 的 Team/Agent 名称、四个目标 Agent 的 author/review-only 指令、非目标 Agent、版本/digest 和 conflict-fail + additive 重新导入顺序；文件不含凭据，也不会自行写入真实 workspace。
 
 **安全边界**：adapter 从 current mandate 自动派生 immutable `architecture_operation_manifest_v1`，冻结目标、输入/输出 digest、ordered writes、postconditions、retained objects 与 retry/supersession。任一事实不确定时输出 unavailable evidence 并保留对象；不猜测、不删除、不编辑历史，也不要求用户批准内部操作。Recommendation、Review conclusion、metadata、reaction、Issue status 和 Agent/system 评论均不构成人工批准。
 
-**激活不是普通 Issue delivery 的副作用**：只有用户明确要求“实施并激活”或等价任务时才建立 activation mandate，对指定既有 workspace/Agent 自动执行 conflict-safe import、additive binding 和 readback；不再拆分 activation/conflict authorization。缺失资源、overwrite/delete、Runtime 配置或范围扩大仍停止并要求新的任务指令。详见 [activation runbook](multica-architecture-approval-adapter/references/activation-runbook.md) 与 [sandbox acceptance checklist](multica-architecture-approval-adapter/references/sandbox-acceptance-checklist.md)。
+**激活不是普通 Issue delivery 的副作用**：只有用户明确要求“实施并激活”或等价任务时才建立 activation mandate，对指定既有 workspace/Agent 执行 conflict-fail import、additive binding 和逐 Agent readback。仓库安装不修改真实用户 home；可在隔离临时 HOME 验证 Claude/Codex 链接 bytes。旧三附件 attempt 只读，兼容 pair 和 Archify binding 只对新 attempt 生效。详见 [activation runbook](multica-architecture-approval-adapter/references/activation-runbook.md)、[Archify Agent bindings](multica-architecture-approval-adapter/references/archify-agent-bindings.md) 与 [sandbox acceptance checklist](multica-architecture-approval-adapter/references/sandbox-acceptance-checklist.md)。
 
 ### 1. parall-new-proposal
 

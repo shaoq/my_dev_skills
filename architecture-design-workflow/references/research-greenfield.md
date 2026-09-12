@@ -1,5 +1,7 @@
 # Greenfield research
 
+Research output belongs to `architecture_internal_evidence_v1`; only conclusions necessary to understand the Design are synthesized into `ARCH-DESIGN-vN.md`. Do not publish progress as ordinary human comments.
+
 用于没有现有实现基线的新系统。
 
 ## Evidence minimum

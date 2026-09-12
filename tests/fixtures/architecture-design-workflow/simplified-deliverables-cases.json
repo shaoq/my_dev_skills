@@ -1,0 +1,39 @@
+{
+  "contract_pair": {
+    "human_surface_contract": "human_review_surface_v1",
+    "internal_evidence_contract": "architecture_internal_evidence_v1"
+  },
+  "maturity_cases": [
+    {"maturity": "directional", "decision": "approved_for_spec", "expected": "fail_closed"},
+    {"maturity": "directional", "decision": "approved_design_only", "expected": "allowed"},
+    {"maturity": "spec_ready", "decision": "approved_for_spec", "expected": "openspec_handoff"},
+    {"maturity": "implementation_ready", "decision": "approved_for_spec", "expected": "implementation_guidance"}
+  ],
+  "impact_cases": [
+    {"case_id": "wording-only", "classification": "no_architecture_impact", "new_design": false, "supersede_action": false},
+    {"case_id": "boundary-change", "classification": "architecture_impact", "new_design": true, "supersede_action": true},
+    {"case_id": "unknown-impact", "classification": "architecture_impact", "new_design": true, "supersede_action": true}
+  ],
+  "visual_cases": [
+    {"case_id": "all-passed", "deliver": "passed", "browser_evidence": "passed", "visual_review": "passed", "semantic_findings": "closed", "preview": "light/1440x900", "expected": "review_ready"},
+    {"case_id": "browser-failed", "deliver": "passed", "browser_evidence": "failed", "visual_review": "passed", "semantic_findings": "closed", "preview": "light/1440x900", "expected": "fail_closed"},
+    {"case_id": "browser-skipped", "deliver": "passed", "browser_evidence": "skipped", "visual_review": "passed", "semantic_findings": "closed", "preview": "light/1440x900", "expected": "fail_closed"},
+    {"case_id": "review-failed", "deliver": "passed", "browser_evidence": "passed", "visual_review": "failed", "semantic_findings": "closed", "preview": "light/1440x900", "expected": "fail_closed"},
+    {"case_id": "review-skipped", "deliver": "passed", "browser_evidence": "passed", "visual_review": "skipped", "semantic_findings": "closed", "preview": "light/1440x900", "expected": "fail_closed"},
+    {"case_id": "semantic-open", "deliver": "passed", "browser_evidence": "passed", "visual_review": "passed", "semantic_findings": "open", "preview": "light/1440x900", "expected": "fail_closed"},
+    {"case_id": "stale-preview", "deliver": "passed", "browser_evidence": "passed", "visual_review": "passed", "semantic_findings": "closed", "preview": "stale-digest", "expected": "fail_closed"},
+    {"case_id": "not-applicable", "deliver": "not_applicable", "browser_evidence": "not_applicable", "visual_review": "not_applicable", "semantic_findings": "not_applicable", "preview": "none", "expected": "diagram_not_applicable"}
+  ],
+  "legacy_attempt": {
+    "bundle_contract": "multica_human_action_material_bundle_v1",
+    "attachment_count": 3,
+    "reader": "frozen_legacy_only",
+    "writer": "must_not_reinterpret_as_v2"
+  },
+  "rnd_cases": {
+    "reuse_approved_visual": {"approved_diagram_ref": "diagram:architecture-overview:v3", "new_visual": "none", "expected": "reuse"},
+    "implementation_delta": {"approved_diagram_ref": "diagram:architecture-overview:v3", "new_visual": "one_scope_local", "expected": "allowed"},
+    "architecture_boundary_change": {"classification": "architecture_impact", "expected": "return_to_architecture_team"},
+    "internal_handoff": {"presentation_diagram": false, "human_comment": false, "expected": "internal_evidence_only"}
+  }
+}

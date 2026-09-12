@@ -6,6 +6,10 @@
 
 <用一个自然段说明问题、推荐架构、主要价值和当前限制；不复制完整设计正文。>
 
+- Design maturity：`directional|spec_ready|implementation_ready`
+- Reviewer conclusion / concise findings：
+- Key risks / accepted warnings：
+
 ## 简化架构图
 
 ```text
@@ -63,13 +67,15 @@
 
 ## 完整材料入口
 
-- Stable human-accessible evidence refs：
+- 唯一 mandatory human artifact：canonical `ARCH-DESIGN-vN.md`
+- Stable human-accessible evidence refs：Design only
+- Stable human-accessible Design ref：
 
-| Material identity / version | Human-facing entry | Requested client scopes | Access status by scope (`opened|unavailable|not_run`) | Verifier / verification time | Evidence ref / closure condition |
+| Material identity / version | Human-facing entry | Requested client scopes | Access status by scope (`opened|manual_check_required|unavailable|not_run`) | Verifier / verification time | Evidence ref / closure condition |
 |---|---|---|---|---|---|
 | Design |  |  |  |  |  |
-| Research |  |  |  |  |  |
-| Control |  |  |  |  |  |
+
+完整 Review、Packet、Research、Control、digests、continuation 和 readback 属于 `architecture_internal_evidence_v1`，不要求当前读者打开。required visual 的 light/1440x900 preview 从同一 Design surface 提供，不增加第二个 mandatory entry。
 
 - Target-human access confirmation：`confirmed|unconfirmed|none`
 - Missing evidence / Owner / closure condition：
@@ -90,7 +96,7 @@ ACTION <action_id>: <type-specific exact response>
 ACTION <action_id>: 材料打不开
 ```
 
-`design_input|architecture_review` 的具名 Action 回复使用 `current_action_reference_v1`：准确 Owner 可以在当前 work item 的最新交互位置提交，不需要寻找本评论或理解平台 parent/thread。系统从 current request 继承 Action version/digest；回复仍只能包含一个准确 Action ID 和一个合法决定。`architecture_approval` 继续使用 packet-bound token/explicit identity 规则。
+所有新 writer 的具名 Action 回复使用 `current_action_reference_v1`：准确 Owner 可以在当前 work item 的最新交互位置提交，不需要寻找本评论、复制 packet digest 或理解平台 parent/thread。系统从 current request 继承 Action version、Design/Review/manifest snapshot；回复仍只能包含一个准确 Action ID 和一个合法决定。旧 packet-bound token/explicit identity 规则仅用于 frozen legacy reader。
 
 ## Authority boundary
 

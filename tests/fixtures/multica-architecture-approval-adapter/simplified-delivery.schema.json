@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["current_writer", "access_modes", "visual_activation_cases", "internal_events_without_issue_comment", "archify_bindings", "unbound_agents", "activation"],
+  "properties": {
+    "current_writer": {
+      "type": "object",
+      "required": ["bundle_contract", "canonical_attachments", "forbidden_attachments", "supporting_resources", "supporting_authority"],
+      "properties": {
+        "bundle_contract": {"const": "multica_human_action_material_bundle_v2"},
+        "canonical_attachments": {"const": ["design"]},
+        "forbidden_attachments": {"const": ["review", "packet", "control", "research"]},
+        "supporting_authority": {"const": "derived_non_authoritative"}
+      }
+    },
+    "visual_activation_cases": {"type": "array", "minItems": 4},
+    "archify_bindings": {"type": "array", "minItems": 4, "maxItems": 4},
+    "activation": {
+      "type": "object",
+      "required": ["workspace_write", "import_mode", "binding_mode", "new_attempts_only", "partial_binding_failure", "non_target_binding"],
+      "properties": {
+        "workspace_write": {"const": "requires_explicit_authorization"},
+        "import_mode": {"const": "conflict_fail"},
+        "binding_mode": {"const": "additive"},
+        "new_attempts_only": {"const": true},
+        "partial_binding_failure": {"const": "retain_and_report_not_active"},
+        "non_target_binding": {"const": "forbidden"}
+      }
+    }
+  }
+}

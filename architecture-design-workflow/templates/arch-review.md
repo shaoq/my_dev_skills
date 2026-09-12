@@ -20,6 +20,17 @@
 | ID | Severity | Evidence | Impact | Recommendation | Owner | Closure condition | Design section |
 |---|---|---|---|---|---|---|---|
 
+方案内容发生变化时必须由新 Design 版本关闭；不得在 Review 中复制或补写替代方案正文。
+
+## Visual findings
+
+| diagram_id | node ID / edge ID / message ID / state ID | Evidence | Semantic/visual impact | Owner | Closure condition | Status |
+|---|---|---|---|---|---|---|
+|  |  |  |  |  |  | `open|closed` |
+
+- Current visual receipt/digest readback：
+- `visual_review=passed|failed|skipped`
+
 ## Accepted non-blocking risks
 
 | Risk ID | Condition / review point | Acceptance evidence | Decision Owner / authority scope | Human Action Request ref / status |

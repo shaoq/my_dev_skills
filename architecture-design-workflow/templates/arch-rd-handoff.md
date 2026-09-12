@@ -6,12 +6,14 @@
 - Owner：
 - Status：
 - Approved `ARCH-DESIGN`：
+- Design maturity：`spec_ready|implementation_ready`
 - `ARCH-REVIEW`：
 - Approval packet ref / version / digest：
 - Design / review digests：
 - Readiness evidence ref：
 - ADR / detailed design：
 - Human decision / evidence ref：
+- Approved visual diagram IDs / refs / digests：
 - Approved bytes re-verification：
 - `AUTHORIZATION_STATE=approved_for_spec`
 
@@ -55,4 +57,4 @@
 
 ## Next action
 
-目标 R&D Team 独立开展需求分析并决定 OpenSpec proposal；本 handoff 不表示任何 proposal、Issue、branch 或代码已经创建。
+目标 R&D Team 独立开展需求分析并决定 OpenSpec proposal；优先复用批准图，只有实现级细节缺失时创建 scope-local delta visual。本 handoff 不表示任何 proposal、Issue、branch 或代码已经创建。若实现发现架构影响，记录 `architecture_design_impact_v1` 并返回 Architecture Team。完整 handoff/readback 属于内部 evidence，人类时间线最多一次终态摘要。

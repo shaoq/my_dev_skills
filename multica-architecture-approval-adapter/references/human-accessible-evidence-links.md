@@ -19,7 +19,7 @@ For exact comment-backed materials, construct:
 - `comment_id` is the exact artifact comment ID read back from Multica and encoded as a URL fragment component.
 - The rendered fragment shape is `comment-<comment-id>`; `<comment-id>` denotes the encoded value of `comment_id`, not a second identity.
 
-Render the value as an actual Markdown anchor such as `[ARCH-RESEARCH v1](<verified-url>)`, not backticked or plain text.
+Render the value as an actual Markdown anchor such as `[ARCH-DESIGN v1](<verified-url>)`, not backticked or plain text. Review、Packet、Control 和 Research 使用内部 durable refs，不需要人类链接。
 
 ## Stable attachment entries
 
@@ -29,7 +29,7 @@ The stable identity may still be derived from `markdown_url` or the documented a
 
 ## Post-publication client verification
 
-For each material and requested scope:
+For the one canonical Design and its required preview in each requested scope:
 
 1. verify the attachment card or anchor exists and is clickable; an anchor has a non-empty expected `href`;
 2. perform actual UI activation on that exact card or anchor in the requested human client;
@@ -38,15 +38,19 @@ For each material and requested scope:
 5. separately, for canonical Markdown, re-download and match the raw-byte digest; and
 6. record actual scope, verifier and RFC3339 UTC time.
 
-Record each requested `web|mobile` scope independently as `opened|unavailable|not_run`. Existing protocol fields may name desktop Web as `desktop`; it is the `web` scope, not evidence for mobile. Web success MUST NOT imply mobile success. Agent HTTP, CLI, a raw-byte fetch, HTTP 200, matching digest, a Chrome download, or a saved local file MUST NOT imply either human client result. In particular, downloaded files may carry host provenance/quarantine metadata and may be inaccessible from another device even when the bytes are correct.
+Record each requested `web|mobile` scope independently as `opened|manual_check_required|unavailable|not_run`. Existing protocol fields may name desktop Web as `desktop`; it is the `web` scope, not evidence for mobile. Web success MUST NOT imply mobile success. Agent HTTP, CLI, a raw-byte fetch, HTTP 200, matching digest, a Chrome download, or a saved local file MUST NOT imply either human client result. In particular, downloaded files may carry host provenance/quarantine metadata and may be inaccessible from another device even when the bytes are correct.
 
 If any required artifact lacks a preview action or the actual activation downloads instead of rendering, the Adapter MUST NOT enter `in_review`. Keep the workflow in `in_progress` while an automatic recovery remains, or use `blocked` only when no Agent or human execution path exists; record the observable closing condition.
 
 ## Explicit owner-manual verification
 
-The strict rule above is the default `access_verification_mode=automatic`. For `design_input|architecture_review` only, the Adapter MAY use `access_verification_mode=owner_manual` when the unique Decision Owner has explicitly chosen to inspect the materials in their own web/mobile client and that policy evidence is current. Formal packet `architecture_approval` remains automatic.
+The strict rule above is the default `access_verification_mode=automatic`. For `design_input|architecture_review`, the Adapter MAY use `access_verification_mode=owner_manual` when the unique Decision Owner has explicitly chosen to inspect the materials in their own web/mobile client and that policy evidence is current. For formal packet `architecture_approval`, the Adapter MAY use `access_verification_mode=owner_attested` only after automatic rendering is unavailable and exact attachment identity/digest, clickable stable same-Issue entries, unique Owner, current named Action and `multica_issue_task_evidence_v1` request/task/projection/Control readbacks all verify.
+
+The portable projection is `owner_attested -> owner_manual`. `owner_attested` is a Multica evidence profile that tightens the portable manual-inspection path with platform task, current Action and final Owner-attestation checks; the core artifact MUST retain `owner_manual` and MUST NOT depend on Multica vocabulary.
 
 Before this mode MAY enter `in_review`, the Adapter still verifies the exact attachment identity, media type, size and raw-byte digest, the current Decision Brief, and a stable same-Issue entry bound to that attachment/comment. Each requested scope is recorded as `manual_check_required`, never `opened`; the card identifies the Owner and policy evidence. An unauthenticated Agent browser is not a hard blocker in this explicit mode.
+
+For `owner_attested`, the request MUST show `ACTION <action-id>: materials_opened; decision=<legal-token>` and the material-unavailable reply. Only the exact canonical Member's current Action reply can attest access; a bare token, `OK`, Agent claim, download result or Issue status cannot. Missing `materials_opened` leaves the candidate non-binding and the Issue in review.
 
 The card tells the Owner to open the materials before choosing and provides `ACTION <action-id>: 材料打不开`. That response records no content decision and starts automatic repair or republication. Identity/digest mismatch, a missing stable entry, ambiguous Owner, or absent policy evidence still closes as unavailable.
 

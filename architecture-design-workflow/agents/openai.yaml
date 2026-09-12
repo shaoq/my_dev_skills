@@ -1,4 +1,4 @@
 interface:
   display_name: "Architecture Design Workflow"
   short_description: "Govern reviewable architecture decisions and handoff"
-  default_prompt: "Use $architecture-design-workflow to govern architecture design from intake through a standalone architecture design, Architecture Decision Brief, portable approval packet verification, human decision, publication, and handoff."
+  default_prompt: "Use $architecture-design-workflow to produce one standalone architecture design as the human canonical artifact, render a concise Architecture Decision Brief, keep Review/packet/control/handoffs as internal evidence, enforce Design maturity and Archify visual gates, then govern the current Action, publication, and R&D handoff."

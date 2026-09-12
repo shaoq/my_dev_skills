@@ -13,10 +13,10 @@ description: "Use to project a current portable architecture workflow mandate an
 
 ## Trigger routes
 
-1. **A0 — Decision Brief material route**：current portable action 绑定完整 standalone Design、Research、Control、唯一 Decision Owner，且 current mandate 允许在准确既有 Issue 内完成准备、交付、可访问性验证和状态投影。
-2. **A — packet delivery route**：current compatible delivered `ARCH-APPROVAL-PACKET vN`、准确 Design/Review 和 current mandate 均存在，目标 workspace/Issue/member 唯一。
+1. **A0 — Decision Brief material route**：current portable action 绑定完整 standalone Design、内部 Research/Control evidence、唯一 Decision Owner，且 current mandate 允许在准确既有 Issue 内完成准备、交付、可访问性验证和状态投影。
+2. **A — packet delivery route**：current compatible machine-only `ARCH-APPROVAL-PACKET vN`、准确 Design/Review 和 current mandate 均存在，目标 workspace/Issue/member 唯一。
 3. **B — decision consumption route**：current Human Action Request 或 packet readiness、target-human binding 和 exact Review reply 可重读；具名 `current_action_reference_v1` 可来自同一 Issue 最新位置，packet token-only 路径保留原绑定。读取本身无平台写入；current Action task/control evidence、packet decision sidecar 和 `in_progress` projection 作为 current mandate 内的自动操作。
-4. **C — execution continuation route**：current portable `execution_continuation_v2` 的 actor/authority/responsibility 可唯一映射到现有 Agent，且 mandate 允许在同一 Issue 内自动发布一次独立 handoff、触发并回读下一 task。
+4. **C — execution continuation route**：current portable `execution_continuation_v2` 的 actor/authority/responsibility 可唯一映射到现有 Agent，且 mandate 允许在内部 task evidence 中触发并回读下一 task；不得生成 dedicated Agent handoff comment。
 5. **D — actionable blocker route**：current portable `architecture_blocker_action_v3` 可将 instruction owner 唯一映射到既有 Member，并将 resume/discovery actor 与 responsibility 唯一映射到既有 Agent；按 [actionable blocker projection and reply](references/actionable-blocker-projection-and-reply.md)执行 discovery-first、投影一个普通业务问题与首屏推荐、严格消费 canonical `provide_input|request_discovery`、对单一明确但格式无效的回复至多纠错一次、恢复 task 或 blocked rollback。
 
 任一路由的 identity、digest、Owner、stage、attempt 或 target 不唯一时 fail closed。不得从 Issue status、最近评论、显示名、Agent recommendation、旧 authorization token 或模糊肯定构造 core state。
@@ -30,7 +30,7 @@ action_type=design_input|architecture_review|architecture_approval
 requires_human_review=true
 ```
 
-方案 Review 评论必须使用 [Multica Human Action Request template](templates/multica-human-action-request.md)，首行以 canonical member UUID 渲染 `[@<display-name>](mention://member/<member-id>)`。首屏按固定顺序呈现：方案摘要、简化架构图、Architecture recommendation/理由/置信度、已确定/未确定、关键备选后果、当前读者唯一决定、回复后行为、完整 Design/Research/Control（以及 gate 所需 Review/Packet）入口、准确回复与最小审计绑定。完整设计作为 canonical Markdown attachment，不复制正文。
+方案 Review 评论必须使用 [Multica Human Action Request template](templates/multica-human-action-request.md)，首行以 canonical member UUID 渲染 `[@<display-name>](mention://member/<member-id>)`。它消费 `human_review_surface_v1`，首屏按固定顺序呈现：方案摘要、Design maturity、简短 Review、关键风险、Architecture recommendation/理由/置信度、关键备选后果、当前读者唯一决定、回复后行为、一份 Design 入口、准确回复与最小审计绑定。评论必须附带恰好一份 canonical Design Markdown attachment。Research、Control、完整 Review、Packet 和执行记录写入 `architecture_internal_evidence_v1`，不复制正文或作为必读附件。
 
 preparation、delivery、attachment/access verification、task-result、status projection、relay、retry、sidecar、reconciliation、execution handoff 和 postcondition check 的 `requires_human_review` 必须为 `false`。它们在 current mandate 内自动执行，不发布或等待 `AUTHORIZE OPERATION`、relay authorization、access confirmation 或逐状态授权。
 
@@ -50,15 +50,16 @@ manifest 完全匹配后立即自动单次消费；它是 machine audit evidence
 current mandate 和 manifest 可以覆盖：
 
 - 只读 capability/identity/preflight、材料准备与 raw-byte validation；
-- 一条 Decision Brief comment 与其准确 attachments；
-- desktop/mobile 的 actual UI activation、browser-rendered preview、identity/complete-content evidence 或明确 evidence gap；raw-byte fetch、HTTP 200 与 `download-only` 不计为 opened；对于有显式 Owner policy 的 `design_input|architecture_review`，可投影 `access_verification_mode=owner_manual` 与逐 scope `manual_check_required`，但不得声称 `opened`；
+- 一条 Decision Brief comment 与恰好一份 canonical Design Markdown attachment；
+- desktop/mobile 的 actual UI activation、browser-rendered preview、identity/complete-content evidence 或明确 evidence gap；raw-byte fetch、HTTP 200 与 `download-only` 不计为 opened；对于有显式 Owner policy 的 `design_input|architecture_review`，可投影 `access_verification_mode=owner_manual`；正式 `architecture_approval` 在 automatic 不可用时可投影 `access_verification_mode=owner_attested`。两种人工检查模式都逐 scope 记录 `manual_check_required`，但不得声称 `opened`；
+- portable projection 固定为 `owner_attested -> owner_manual`：前者是 Multica 对正式 packet 增加 task/Action/attestation 约束的平台 profile，后者是 core 已有的平台无关语义；不得把 `owner_attested` 写入 core artifact；
 - platform-managed task-result evidence；
 - `multica issue status <issue> in_progress --no-start` 与 `in_review --no-start` 的准确投影和 readback；
 - packet route 的既有 `arch.packet.current` bounded projection；
 - 已确认既有 shared scope 中的 no-clobber evidence sidecar；
 - bounded reconciliation/retry 和旧 request supersession；
 - 有效 current Review 回复的读取、sidecar 和后续处理启动。
-- 按 [execution handoff and task readback](references/execution-handoff-and-task-readback.md)发布一个独立的 `multica_execution_handoff_v1`、精确 mention 下一 Agent，并回读准确 task ID/status。
+- 按 [execution handoff and task readback](references/execution-handoff-and-task-readback.md)在 `architecture_internal_evidence_v1` 中生成 `multica_execution_handoff_v2`、触发准确下一 Agent，并回读准确 task ID/status；不得生成 dedicated Agent handoff comment。
 - 按 [actionable blocker projection and reply](references/actionable-blocker-projection-and-reply.md)先自动 discovery，再投影必要的 `blocked`、发布唯一 instruction-owner 的 decision-ready blocker comment、消费准确 `provide_input|request_discovery`；单一明确但格式无效的回复只可触发一次状态不变纠错，task 接收后才恢复 `in_progress`。
 
 禁止：创建 workspace/Project/Team/Agent/Issue/Skill/shared scope，跨 Issue/workspace 写入，私有 API，overwrite/delete/edit 历史对象，replace-all binding，业务实现、部署、采购或未列入 manifest 的写入。范围扩大时停止并说明需要新的任务指令，不生成 operational token。
@@ -68,7 +69,7 @@ current mandate 和 manifest 可以覆盖：
 Issue status 只是 portable intent 的平台投影：
 
 - Agent 准备、交付、自动验证、retry 或处理有效回复，且当前 task 尚未结束：`in_progress`；
-- current Decision Brief/完整材料/mention/access postconditions 成功，且 `requires_human_review=true`：自动 `in_review --no-start`；其中 `automatic` 要求 requested scopes=`opened`，显式 `owner_manual` 要求准确 attachment identity/digest、stable same-Issue entry、唯一 Owner 与 policy evidence，并记录 `manual_check_required`；
+- current Decision Brief/完整材料/mention/access postconditions 成功，且 `requires_human_review=true`：自动 `in_review --no-start`；其中 `automatic` 要求 requested scopes=`opened`，显式 `owner_manual` 要求准确 attachment identity/digest、stable same-Issue entry、唯一 Owner 与 policy evidence；正式 packet 的 `owner_attested` 还要求 current named Action 与 `multica_issue_task_evidence_v1` request/task/metadata/Control 回读。两种人工模式均记录 `manual_check_required`；
 - discovery-first 没有唯一 verified binding 且 current actionable blocker 已向唯一 instruction owner 交付：自动 `blocked --no-start`；该动作 `requires_human_review=false`，不是方案审核；
 - 唯一 Owner 的具名 current Action 回复通过 actor/work item/Action ID/继承的 version-digest/created-after-request/revision/supersession/task attribution 后：自动 `in_progress --no-start`，再处理决定；其 Multica parent/thread 只作审计；
 - 非 Review 步骤成功：自动进入下一合法 stage；当前 task 若将结束，必须先由独立 handoff 回读下一 task 为 `queued|running`，或证明其 `waiting_local_directory` 仅等待当前前序 task 持有的同一 `in_place` 目录锁；否则不得保留 `in_progress + WAIT_REASON=none`；
@@ -79,7 +80,7 @@ Issue status 只是 portable intent 的平台投影：
 
 ## Route A0 — material delivery
 
-1. 验证 current mandate、single action/Owner/scope、standalone Design/Research/Control identities 和 target member；Owner 不唯一时停止并请求新的任务指令。
+1. 验证 current mandate、single action/Owner/scope、standalone Design、内部 Research/Control identities 和 target member；Owner 不唯一时停止并请求新的任务指令。
 2. 自动生成 manifest；必要时先投影 `in_progress --no-start` 并 read back。
 3. 读取 [human action material bundle](references/human-action-material-bundle.md)与 [human-accessible evidence links](references/human-accessible-evidence-links.md)，执行一次 comment+attachments write。
 4. 重读 exact comment/parent/author/mention/attachments并重算 raw-byte digests。`automatic` 分别在 desktop/mobile 执行 actual UI activation；已知 Markdown attachment link 必须打开 browser-rendered preview并呈现完整正文。仅当唯一 Owner 已明确选择自行检查时，`design_input|architecture_review` 可用 `owner_manual`：验证 stable same-Issue entry 后把 requested scopes 记为 `manual_check_required`，不伪造客户端打开证据。
@@ -91,22 +92,24 @@ Issue status 只是 portable intent 的平台投影：
 1. 按 [core compatibility](references/core-contract-compatibility.md) 验证 current delivered packet、Design/Review raw bytes 和 package aggregate。
 2. 按 [target human mapping](references/target-human-mapping.md) 唯一解析 current member；禁止显示名、邮箱、assignee 或最近作者推断。
 3. 自动派生 manifest 并执行 [capability preflight](references/capability-preflight-and-write-authorization.md) 的只读 fence。
-4. 按 [delivery mapping](references/delivery-mapping-and-marker.md) 创建或 reconciliation 复用唯一 canonical packet comment；验证三份 attachments。
+4. 按 [delivery mapping](references/delivery-mapping-and-marker.md) 创建或 reconciliation 复用唯一 canonical approval comment；验证一份 Design attachment 和内部 Review/manifest evidence。
 5. 按 [reconciliation and readiness](references/reconciliation-projection-and-readiness.md) 执行 bounded projection、final scan 和 no-clobber readiness sidecar。
 6. current approval brief 成功交付后自动进入 `in_review`；readiness/recommendation/status 都不构成人工批准。
+
+当 automatic client rendering 无法建立、但唯一 Owner、准确单评论单 Design attachment、raw-byte digest、stable same-Issue entry、current named Action、内部 Review/manifest、`arch.packet.current` 和 platform task/`ARCH-CONTROL` evidence 均可回读时，Route A 可使用 `owner_attested`。它以 `multica_issue_task_evidence_v1` 产生 `review_packet_ready`，所有 requested scopes 保持 `manual_check_required`；Owner 只有提交 `ACTION <action-id>: materials_opened; decision=<legal-token>` 才能形成内容决定。`ACTION <action-id>: 材料打不开` 只触发入口修复。
 
 ## Route B — decision consumption
 
 1. 具名 Action route 重读 current Human Action Request/material readiness/target-human binding；packet route 重读 current readiness sidecar、packet comment/attachments 与 mapping；两者都按 ID 重读 exact decision comment。
 2. 按 [human decision binding](references/human-decision-binding.md) 选择 `current_action_reference_v1` 或 packet profile，验证 actor、work item、Action/packet identity、revision、digest 与 supersession；不得用 parent 修复错误 Action，也不得用 Action ID 绕过 token-only packet binding。
-3. `design_input|architecture_review` 把 decision evidence 写入 manifest-bound platform task/ARCH-CONTROL 并回读；正式 packet approval 继续使用既有 shared-scope no-clobber sidecar。证据通过后恢复 `in_progress` 处理 portable decision。
+3. `design_input|architecture_review` 把 decision evidence 写入 manifest-bound platform task/ARCH-CONTROL 并回读；正式 packet 的 automatic profile 可继续使用既有 shared-scope no-clobber sidecar，`owner_attested` 则使用具名 `current_action_reference_v1` 与 manifest-bound `multica_issue_task_evidence_v1`。证据通过后恢复 `in_progress` 处理 portable decision。
 4. 具名 Action 的错误/重复/过期 identity、edited、wrong actor、非法 mention/附加正文，以及 packet route 的 token+prose、wrong parent/旧 packet/mapping drift，只保留审计，不改变 gate/status。
 
 ## Route C — execution continuation
 
 1. 读取 core [execution continuation](../architecture-design-workflow/references/execution-continuation.md)，确认 work item/stage/attempt、next actor/authority/responsibility、action、输入 refs、关闭条件和 continuation identity current 且唯一。
 2. 动态读取既有 Team member/Agent 目录，按显式 responsibility mapping 与稳定 identity 唯一映射下一执行者；不得用显示名、Team assignee、最近作者、旧部署角色或空闲状态猜测。
-3. 按 [execution handoff and task readback](references/execution-handoff-and-task-readback.md)派生 `multica_execution_handoff_v1`。handoff 必须是独立评论；不得在普通 `ARCH-CONTROL` 中嵌入可触发的下一成员或 self mention。
+3. 按 [execution handoff and task readback](references/execution-handoff-and-task-readback.md)派生 `multica_execution_handoff_v2`，仅写入 internal task evidence；不得生成 dedicated Agent handoff comment，也不得在普通 `ARCH-CONTROL` 中嵌入可触发的下一成员或 self mention。
 4. 写入后按准确 Issue、Agent、handoff ID 和 attempt 回读 task。`queued` 或满足 runtime online、准确 attribution、current `predecessor_task_id` 和同一 `in_place` 目录锁证据的 `waiting_local_directory` 映射为 `accepted`；`running` 映射为 `active`。其他状态不得允许当前 task 完成。
 5. 重复 handoff 回读既有 consumption/task 后 reconciliation no-op；未入队、目标漂移或 evidence 不可重读时失败关闭，不重复触发、不伪造执行者。
 
@@ -119,11 +122,19 @@ Issue status 只是 portable intent 的平台投影：
 5. canonical 消费失败时，只对准确 Owner、同一 Issue、created-after、未编辑、single current blocker 且意图唯一的文本标记 `reply_correction_candidate_v1`；按 `action_id + request_revision` 最多一次发布 `reply_correction_v1`，绑定 invalid comment ref/revision/raw digest，给出唯一完整 canonical Action。纠错不消费、不 mention Agent、不触发 task、不改变 blocked/awaiting_input 或任何 gate；其他无效回复静默 no-op。
 6. task 未入队、authority 越界、correction capacity/readback 失败或 mapping/readback 漂移时 blocked rollback；保留历史对象，new attempt supersede 旧 action，不留下 orphaned in_progress，不请求 operational authorization。
 
+## Visual companion and Agent bindings
+
+required visual 必须绑定 current `architecture_visual_manifest_v1`、Typed JSON/HTML digests、成功 deliver receipt、`browser_evidence=passed`、`visual_review=passed`、closed semantic findings 和同一 receipt 的 light/1440x900 preview digest。preview 作为 `derived_non_authoritative` supporting resource 从同一 Design surface 投影；HTML 不成为 mandatory human entry。任何 failed/skipped/stale/mismatch 或 requested-client 不可读都使 readiness unavailable，但不改变 Review conclusion。
+
+需要激活 Archify 时读取 [Archify Agent bindings](references/archify-agent-bindings.md)。只对 Solution Architect、Architecture Reviewer、Product & Spec Engineer、Solution Review Architect 做 additive binding；author 与 review-only 指令必须逐 Agent 回读，其他 Agent 默认不绑定。
+
 ## Failure, retry, and legacy migration
 
 失败时不编辑、删除、relabel、append 或覆盖已创建对象。仍有确定性恢复路径且未耗尽上限时，自动生成 new attempt/new manifest 并把 retained set 和 supersedes 冻结进去；同一 current identity 不得重复 delivery。没有可执行路径时才投影 `blocked` 并给出自然语言恢复条件。
 
 [Operational authorization protocol](references/operational-authorization.md) 与 [legacy template](templates/multica-operational-authorization.md) 仅用于解析历史审计记录。新契约不得生成、relay 或消费 `multica_operational_scope_v1` / `AUTHORIZE OPERATION`。激活后，未消费的 delivery/retry/relay/status request 保留原样并由新 manifest 的 `supersedes` 标记为 audit-only；晚到回复 no-op。
+
+历史 `multica_human_action_material_bundle_v1`、三附件 approval comment 与 `multica_execution_handoff_v1` 均只读保留；新 attempt 只写 `multica_human_action_material_bundle_v2`、双 surface 和 internal handoff，不编辑、删除或原地重解释旧对象。
 
 ## Activation boundary
 

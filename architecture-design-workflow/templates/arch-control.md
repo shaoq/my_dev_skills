@@ -12,6 +12,8 @@
 
 ## Control fields
 
+- Human surface contract：`human_review_surface_v1`
+- Internal evidence contract：`architecture_internal_evidence_v1`
 - `WAIT_REASON`：`none|design_approval|target_project|awaiting_human_confirmation`
 - Workflow mandate ref / profile：`<ref>|none` / `architecture_workflow_mandate_v2|none`
 - Workflow attempt / allowed operations / invalidation：
@@ -26,7 +28,7 @@
 - Target human / access confirmation ref：
 - `ARCHITECTURE_RECOMMENDATION`：`none|recommend_approved_for_spec|recommend_approved_design_only|recommend_revision|no_recommendation`
 - Human gate：`none|approved_design_only|approved_for_spec|revision_requested|rejected`
-- Human decision evidence：actor、packet ref/version/digest、binding profile、evidence ref、recorded_at
+- Human decision evidence：actor、current Action、inherited manifest snapshot、binding profile、evidence ref、recorded_at
 - Revision scope：`n/a|missing|provided`
 - Revision brief ref / access evidence：
 - 输入版本：
@@ -51,6 +53,8 @@
 - Supersedes：`<continuation-id>|none`
 
 当 `platform_status_intent=actor_working` 且当前 task 将结束时，Continuation state 必须为 `accepted|active` 且 Continuation evidence 可重读。Next Owner、普通控制文本或 planned 状态均不能代替已接收的下一执行任务。
+
+完整 Control、continuation 和 handoff/readback 只写入 `architecture_internal_evidence_v1`；不得生成 dedicated human handoff comment。
 
 ## Current actionable blocker
 

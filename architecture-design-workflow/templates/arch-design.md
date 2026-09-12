@@ -10,6 +10,7 @@
 - Evidence snapshot：
 - Artifact filename / encoding / raw-byte digest：`ARCH-DESIGN-vN.md` / `UTF-8` / `sha256:<64-lowercase-hex>`
 - Design readiness：`incomplete|draft_complete|decision_ready|ready_for_review`
+- Design maturity：`design_maturity=directional|spec_ready|implementation_ready`
 - Supersedes：
 
 ## Executive summary
@@ -35,6 +36,17 @@
 
 - Component/responsibility boundary：
 - Trust/ownership boundary：
+
+## Architecture visual manifest
+
+- Diagram requirement：`required|diagram_not_applicable`
+- Not-applicable rationale / Reviewer acceptance：
+
+| diagram_id | type | purpose / Design sections | source_ref / specification_sha256 | artifact_ref / artifact_sha256 | static_preview_ref / digest | receipt / capture | gates | supersedes |
+|---|---|---|---|---|---|---|---|---|
+|  | `architecture|workflow|sequence|dataflow|lifecycle` |  |  |  |  | `light` / `1440x900` | `delivery_validation=passed`; `browser_evidence=passed`; `visual_review=passed`; `semantic_findings=closed` |  |
+
+Typed JSON、HTML 和 static preview 均为 `derived_non_authoritative`。正文必须解释每张图支持的结论；required visual 任一 gate 为 `failed|skipped`、receipt/digest 不匹配或 semantic finding 未关闭时，Design 不得进入正式 Review。Architecture 总览图之外最多两张附加图。
 
 ## Components, data flow, control flow, interfaces and consistency
 
@@ -101,6 +113,12 @@
 ### Undetermined
 
 | Decision | Owner / authority scope | Architecture recommendation / confidence | Evidence that changes it | Closure condition |
+|---|---|---|---|---|
+|  |  |  |  |  |
+
+### Maturity closure
+
+| Remaining item | Owner | Evidence gap | 关闭条件 | 阻止的下游阶段 |
 |---|---|---|---|---|
 |  |  |  |  |  |
 

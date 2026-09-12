@@ -1,0 +1,70 @@
+profile: multica_architecture_rnd_teams_v1
+account: allen@qq.com
+workspace_slug: unidocs-rag
+activation:
+  requires_explicit_authorization: true
+  import_mode: conflict_fail
+  binding_mode: additive
+  applies_to: new_attempts_only
+contracts:
+  human_surface: human_review_surface_v1
+  internal_evidence: architecture_internal_evidence_v1
+  material_bundle: multica_human_action_material_bundle_v2
+archify:
+  version: "2.17"
+  repository_revision: bb71ccdd64cd3a74ba7cbd25bbacc7382da34410
+  archive_sha256: ed178d2ddd8861db1b8e867f32be7764bdec221d44568c37b6ae157c5e7f111c
+  diagram_types: [architecture, workflow, sequence, dataflow, lifecycle]
+teams:
+  - name: Architecture Team
+    agents:
+      - name: Architecture Lead
+        archify_binding: none
+      - name: Architecture Analyst
+        archify_binding: none
+      - name: Solution Architect
+        archify_binding: author
+        instruction: >-
+          Create evidence-bound Typed JSON diagrams only when they improve a Design decision;
+          run validate, deliver, and visual-check; bind the current receipt and light/1440x900 preview.
+      - name: Architecture Reviewer
+        archify_binding: review_only
+        instruction: >-
+          Inspect and validate frozen diagram evidence and report findings by stable IDs;
+          never modify source or run deliver as the author.
+  - name: R&D Team
+    agents:
+      - name: R&D Lead
+        archify_binding: none
+      - name: Product & Spec Engineer
+        archify_binding: conditional_author
+        instruction: >-
+          Reuse approved architecture diagrams first; create at most one scope-local implementation visual
+          only when the authorized OpenSpec needs details not covered upstream.
+      - name: Solution Review Architect
+        archify_binding: review_only
+        instruction: >-
+          Check proposal, design, specs, tasks and code evidence against the approved Design and frozen visuals;
+          never edit or redeliver diagram sources.
+      - name: Development Engineer
+        archify_binding: none
+      - name: Code Review Engineer
+        archify_binding: none
+      - name: QA Engineer
+        archify_binding: none
+      - name: Integration & Archive Engineer
+        archify_binding: none
+      - name: Workflow Watchdog
+        archify_binding: none
+migration:
+  legacy_attempts: frozen_read_only
+  upgrade: explicit_superseding_attempt
+  preserve_comments_attachments_packets_decisions: true
+reimport:
+  sequence:
+    - Resolve the exact existing workspace and Agent identities.
+    - Import core, adapter, and Archify with conflict-fail semantics.
+    - Add bindings only to the four named target Agents.
+    - Read back every Skill ID, digest, binding profile, and full instruction.
+    - Confirm every non-target Agent remains unbound to Archify.
+  live_write: not_run

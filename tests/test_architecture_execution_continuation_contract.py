@@ -40,12 +40,12 @@ class ArchitectureExecutionContinuationContractTest(unittest.TestCase):
         ):
             self.assertNotIn(platform_marker, text, f"portable core leaked {platform_marker}")
 
-    def test_adapter_declares_dedicated_handoff_and_task_readback(self) -> None:
+    def test_adapter_declares_internal_handoff_and_task_readback(self) -> None:
         reference = ADAPTER / "references/execution-handoff-and-task-readback.md"
         self.assertTrue(reference.is_file(), "missing Multica execution handoff contract")
         text = reference.read_text(encoding="utf-8")
         for marker in (
-            "multica_execution_handoff_v1",
+            "multica_execution_handoff_v2",
             "next_actor_ref",
             "next_actor_authority_ref",
             "next_responsibility",
@@ -57,10 +57,10 @@ class ArchitectureExecutionContinuationContractTest(unittest.TestCase):
             "active_task_status=running",
             "predecessor_task_id",
             "same in_place directory lock",
-            "dedicated handoff comment",
+            "zero ordinary Issue comments",
             "self-handoff",
             "single-consumption",
-            "ARCH-CONTROL",
+            "internal task evidence",
             "requires_human_review=false",
             "in_progress + WAIT_REASON=none",
         ):
@@ -75,7 +75,7 @@ class ArchitectureExecutionContinuationContractTest(unittest.TestCase):
                 "arch-control-self-mention",
                 "cross-member-queued",
                 "cross-member-waiting-local-directory",
-                "dedicated-self-handoff-running",
+                "internal-self-handoff-running",
                 "replayed-handoff",
             },
             set(by_id),
@@ -84,7 +84,7 @@ class ArchitectureExecutionContinuationContractTest(unittest.TestCase):
         self.assertEqual("no_trigger", by_id["arch-control-self-mention"]["expected"])
         self.assertEqual("accepted", by_id["cross-member-queued"]["expected"])
         self.assertEqual("accepted", by_id["cross-member-waiting-local-directory"]["expected"])
-        self.assertEqual("active", by_id["dedicated-self-handoff-running"]["expected"])
+        self.assertEqual("active", by_id["internal-self-handoff-running"]["expected"])
         self.assertEqual("reconciliation_noop", by_id["replayed-handoff"]["expected"])
 
     def test_existing_skill_surfaces_route_to_continuation_contracts(self) -> None:
@@ -100,9 +100,10 @@ class ArchitectureExecutionContinuationContractTest(unittest.TestCase):
                 "Continuation evidence",
             ),
             ADAPTER / "SKILL.md": (
-                "multica_execution_handoff_v1",
+                "multica_execution_handoff_v2",
                 "execution-handoff-and-task-readback.md",
                 "execution_continuation_v2",
+                "architecture_internal_evidence_v1",
             ),
             ADAPTER / "references/architecture-operation-manifest.md": (
                 "handoff_id",

@@ -27,7 +27,7 @@
   "$defs": {
     "digest": {"type": "string", "pattern": "^(none|sha256:[0-9a-f]{64})$"},
     "delivery_evidence_ref": {"type": "string", "pattern": "^(none|multica://issues/[^/]+/comments/[^#]+#adapter-delivery-evidence-v1)$"},
-    "workspace_sidecar_ref": {"type": "string", "pattern": "^(none|workspace://[^/]+/.+)$"},
+    "durable_evidence_ref": {"type": "string", "pattern": "^(none|workspace://[^/]+/.+|multica://issues/[^/]+/tasks/[^#]+#architecture-evidence-v1)$"},
     "timestamp": {"type": "string", "pattern": "^(none|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)$"},
     "packet_identity": {
       "type": "object", "additionalProperties": false,
@@ -63,7 +63,7 @@
         "state": {"enum": ["review_packet_ready"]},
         "packet_digest": {"$ref": "#/$defs/digest"},
         "delivery_evidence_ref": {"$ref": "#/$defs/delivery_evidence_ref"},
-        "evidence_ref": {"$ref": "#/$defs/workspace_sidecar_ref"},
+        "evidence_ref": {"$ref": "#/$defs/durable_evidence_ref"},
         "artifacts": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/durable_artifact"}}
       }
     },
@@ -90,7 +90,7 @@
         "state": {"enum": ["none", "review_packet_unavailable"]},
         "packet_digest": {"$ref": "#/$defs/digest"},
         "delivery_evidence_ref": {"$ref": "#/$defs/delivery_evidence_ref"},
-        "evidence_ref": {"$ref": "#/$defs/workspace_sidecar_ref"},
+        "evidence_ref": {"$ref": "#/$defs/durable_evidence_ref"},
         "artifacts": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/observed_artifact"}}
       }
     },

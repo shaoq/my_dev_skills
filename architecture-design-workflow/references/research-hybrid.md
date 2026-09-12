@@ -1,5 +1,7 @@
 # Hybrid research
 
+Research output belongs to `architecture_internal_evidence_v1`; only conclusions necessary to understand the Design are synthesized into `ARCH-DESIGN-vN.md`. Do not publish progress as ordinary human comments.
+
 用于同时修改现有系统并建设新能力的方案。
 
 先分别满足 evolution 与 greenfield 的适用证据，再补充：

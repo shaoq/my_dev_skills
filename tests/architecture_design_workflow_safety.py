@@ -34,6 +34,7 @@ required_skill_files = [
     "references/research-hybrid.md",
     "references/solution-design.md",
     "references/architecture-review.md",
+    "references/architecture-design-impact.md",
     "references/workflow-mandate-and-review-gates.md",
     "references/execution-continuation.md",
     "references/architecture-blocker-action.md",
@@ -52,6 +53,7 @@ required_skill_files = [
     "templates/adr.md",
     "templates/detailed-design.md",
     "templates/arch-rd-handoff.md",
+    "templates/architecture-internal-evidence.md",
 ]
 
 for relative in required_skill_files:

@@ -1,5 +1,7 @@
 # ARCH-RESEARCH vN
 
+> `surface=architecture_internal_evidence_v1`；本文件是 Agent research evidence，不是 mandatory human artifact。
+
 ## Identity
 
 - Issue：

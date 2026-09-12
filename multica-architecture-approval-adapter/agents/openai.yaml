@@ -1,4 +1,4 @@
 interface:
   display_name: "Multica Architecture Approval Adapter"
-  short_description: "Deliver reviewable architecture materials and approval packets"
-  default_prompt: "Use $multica-architecture-approval-adapter to consume a current architecture_workflow_mandate_v2, dual-read historical architecture_workflow_mandate_v1 as audit-only, derive architecture_operation_manifest_v1, map portable actors and responsibilities to exact existing Multica identities, automatically deliver non-review operations and actionable blockers, and pause only for a complete requires_human_review architecture decision. Never generate or consume AUTHORIZE OPERATION for current workflows."
+  short_description: "Deliver one-Design architecture review surfaces"
+  default_prompt: "Use $multica-architecture-approval-adapter to consume human_review_surface_v1 and architecture_internal_evidence_v1 under a current architecture_workflow_mandate_v2, dual-read historical architecture_workflow_mandate_v1 as audit-only, derive architecture_operation_manifest_v1, publish exactly one canonical Design attachment and one current requires_human_review Action, keep Agent handoffs internal, and fail closed on visual or compatibility drift. Never generate or consume AUTHORIZE OPERATION for current workflows."

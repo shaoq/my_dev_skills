@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`execution_continuation_v2` 证明非终结架构动作结束前，下一执行路径已有唯一 actor、职责、输入、完成条件和可回读接收证据。它不依赖 Team 拓扑、部署角色或具体平台；Next Owner、普通消息和 planned intent 都不能代替实际接收。
+`execution_continuation_v2` 证明非终结架构动作结束前，下一执行路径已有唯一 actor、职责、输入、完成条件和可回读接收证据。它写入 `architecture_internal_evidence_v1`，不依赖 Team 拓扑、部署角色或具体平台；Next Owner、普通消息和 planned intent 都不能代替实际接收，且不得生成 dedicated human handoff comment。
 
 ### v2 canonical fields
 

@@ -1,5 +1,11 @@
 # Architecture review
 
+Review 是绑定准确 Design ref/version/digest 的 version-bound findings/verdict，不是第二份方案。Reviewer 必须保持 Design 与视觉源只读，不得复制 Design 的背景、组件说明或完整权衡，也不得通过修改 Review 声称方案已修正。任何改变方案内容的 finding 都必须由作者发布新 Design 版本关闭，旧 Review 保持只读。
+
+若 Design 声明 required visual，Reviewer 逐图核验当前 receipt、evidence 和语义，以 `diagram_id` 及适用的 `node ID`、`edge ID`、`message ID`、`state ID` 定位 finding。只有 `visual_review=passed` 且阻断 semantic finding 已关闭，Review 才能给出 approvable conclusion；`failed|skipped` 均 fail closed。Reviewer 可使用 Archify `inspect`、`validate`、`check`、读取当前 `visual-check` receipt 及必要的 architecture compare，但不得编辑 Typed JSON 或重新 deliver。
+
+只改变像素表现且不改变语义、Design 引用、preview identity 或可读性结论时，按 `architecture_design_impact_v1` 可归入 `no_architecture_impact`；node/edge/message/state、边界或 evidence mapping 改变一律是 `architecture_impact`。
+
 承担 `independent_review` responsibility 的 actor 不修改 `ARCH-DESIGN`，不补写缺失证据，也不批准自己的方案。其 authority identity 必须与 current design author 分离；Review 必须绑定一个准确版本。
 
 ## Review dimensions
