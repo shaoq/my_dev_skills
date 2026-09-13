@@ -16,7 +16,7 @@ Automatic discovery remains enabled. Human gates authorize publication/handoff, 
 - Ambiguous intake additionally requires `superpowers:brainstorming`.
 - GitNexus is preferred for existing-code evidence; unavailable时记录限制并做有界调查。
 - Missing dependencies are reported; this skill never installs them or changes Runtime configuration.
-- Current compatibility pair is `human_review_surface_v1` + `architecture_internal_evidence_v1`; core uses one canonical Design Markdown、machine-only manifest、raw-byte SHA-256 and portable evidence, and remains executable without the adapter.
+- Current compatibility pair is `human_review_surface_v2` + `architecture_internal_evidence_v1`; the Issue summary obeys the default 600 Unicode code-point prose budget, detailed human material is action-bound, and core remains executable without the adapter. `human_review_surface_v1` is frozen read-only compatibility.
 - Archify is optional for `diagram_not_applicable`, but a required visual pins full repository revision/archive digest and requires `validate`、`deliver`、`visual-check` plus independent semantic/visual Review. Local Runtime availability is distinct from Multica workspace import/binding.
 - Workflow mandate、Review 分类和 action state 都是 portable fields；任何平台的 workspace、work item、actor、message、material delivery、status、URL 与 CLI 都不是 core 依赖。
 

@@ -2,7 +2,7 @@
 
 ## Scope and write boundary
 
-Apply only after compatible `human_review_surface_v1` + `architecture_internal_evidence_v1`, target-human mapping, capability preflight, mandate and manifest pass for one existing Issue. A new writer publishes one approval comment with exactly one canonical `ARCH-DESIGN-vN.md` attachment. Review、Packet、Control、Research and execution records remain internal evidence.
+Apply only after compatible `human_review_surface_v2` + `architecture_internal_evidence_v1` + `multica_human_action_material_bundle_v3`, target-human mapping, capability preflight, mandate and manifest pass for one existing Issue. A new formal-approval writer publishes one compact labeled comment with exactly one required canonical `ARCH-DESIGN-vN.md` attachment; a pre-Design writer may publish one required non-canonical detail attachment. Review、Packet、Control、Research、receipts and execution records remain internal evidence.
 
 Before delivery, hash the exact Design bytes and independently hash the internal Review and machine-only Packet. Preserve all bytes, encodings and media types. Render the comment from the portable human surface; never reconstruct Design content from Review or Packet.
 
@@ -21,10 +21,10 @@ There is exactly one comment-add write for a complete attempt. Supporting PDF/Ar
 The final line is one marker:
 
 ```text
-<!-- multica-architecture-approval-adapter:v2 action_id=<escaped-id> design_ref=<escaped-ref> design_version=vN design_digest=sha256:<64-lowercase-hex> -->
+<!-- multica-architecture-approval-adapter:v3 action_id=<escaped-id> design_ref=<escaped-ref> design_version=vN design_digest=sha256:<64-lowercase-hex> -->
 ```
 
-Fields use fixed order and canonical UTF-8 percent encoding. The parser rejects duplicate/unknown/reordered fields, malformed encoding, a mismatched Action/Design identity, stale version, changed digest or wrong adapter author. A v1 packet marker is a frozen legacy reader input and cannot satisfy a v2 writer/readiness fence.
+Fields use fixed order and canonical UTF-8 percent encoding. The parser rejects duplicate/unknown/reordered fields, malformed encoding, a mismatched Action/Design identity, stale version, changed digest or wrong adapter author. v1/v2 markers are frozen legacy reader inputs and cannot satisfy a v3 writer/readiness fence.
 
 ## Readback and stable access
 

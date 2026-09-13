@@ -1,10 +1,46 @@
 {
   "current_writer": {
-    "bundle_contract": "multica_human_action_material_bundle_v2",
+    "bundle_contract": "multica_human_action_material_bundle_v3",
     "canonical_attachments": ["design"],
     "forbidden_attachments": ["review", "packet", "control", "research"],
     "supporting_resources": ["derived_pdf", "archify_html", "light_1440x900_preview"],
     "supporting_authority": "derived_non_authoritative"
+  },
+  "human_action_rendering": {
+    "contract": "human_review_surface_v2",
+    "comment_budget_code_points": 600,
+    "budget_exclusions": ["stable_links", "attachment_filenames", "action_code_block"],
+    "comment_labels": ["【需要你确认】", "【Agent 处理中，无需回复】", "【Agent 已完成，无需确认】"],
+    "material_labels": ["【需要阅读并确认】", "【供人参考，无需单独确认】", "【Agent 内部材料，无需阅读】"]
+  },
+  "material_entries": {
+    "formal_approval": [
+      {"kind": "design", "audience": "human", "review_requirement": "required", "bound_action": "ARCH-ACT-9"},
+      {"kind": "archify_preview", "audience": "human", "review_requirement": "reference_only", "bound_action": "ARCH-ACT-9"},
+      {"kind": "archify_html", "audience": "human", "review_requirement": "reference_only", "bound_action": "ARCH-ACT-9"},
+      {"kind": "review", "audience": "agent", "review_requirement": "none", "bound_action": "none"}
+    ],
+    "pre_design_input": [
+      {"kind": "decision_detail", "audience": "human", "review_requirement": "required", "bound_action": "ARCH-ACT-IN-3", "canonical": false}
+    ]
+  },
+  "decision_failure_cases": {
+    "opened_but_not_decidable": {
+      "reply": "ACTION ARCH-ACT-9: 材料不可决策; reason=架构图未说明数据流向",
+      "material_access_state": "opened",
+      "decision_readiness_state": "unreadable",
+      "content_decision": "none",
+      "current_action": "superseded",
+      "next_state": "preparing",
+      "next_attempt": "new_action_id"
+    },
+    "cannot_open": {
+      "reply": "ACTION ARCH-ACT-9: 材料打不开",
+      "material_access_state": "unavailable",
+      "decision_readiness_state": "not_run",
+      "content_decision": "none",
+      "next_action": "repair_or_republish_material_entry"
+    }
   },
   "access_modes": {
     "automatic": "opened",

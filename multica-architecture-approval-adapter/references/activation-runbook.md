@@ -9,7 +9,7 @@ Skill package/import/binding 不是方案 Review，也不使用 operational auth
 ## Automatic activation procedure
 
 1. 重验 reviewed local package aggregate 和用户指定的既有 workspace/Agent identities；目标不唯一或缺失时停止并说明需要新的任务指令。
-2. 把 core/adapter/Archify import、additive binding 和 readback 作为 manifest 的有序操作。当前 revision 首次安装使用 conflict-safe fail：
+2. 冻结并验证 current compatibility pair `human_review_surface_v2` + `architecture_internal_evidence_v1`、adapter bundle `multica_human_action_material_bundle_v3`、600-code-point budget、audience labels 和 `材料不可决策` 恢复语义。把 core/adapter/Archify import、additive binding 和 readback 作为 manifest 的有序操作。当前 revision 首次安装使用 conflict-safe fail：
 
    ```bash
    multica skill import --file <skill-package> --on-conflict fail --output json
@@ -31,7 +31,7 @@ Skill package/import/binding 不是方案 Review，也不使用 operational auth
 
    记录 workspace/Agent、Skill IDs/package aggregates、Archify full revision/archive digest、完整 author/review-only 指令和 Multica/CLI identity。同时确认 Architecture Lead、Architecture Analyst、R&D Lead、Development Engineer、Code Review Engineer、QA Engineer、Integration & Archive Engineer、Workflow Watchdog 未被隐式绑定。
 
-6. compatibility pair、导入和 bindings 只对新 attempt 生效；旧 attempt 继续 frozen reader。任一 Agent 部分绑定失败时保留已完成对象，报告精确差异，不把 workspace 标为 active。
+6. compatibility pair、导入和 bindings 只对新 attempt 生效；旧 v1/v2 attempt 继续 frozen reader。逐 Agent 回读必须包含其 human/agent audience、评论预算、Archify reference-only 和 decision-readiness 指令；任一 Agent 部分绑定失败时保留已完成对象，报告精确差异，不把 workspace 标为 active。
 
 ## Failure and closing conditions
 

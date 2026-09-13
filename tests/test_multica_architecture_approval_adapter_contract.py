@@ -490,15 +490,11 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
         required_slots = {
             human_action: (
                 "mention://member/{{decision_owner_member_id}}",
-                "## Architecture Decision Brief", "## 当前方案摘要", "## 简化架构图",
-                "Design maturity", "Reviewer conclusion", "关键风险",
-                "Recommendation / rationale / confidence", "## 最重要的备选及后果",
-                "## 当前读者的一项决定", "Decision Owner", "requires_human_review=true",
-                "## 回复后会发生什么", "## 一份完整材料入口",
-                "恰好一份 canonical Design Markdown attachment", "Exact response",
-                "architecture_internal_evidence_v1", "derived_non_authoritative",
-                "desktop|mobile", "opened|manual_check_required|unavailable|not_run",
-                "current_action_reference_v1", "不要求定位 parent/thread",
+                "【需要你确认】", "【需要阅读并确认】", "【供人参考，无需单独确认】",
+                "human_review_surface_v2", "600 Unicode", "Exactly one required entry",
+                "audience=human|agent", "review_requirement=required|reference_only|none",
+                "bound_action={{action_id}}|none", "architecture_internal_evidence_v1",
+                "ACTION {{action_id}}", "材料打不开", "材料不可决策",
             ),
             operational: (
                 "Legacy Multica Operational Authorization Record", "audit only",
@@ -506,14 +502,10 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "AUTHORIZE OPERATION",
             ),
             approval: (
-                "## 方案摘要", "Design maturity", "Reviewer conclusion",
-                "Reviewer concise findings", "关键风险", "Architecture recommendation",
-                "## 一份完整方案", "恰好一份 canonical", "derived_non_authoritative",
-                "## 当前 Action", "Decision Owner", "Current / superseded",
-                "approved_design_only", "approved_for_spec", "revision_requested", "rejected",
-                "R&D handoff", "新建 Design/Review/Action", "终态",
-                "## 准确回复", "materials_opened", "材料打不开",
-                "Recommendation、Reviewer conclusion", "无需复制 packet digest",
+                "【需要你确认】", "【需要阅读并确认】", "【供人参考，无需单独确认】",
+                "human_review_surface_v2", "600 Unicode", "agent_internal",
+                "ACTION {{action_id}}", "materials_opened", "材料打不开", "材料不可决策",
+                "content_decision=none", "Recommendation, access and readiness are not approval",
             ),
             decision: (
                 "decision_context_ref", "decision_context_digest", "revision_scope",
@@ -522,11 +514,17 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "normalized_content_digest", "normalized_platform_mention",
                 "action_id", "action_version", "action_digest",
                 "multica_issue_task_evidence_v1",
+                "response_kind=content_decision|material_access_failure|material_decision_failure",
+                "decision_readiness_state=validated|manual_check_required|unreadable|incomplete|not_run",
             ),
             readiness: (
-                "human_surface_contract=human_review_surface_v1",
+                "human_surface_contract=human_review_surface_v2",
                 "internal_evidence_contract=architecture_internal_evidence_v1",
-                "bundle_contract=multica_human_action_material_bundle_v2",
+                "bundle_contract=multica_human_action_material_bundle_v3",
+                "comment_budget_code_points=600",
+                "review_requirement=required", "bound_action={{current_action_id}}",
+                "material_access_state=opened|manual_check_required|unavailable|not_run",
+                "decision_readiness_state=validated|manual_check_required|unreadable|incomplete|not_run",
                 "exactly one block", "artifact_kind=design",
                 "browser_evidence=passed|failed|skipped|not_applicable",
                 "visual_review=passed|failed|skipped|not_applicable",
@@ -549,9 +547,9 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
             line for line in human_action.read_text(encoding="utf-8").splitlines() if line.strip()
         )
         self.assertEqual(
-            "[@{{decision_owner_display_name}}](mention://member/{{decision_owner_member_id}})，请处理下面唯一一项当前动作。",
+            "【需要你确认】 [@{{decision_owner_display_name}}](mention://member/{{decision_owner_member_id}})，请决定：{{atomic_decision_zh}}",
             first_rendered_line,
-            "canonical Decision Owner mention must be the first rendered comment line",
+            "responsibility label and canonical Decision Owner mention must share the first rendered line",
         )
 
         interface_text = agent_interface.read_text(encoding="utf-8")
@@ -566,7 +564,14 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
         if material_bundle.is_file():
             bundle_contract = material_bundle.read_text(encoding="utf-8")
             for marker in (
-                "multica_human_action_material_bundle_v2",
+                "multica_human_action_material_bundle_v3",
+                "human_review_surface_v2",
+                "600 Unicode",
+                "audience=human|agent",
+                "review_requirement=required|reference_only|none",
+                "【需要阅读并确认】",
+                "【供人参考，无需单独确认】",
+                "【Agent 内部材料，无需阅读】",
                 "ARCH-DESIGN-vN.md",
                 "text/markdown; charset=utf-8",
                 "raw-byte SHA-256",
@@ -575,6 +580,8 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "Control",
                 "exactly one",
                 "light/1440x900",
+                "decision_readiness_state=validated",
+                "材料不可决策",
                 "Legacy reader",
             ):
                 self.assertIn(marker, bundle_contract, f"material bundle contract missing {marker}")
@@ -666,10 +673,8 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "repair_or_republish_material_entry",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-human-action-request.md": (
-                "Access verification mode",
-                "owner_manual",
-                "manual_check_required",
                 "ACTION {{action_id}}: 材料打不开",
+                "ACTION {{action_id}}: 材料不可决策; reason=<原因>",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/SKILL.md": (
                 "owner_manual",
@@ -826,9 +831,9 @@ class MulticaArchitectureApprovalAdapterContractTest(unittest.TestCase):
                 "multica_issue_task_evidence_v1",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-human-action-request.md": (
-                "owner_attested",
                 "materials_opened",
                 "材料打不开",
+                "材料不可决策",
             ),
             REPOSITORY_ROOT / "multica-architecture-approval-adapter/templates/multica-readiness-evidence.md": (
                 "shared_workspace_sidecar_v1|multica_issue_task_evidence_v1",

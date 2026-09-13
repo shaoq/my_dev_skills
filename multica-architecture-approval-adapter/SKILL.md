@@ -30,7 +30,7 @@ action_type=design_input|architecture_review|architecture_approval
 requires_human_review=true
 ```
 
-方案 Review 评论必须使用 [Multica Human Action Request template](templates/multica-human-action-request.md)，首行以 canonical member UUID 渲染 `[@<display-name>](mention://member/<member-id>)`。它消费 `human_review_surface_v1`，首屏按固定顺序呈现：方案摘要、Design maturity、简短 Review、关键风险、Architecture recommendation/理由/置信度、关键备选后果、当前读者唯一决定、回复后行为、一份 Design 入口、准确回复与最小审计绑定。评论必须附带恰好一份 canonical Design Markdown attachment。Research、Control、完整 Review、Packet 和执行记录写入 `architecture_internal_evidence_v1`，不复制正文或作为必读附件。
+方案 Review 评论必须使用 [Multica Human Action Request template](templates/multica-human-action-request.md)，以且仅以一个中文责任标签开头，并在同一首行用 canonical member UUID 渲染 `[@<display-name>](mention://member/<member-id>)`。新 writer 消费 `human_review_surface_v2`，普通 Issue prose 默认不超过 600 Unicode code points（稳定链接、附件文件名和唯一 Action code block 不计），只呈现需要决定什么、Team 推荐/最关键后果、一个 `【需要阅读并确认】` 材料、回复后行为和准确 Action。详细方案、最多三项方案对比、Archify 图、完整风险与 Review 说明进入该 action-bound 材料；Research、Control、完整 Review、Packet、receipt 和执行记录写入 `architecture_internal_evidence_v1`。正式批准恰好一份 canonical Design Markdown attachment；pre-Design 输入可使用一份明确非总体设计的 detail attachment。`human_reference` Archify/PDF/preview 随主材料确认，不生成第二 Action。
 
 preparation、delivery、attachment/access verification、task-result、status projection、relay、retry、sidecar、reconciliation、execution handoff 和 postcondition check 的 `requires_human_review` 必须为 `false`。它们在 current mandate 内自动执行，不发布或等待 `AUTHORIZE OPERATION`、relay authorization、access confirmation 或逐状态授权。
 
@@ -51,6 +51,7 @@ current mandate 和 manifest 可以覆盖：
 
 - 只读 capability/identity/preflight、材料准备与 raw-byte validation；
 - 一条 Decision Brief comment 与恰好一份 canonical Design Markdown attachment；
+- 对 pre-Design `design_input|architecture_review`，可改为一条轻量 Action comment 与恰好一份 action-bound、非 canonical decision-detail attachment；
 - desktop/mobile 的 actual UI activation、browser-rendered preview、identity/complete-content evidence 或明确 evidence gap；raw-byte fetch、HTTP 200 与 `download-only` 不计为 opened；对于有显式 Owner policy 的 `design_input|architecture_review`，可投影 `access_verification_mode=owner_manual`；正式 `architecture_approval` 在 automatic 不可用时可投影 `access_verification_mode=owner_attested`。两种人工检查模式都逐 scope 记录 `manual_check_required`，但不得声称 `opened`；
 - portable projection 固定为 `owner_attested -> owner_manual`：前者是 Multica 对正式 packet 增加 task/Action/attestation 约束的平台 profile，后者是 core 已有的平台无关语义；不得把 `owner_attested` 写入 core artifact；
 - platform-managed task-result evidence；
@@ -84,8 +85,8 @@ Issue status 只是 portable intent 的平台投影：
 2. 自动生成 manifest；必要时先投影 `in_progress --no-start` 并 read back。
 3. 读取 [human action material bundle](references/human-action-material-bundle.md)与 [human-accessible evidence links](references/human-accessible-evidence-links.md)，执行一次 comment+attachments write。
 4. 重读 exact comment/parent/author/mention/attachments并重算 raw-byte digests。`automatic` 分别在 desktop/mobile 执行 actual UI activation；已知 Markdown attachment link 必须打开 browser-rendered preview并呈现完整正文。仅当唯一 Owner 已明确选择自行检查时，`design_input|architecture_review` 可用 `owner_manual`：验证 stable same-Issue entry 后把 requested scopes 记为 `manual_check_required`，不伪造客户端打开证据。
-5. 只有 `requires_human_review=true` 且当前模式全部 Review 前提通过时自动投影 `in_review --no-start`。`automatic` 的必要预览失败按 evidence gap 处理；`owner_manual` 的 identity、digest、稳定入口或 policy evidence 失败仍 unavailable。owner-manual 决策卡必须提供 `ACTION <action-id>: 材料打不开`。
-6. 后续具名 Action 回复按 `current_action_reference_v1` + `valid_human_action_response_v1` 验证；用户可在同一 Issue 最新位置回复，允许规范化一个首尾 current Architecture Agent canonical mention，验证后自动恢复 `in_progress`。准确 Owner 回复“材料打不开”时不消费任何内容选项，记录 `content_decision=none`，投影 `preparing/in_progress` 并由 coordination 自动执行 `repair_or_republish_material_entry`。
+5. 只有 `requires_human_review=true` 且当前模式全部 Review 前提通过时自动投影 `in_review --no-start`。`automatic` 要求 required material 为 `material_access_state=opened` 且 `decision_readiness_state=validated`；`owner_manual|owner_attested` 保持两者为 `manual_check_required`。必要预览失败按 evidence gap 处理；identity、digest、稳定入口或 policy evidence 失败仍 unavailable。
+6. 后续具名 Action 回复按 `current_action_reference_v1` + `valid_human_action_response_v1` 验证。准确 Owner 回复“材料打不开”时记录 access failure、`content_decision=none` 并 repair/republish；回复 `ACTION <action-id>: 材料不可决策; reason=<原因>` 时保留 access success、记录 `decision_readiness_state=unreadable|incomplete`、supersede current Action，并以新 attempt/new Action 返回 `preparing`。两种恢复回复不得归一化为彼此或任何 accept/modify/reject 决定。
 
 ## Route A — packet delivery and readiness
 
@@ -134,7 +135,7 @@ required visual 必须绑定 current `architecture_visual_manifest_v1`、Typed J
 
 [Operational authorization protocol](references/operational-authorization.md) 与 [legacy template](templates/multica-operational-authorization.md) 仅用于解析历史审计记录。新契约不得生成、relay 或消费 `multica_operational_scope_v1` / `AUTHORIZE OPERATION`。激活后，未消费的 delivery/retry/relay/status request 保留原样并由新 manifest 的 `supersedes` 标记为 audit-only；晚到回复 no-op。
 
-历史 `multica_human_action_material_bundle_v1`、三附件 approval comment 与 `multica_execution_handoff_v1` 均只读保留；新 attempt 只写 `multica_human_action_material_bundle_v2`、双 surface 和 internal handoff，不编辑、删除或原地重解释旧对象。
+历史 `multica_human_action_material_bundle_v1|v2`、`human_review_surface_v1`、三附件 approval comment 与 `multica_execution_handoff_v1` 均只读保留；新 attempt 只写 `multica_human_action_material_bundle_v3`、`human_review_surface_v2` 和 internal handoff，不编辑、删除或原地重解释旧对象。
 
 ## Activation boundary
 

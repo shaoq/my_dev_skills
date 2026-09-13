@@ -17,7 +17,7 @@ class SimplifiedArchitectureDeliverablesContractTest(unittest.TestCase):
     def test_core_declares_two_surfaces_and_one_human_canonical_design(self) -> None:
         surfaces = {
             CORE / "SKILL.md": (
-                "human_review_surface_v1",
+                "human_review_surface_v2",
                 "architecture_internal_evidence_v1",
                 "唯一 mandatory human artifact",
                 "ARCH-DESIGN-vN.md",
@@ -49,6 +49,7 @@ class SimplifiedArchitectureDeliverablesContractTest(unittest.TestCase):
 
     def test_core_contract_fixtures_cover_maturity_impact_visual_and_legacy(self) -> None:
         cases = json.loads(CORE_CASES.read_text(encoding="utf-8"))
+        self.assertEqual("human_review_surface_v2", cases["contract_pair"]["human_surface_contract"])
         self.assertEqual({"directional", "spec_ready", "implementation_ready"}, {case["maturity"] for case in cases["maturity_cases"]})
         self.assertEqual("fail_closed", cases["maturity_cases"][0]["expected"])
         self.assertEqual("architecture_impact", cases["impact_cases"][-1]["classification"])
@@ -59,6 +60,65 @@ class SimplifiedArchitectureDeliverablesContractTest(unittest.TestCase):
         for case_id in ("browser-failed", "browser-skipped", "review-failed", "review-skipped", "semantic-open", "stale-preview"):
             self.assertEqual("fail_closed", visual_by_id[case_id]["expected"])
         self.assertEqual("light/1440x900", visual_by_id["all-passed"]["preview"])
+
+    def test_core_human_action_v2_is_compact_labeled_and_fail_closed(self) -> None:
+        cases = json.loads(CORE_CASES.read_text(encoding="utf-8"))["human_action_cases"]
+        formal = cases["formal_approval"]
+        self.assertLessEqual(len(formal["visible_prose"]), formal["comment_budget_code_points"])
+        self.assertEqual(
+            {"stable_link", "attachment_filename", "action_code_block"},
+            set(formal["excluded_from_budget"]),
+        )
+        required = [entry for entry in formal["materials"] if entry["review_requirement"] == "required"]
+        self.assertEqual(1, len(required))
+        self.assertEqual("design", required[0]["kind"])
+        self.assertEqual(formal["action"].split(":", 1)[0].removeprefix("ACTION "), required[0]["bound_action"])
+        reference = [entry for entry in formal["materials"] if entry["review_requirement"] == "reference_only"]
+        self.assertEqual(["archify_preview"], [entry["kind"] for entry in reference])
+        self.assertTrue(all(entry["bound_action"] == required[0]["bound_action"] for entry in reference))
+        self.assertEqual("none", cases["opened_but_not_decidable"]["content_decision"])
+        self.assertEqual("opened", cases["opened_but_not_decidable"]["material_access_state"])
+        self.assertIn(cases["opened_but_not_decidable"]["decision_readiness_state"], {"unreadable", "incomplete"})
+        self.assertEqual("superseded", cases["opened_but_not_decidable"]["current_action"])
+        self.assertEqual("new_action_id", cases["opened_but_not_decidable"]["next_attempt"])
+        self.assertNotEqual(
+            cases["opened_but_not_decidable"]["reply"],
+            cases["material_cannot_open"]["reply"],
+        )
+
+        surfaces = {
+            CORE / "references/human-action-request.md": (
+                "issue_action_summary",
+                "human_decision_material",
+                "600 个 Unicode code points",
+                "audience=human|agent",
+                "review_requirement=required|reference_only|none",
+                "decision_readiness_state",
+                "ACTION <action_id>: 材料不可决策; reason=<原因>",
+            ),
+            CORE / "references/workflow-mandate-and-review-gates.md": (
+                "human_surface_contract=human_review_surface_v2",
+                "automatic 必须为 `opened + validated`",
+                "attempt/new Action",
+            ),
+            CORE / "templates/human-action-request.md": (
+                "Issue Action Summary",
+                "【需要你确认】",
+                "visible prose default <= 600 Unicode code points",
+            ),
+            CORE / "templates/human-decision-material.md": (
+                "## 需要决定什么",
+                "## 简化架构图",
+                "## 方案对比（最多 2～3 项）",
+                "## 回复后立即发生什么",
+                "## 唯一 Action",
+            ),
+        }
+        missing: list[str] = []
+        for path, markers in surfaces.items():
+            text = path.read_text(encoding="utf-8")
+            missing.extend(f"{path.relative_to(ROOT)} missing {marker}" for marker in markers if marker not in text)
+        self.assertFalse(missing, "\n".join(missing))
 
     def test_visual_contract_is_complete_and_fail_closed(self) -> None:
         required = {
@@ -121,13 +181,14 @@ class SimplifiedArchitectureDeliverablesContractTest(unittest.TestCase):
     def test_adapter_uses_one_design_and_internal_evidence(self) -> None:
         required = {
             ADAPTER / "SKILL.md": (
-                "multica_human_action_material_bundle_v2",
+                "human_review_surface_v2",
+                "multica_human_action_material_bundle_v3",
                 "恰好一份 canonical Design Markdown attachment",
                 "architecture_internal_evidence_v1",
                 "不得生成 dedicated Agent handoff comment",
             ),
             ADAPTER / "references/human-action-material-bundle.md": (
-                "multica_human_action_material_bundle_v2",
+                "multica_human_action_material_bundle_v3",
                 "exactly one",
                 "derived_non_authoritative",
                 "legacy",
@@ -138,10 +199,11 @@ class SimplifiedArchitectureDeliverablesContractTest(unittest.TestCase):
                 "accepted|active",
             ),
             ADAPTER / "templates/multica-approval-comment.md": (
-                "Design maturity",
-                "Reviewer conclusion",
-                "恰好一份",
+                "【需要你确认】",
+                "【需要阅读并确认】",
+                "600 Unicode",
                 "材料打不开",
+                "材料不可决策",
             ),
         }
         missing: list[str] = []
@@ -157,6 +219,38 @@ class SimplifiedArchitectureDeliverablesContractTest(unittest.TestCase):
         self.assertEqual(
             schema["properties"]["current_writer"]["properties"]["canonical_attachments"]["const"],
             cases["current_writer"]["canonical_attachments"],
+        )
+        self.assertEqual("human_review_surface_v2", cases["human_action_rendering"]["contract"])
+        self.assertEqual(600, cases["human_action_rendering"]["comment_budget_code_points"])
+        self.assertEqual(
+            ["【需要你确认】", "【Agent 处理中，无需回复】", "【Agent 已完成，无需确认】"],
+            cases["human_action_rendering"]["comment_labels"],
+        )
+        self.assertEqual(
+            ["【需要阅读并确认】", "【供人参考，无需单独确认】", "【Agent 内部材料，无需阅读】"],
+            cases["human_action_rendering"]["material_labels"],
+        )
+        formal_entries = cases["material_entries"]["formal_approval"]
+        self.assertEqual(1, sum(entry["review_requirement"] == "required" for entry in formal_entries))
+        self.assertEqual(
+            {"archify_preview", "archify_html"},
+            {entry["kind"] for entry in formal_entries if entry["review_requirement"] == "reference_only"},
+        )
+        self.assertTrue(
+            all(
+                entry["bound_action"] == "ARCH-ACT-9"
+                for entry in formal_entries
+                if entry["audience"] == "human"
+            )
+        )
+        unreadable = cases["decision_failure_cases"]["opened_but_not_decidable"]
+        self.assertEqual("opened", unreadable["material_access_state"])
+        self.assertEqual("none", unreadable["content_decision"])
+        self.assertEqual("superseded", unreadable["current_action"])
+        self.assertEqual("new_action_id", unreadable["next_attempt"])
+        self.assertNotEqual(
+            unreadable["reply"],
+            cases["decision_failure_cases"]["cannot_open"]["reply"],
         )
         self.assertEqual(4, len(cases["archify_bindings"]))
         self.assertEqual("additive", cases["activation"]["binding_mode"])
@@ -185,8 +279,10 @@ class SimplifiedArchitectureDeliverablesContractTest(unittest.TestCase):
         text = (ROOT / "README.md").read_text(encoding="utf-8")
         for marker in (
             "唯一 mandatory Design",
-            "human_review_surface_v1",
+            "human_review_surface_v2",
             "architecture_internal_evidence_v1",
+            "600",
+            "材料不可决策",
             "无需人工打开 Review、Packet、Control",
             "required visual",
             "四个 Archify 目标 Agent",
@@ -202,11 +298,16 @@ class SimplifiedArchitectureDeliverablesContractTest(unittest.TestCase):
             "workspace_slug: unidocs-rag",
             "import_mode: conflict_fail",
             "binding_mode: additive",
+            "human_surface: human_review_surface_v2",
+            "material_bundle: multica_human_action_material_bundle_v3",
+            "visible_prose_budget_code_points: 600",
+            "recovery_reply: \"ACTION <action_id>: 材料不可决策; reason=<原因>\"",
             "name: Solution Architect",
             "name: Architecture Reviewer",
             "name: Product & Spec Engineer",
             "name: Solution Review Architect",
             "live_write: not_run",
+            "sandbox_acceptance: not_run",
         ):
             self.assertIn(marker, text)
 

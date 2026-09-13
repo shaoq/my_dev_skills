@@ -1,6 +1,6 @@
 # Human Action Request
 
-Current requests render `human_review_surface_v1`: one canonical `ARCH-DESIGN-vN.md`, Design maturity, concise Reviewer findings/conclusion, critical risks, recommendation/consequences and one atomic current Action. Research、Control、complete Review and machine-only Packet remain `architecture_internal_evidence_v1`; they are not mandatory human entries. The Owner never copies packet digest because the current Action inherits the verified manifest snapshot.
+Current requests render `human_review_surface_v2`. The work item exposes a compact `issue_action_summary`; substantial explanation lives in exactly one action-bound `human_required` `human_decision_material`. Formal approval uses canonical `ARCH-DESIGN-vN.md`; a pre-Design input/risk Action may use one explicitly non-canonical decision-detail artifact. Archify/preview/derived-rendering resources are `human_reference` and share the primary Action. Research、Control、complete Review and machine-only Packet remain `agent_internal` `architecture_internal_evidence_v1`. `human_review_surface_v1` is a frozen read-only legacy surface.
 
 ## Purpose
 
@@ -21,6 +21,7 @@ WAIT_REASON=none|target_project|design_approval|awaiting_human_confirmation
 platform_status_intent=agent_working|human_review|hard_blocked|terminal
 access_verification_mode=automatic|owner_manual
 material_access_state=opened|manual_check_required|unavailable|not_run
+decision_readiness_state=validated|manual_check_required|unreadable|incomplete|not_run
 ```
 
 这些字段与 architecture stage、Review conclusion、gate 和 `BLOCKED_REASON` 分开计算。`preparing` 表示 Agent 仍在准备材料；准确请求已经交付给唯一 Owner 后使用 `awaiting_response` 与 `WAIT_REASON=awaiting_human_confirmation`，即使 stage 仍是 `designing|reviewing`。正式 packet 批准仍使用 `stage=waiting_human`、`WAIT_REASON=design_approval`，同时 action state 为 `awaiting_response`。
@@ -47,7 +48,15 @@ routing、Owner binding、scope 或 evidence reference 属于 `dependency_input`
 - `Decision Owner` 必须是可识别的人类或明确角色；未知时写明 Owner 缺口和关闭条件，不得让任意回复者代替。
 - 请求必须写明该 Owner 有权决定什么，以及明确无权授权什么。
 
-## Architecture Decision Brief
+## Two-layer human surface
+
+### Issue Action Summary
+
+直接可见的 Issue 摘要只回答五件事：是否需要当前读者处理、需要决定什么、Team 推荐与最关键后果、唯一必读材料在哪里、如何准确回复。新 writer 的可见 prose 默认不超过 600 个 Unicode code points；稳定链接、附件文件名和唯一 Action code block 不计入预算。超过预算的背景、完整权衡、图解、Review、证据或机器字段必须移入详细材料或 internal evidence。
+
+Issue 评论必须以且仅以一个标签开头：`【需要你确认】`、`【Agent 处理中，无需回复】` 或 `【Agent 已完成，无需确认】`。只有第一类可以包含 current Action。Agent-owned progress 默认不写普通评论；确有检查点价值时只能写紧凑状态、当前工作和下一人工检查点，不附 Action。
+
+### Architecture Decision Brief material
 
 面向一个当前读者的请求按以下固定顺序呈现：
 
@@ -58,10 +67,26 @@ routing、Owner binding、scope 或 evidence reference 属于 `dependency_input`
 5. 最重要的备选及后果；
 6. 当前读者真正有权决定的一项内容；
 7. 回复后会发生什么；
-8. 可点击的完整 Design、Research、Control（以及当前 gate 必需的 Review/Packet）入口；
+8. 一个 `【需要阅读并确认】` 的完整材料入口；
 9. Exact response、authority boundary 与最小 current/superseded audit binding。
 
-不要用“请确认”“等待审核”、只列 token、多 Owner 问卷或完整设计正文代替上述 brief。完整方案必须是独立版本化 artifact，通过目标人类可重读的稳定入口打开；仅 Agent 可读的路径不算 human-accessible evidence。
+不要用“请确认”“等待审核”、只列 token、多 Owner 问卷或机器字段代替上述 brief。详细材料首屏必须让人看到：一句话“需要决定什么”、一张可充分解释主要组件/边界/流向的简化架构图、明确推荐和理由、最多 2～3 个方案的对比表、每个方案的收益/代价/风险/不可逆影响、回复后立即发生什么，以及可直接复制的唯一 Action。正式批准的完整方案必须是独立版本化 canonical Design；仅 Agent 可读的路径不算 human-accessible evidence。
+
+## Audience and review responsibility
+
+每个可见材料入口都必须结构化记录：
+
+```text
+audience=human|agent
+review_requirement=required|reference_only|none
+bound_action=<action_id|none>
+```
+
+- `human + required` 渲染为 `【需要阅读并确认】`；每个 Action 恰好一个，且只有它可以阻止内容决定。
+- `human + reference_only` 渲染为 `【供人参考，无需单独确认】`；Archify HTML、静态预览或派生 rendering 随主材料一并确认，不产生第二个 Action。
+- `agent + none` 渲染为 `【Agent 内部材料，无需阅读】`；Research、Control、完整 Review、Packet、receipt、continuation、handoff/readback 不进入普通评论的 required list。
+
+正式 `architecture_approval` 的唯一 required 材料必须是 canonical `ARCH-DESIGN-vN.md`。在 Design 形成前，`design_input|architecture_review` 可以绑定一个 limited-scope decision-detail attachment；它必须明确声明“不是总体架构设计”，且不能与后续 Design 并列成为批准对象。
 
 ## Current reader and authority
 
@@ -89,6 +114,14 @@ ACTION <action_id>: 材料打不开
 ```
 
 该回复只报告 delivery/access failure，`content_decision=none`；系统把 action 置回 `preparing`，由 `coordination` responsibility 自动执行 `repair_or_republish_material_entry`，投影为 actor working，不要求 operational authorization。修复并重新交付后生成新 attempt；不得把“材料打不开”解释为拒绝、修订、批准或风险接受。
+
+若材料能够打开，但组织、解释、图示、方案边界或后果不足以支持决定，Owner 使用：
+
+```text
+ACTION <action_id>: 材料不可决策; reason=<原因>
+```
+
+该回复与 `材料打不开` 正交：保留 `material_access_state=opened|manual_check_required`，把 `decision_readiness_state` 记录为 `unreadable|incomplete`，`content_decision=none`，supersede current Action，返回 `HUMAN_ACTION_STATE=preparing`，并生成修正材料的新 attempt 与新 Action ID。它不是 `rejected`、`revision_requested`、风险接受或 access failure；reason 仅作为 non-authoritative authoring input。
 
 ## Recommendation and alternatives
 

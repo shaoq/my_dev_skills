@@ -9,7 +9,7 @@
 - `payload_status=delivered`
 - Created at：RFC 3339 UTC `Z`
 - Supersedes：`none|ARCH-APPROVAL-PACKET vN`
-- Human surface contract：`human_review_surface_v1`
+- Human surface contract：`human_review_surface_v2`
 - Internal evidence contract：`architecture_internal_evidence_v1`
 - Design maturity：`directional|spec_ready|implementation_ready`
 - Current Action ID / version / digest：

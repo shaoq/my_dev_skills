@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Adapter remains an independently installable sibling skill
-The repository SHALL maintain `multica-architecture-approval-adapter/` as a valid sibling skill with independent metadata while keeping core usable standalone. When both are activated for Multica, the adapter MUST refuse delivery unless it proves compatibility with the core revision and the `human_review_surface_v1`/`architecture_internal_evidence_v1` pair frozen by the attempt.
+The repository SHALL maintain `multica-architecture-approval-adapter/` as a valid sibling skill with independent metadata while keeping core usable standalone. When both are activated for Multica, the adapter MUST refuse delivery unless it proves compatibility with the core revision and the `human_review_surface_v2`/`architecture_internal_evidence_v1` pair frozen by the new attempt. Frozen v1 attempts remain readable but MUST NOT be reinterpreted as v2.
 
 #### Scenario: Both skills are installed locally
 - **WHEN** the installer scans the two root skill sources
@@ -42,7 +42,7 @@ After authorized import/binding, the runbook MUST require a new sandbox Issue ac
 - **THEN** acceptance fails and the pair remains inactive for production use
 
 ### Requirement: Sandbox acceptance presents a human checklist
-The sandbox SHALL present a concise checklist for opening exactly one canonical Design on requested clients or making the explicit Owner-manual declaration, submitting one current Action, observing supersession and confirming failure retention. Review/Packet/Control opening and Agent handoff comments MUST NOT appear as required human checks. Each human-observed result MUST be recorded individually; generic `OK` MUST NOT pass acceptance.
+The sandbox SHALL present a concise checklist for opening exactly one `human_required` material on requested clients or making the explicit Owner-manual declaration, distinguishing `材料打不开` from `材料不可决策`, submitting one current Action, observing supersession and confirming failure retention. It MUST also verify the Issue comment budget, Chinese audience labels, detailed attachment readability and Archify supporting-resource classification. Review/Packet/Control opening and Agent handoff comments MUST NOT appear as required human checks. Each human-observed result MUST be recorded individually; generic `OK` MUST NOT pass acceptance.
 
 #### Scenario: Human completes only desktop checks
 - **WHEN** desktop Design opens but a required mobile scope or Owner-manual declaration and supersession check are incomplete
@@ -83,7 +83,7 @@ adapter SHALL retain readers for historical mandate/continuation/blocker/materia
 
 #### Scenario: 旧三附件 attempt 仍在等待
 - **WHEN** 新 contract 激活时历史 Action 仍 current-looking
-- **THEN** adapter 保留其旧语义或创建显式 superseding attempt，绝不把旧评论原地变为新 `multica_human_action_material_bundle_v2`
+- **THEN** adapter 保留其旧语义或创建显式 superseding attempt，绝不把旧评论原地变为新 `multica_human_action_material_bundle_v3`
 
 #### Scenario: 新 attempt 写入
 - **WHEN** compatible current pair 与新 attempt 已冻结

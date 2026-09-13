@@ -49,6 +49,7 @@ required_skill_files = [
     "templates/arch-design.md",
     "templates/arch-review.md",
     "templates/human-action-request.md",
+    "templates/human-decision-material.md",
     "templates/arch-approval-packet.md",
     "templates/adr.md",
     "templates/detailed-design.md",
@@ -102,6 +103,7 @@ portable_core_paths = [
     skill / "templates" / "arch-review.md",
     skill / "templates" / "arch-approval-packet.md",
     skill / "templates" / "human-action-request.md",
+    skill / "templates" / "human-decision-material.md",
 ]
 platform_marker = re.compile(
     r"(?i)(?:\bmultica\b|\bpdf\b|\bparent_id\b|\bcomment_id\b|\battachment_id\b|\bmobile\b)"
@@ -174,40 +176,18 @@ human_action_template = skill / "templates" / "human-action-request.md"
 if human_action_template.is_file():
     human_action_text = human_action_template.read_text(encoding="utf-8")
     human_action_slots = [
-        "## Architecture Decision Brief",
-        "## 当前方案摘要",
-        "## 简化架构图",
-        "## Architecture recommendation",
-        "Recommendation / rationale / confidence",
-        "## 已确定与尚未确定",
-        "## 最重要的备选及后果",
-        "## 当前读者的一项决定",
-        "Action ID / type / current status",
-        "Why now",
-        "Decision Owner / authority scope",
-        "Current reader / authority binding",
-        "Content-decision activation gate",
-        "Other-owner dependencies (non-actionable)",
-        "Decision required",
-        "Candidate recommendation",
-        "Bounded alternatives",
-        "Basis — facts / inferences / principles",
-        "Option consequences / material risks",
-        "## 回复后会发生什么",
-        "## 完整材料入口",
-        "Stable human-accessible evidence refs",
-        "Requested client scopes",
-        "Access status by scope",
-        "Requires human review",
-        "Verifier / verification time",
-        "Missing evidence / Owner / closure condition",
-        "## Exact response",
-        "Next stage / remaining blockers / Next Owner / planned writes",
-        "## Authority boundary",
-        "Does not authorize",
-        "## Minimal audit binding",
-        "Bound artifact or routing version",
-        "Current / superseded",
+        "Issue Action Summary",
+        "human_review_surface_v2",
+        "600 Unicode code points",
+        "【需要你确认】",
+        "【需要阅读并确认】",
+        "【供人参考，无需单独确认】",
+        "audience=human|agent",
+        "review_requirement=required|reference_only|none",
+        "Exactly one required entry",
+        "ACTION <action_id>",
+        "材料打不开",
+        "材料不可决策; reason=<原因>",
     ]
     missing_human_action_slots = [
         slot for slot in human_action_slots if slot not in human_action_text
@@ -216,6 +196,43 @@ if human_action_template.is_file():
         fail(
             "Human Action Request missing required slots: "
             + ", ".join(missing_human_action_slots)
+        )
+
+    forbidden_summary_sections = (
+        "## Architecture Decision Brief",
+        "## 简化架构图",
+        "## 最重要的备选及后果",
+        "## Minimal audit binding",
+    )
+    leaked = [slot for slot in forbidden_summary_sections if slot in human_action_text]
+    if leaked:
+        fail("Issue Action Summary contains detailed material sections: " + ", ".join(leaked))
+
+decision_material_template = skill / "templates" / "human-decision-material.md"
+if decision_material_template.is_file():
+    material_text = decision_material_template.read_text(encoding="utf-8")
+    material_slots = [
+        "## 需要决定什么",
+        "## 简化架构图",
+        "light/1440x900",
+        "## 推荐方案",
+        "理由",
+        "置信度",
+        "## 方案对比（最多 2～3 项）",
+        "收益",
+        "代价",
+        "主要风险",
+        "不可逆影响",
+        "## 回复后立即发生什么",
+        "## 唯一 Action",
+        "不是总体架构设计",
+        "decision_readiness_state=validated|manual_check_required|unreadable|incomplete|not_run",
+    ]
+    missing_material_slots = [slot for slot in material_slots if slot not in material_text]
+    if missing_material_slots:
+        fail(
+            "Human Decision Material missing required slots: "
+            + ", ".join(missing_material_slots)
         )
 
 human_action_state_contract = {
@@ -246,9 +263,8 @@ human_action_state_contract = {
         "hard blocker",
     ],
     skill / "templates" / "human-action-request.md": [
-        "Human Action State",
-        "Platform status intent",
-        "awaiting_response",
+        "human_review_surface_v2",
+        "材料不可决策",
     ],
 }
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "Architecture Design Workflow"
   short_description: "Govern reviewable architecture decisions and handoff"
-  default_prompt: "Use $architecture-design-workflow to produce one standalone architecture design as the human canonical artifact, render a concise Architecture Decision Brief, keep Review/packet/control/handoffs as internal evidence, enforce Design maturity and Archify visual gates, then govern the current Action, publication, and R&D handoff."
+  default_prompt: "Use $architecture-design-workflow to produce one standalone architecture design as the human canonical artifact under human_review_surface_v2. Keep the work-item summary within the default 600 Unicode code-point prose budget, put the complete Architecture Decision Brief and sufficiently detailed Archify view in exactly one action-bound human-required material, label reference-only and agent-internal entries, keep Review/packet/control/handoffs as internal evidence, distinguish material access from decision readiness and 材料打不开 from 材料不可决策, then govern the current Action, publication, and R&D handoff."

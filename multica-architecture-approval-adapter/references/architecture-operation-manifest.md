@@ -25,8 +25,12 @@ attempt_id=<opaque-attempt-id>
 core_skill_identity=<name-and-aggregate-digest>
 adapter_skill_identity=<name-and-aggregate-digest>
 input_identities=<sorted-identities-and-raw-byte-digests>
-human_surface_contract=human_review_surface_v1
+human_surface_contract=human_review_surface_v2
 internal_evidence_contract=architecture_internal_evidence_v1
+material_bundle_contract=multica_human_action_material_bundle_v3
+comment_budget_code_points=600
+required_material_identity=<one-action-bound-human-required-ref-digest>
+decision_readiness_state=<validated|manual_check_required|unreadable|incomplete|not_run>
 output_identities=<one-design-human-output-and-ordered-internal-evidence-digests>
 visual_manifest_identity=<current-ref-and-digest-or-diagram_not_applicable>
 visual_receipt_identity=<current-deliver-and-visual-check-receipts-or-none>
@@ -50,7 +54,7 @@ supersedes=<legacy-request-or-attempt-identities-or-none>
 invalidates_on=<frozen-drift-conditions>
 ```
 
-字段值使用既有 canonical UTF-8 percent encoding；路径必须是已解析且位于 mandate 授权输入根下的相对路径。`planned_writes` 只允许当前 stage 所需的最小集合：work-start `in_progress --no-start`、一条 Decision Brief + exactly one Design attachment、一条 actionable blocker comment、internal task evidence、交付成功后的 `in_review --no-start`、必要状态投影。execution handoff 必须符合 `multica_execution_handoff_v2` 且 postconditions 包含准确 task/readback；不得规划 dedicated handoff comment。
+字段值使用既有 canonical UTF-8 percent encoding；路径必须是已解析且位于 mandate 授权输入根下的相对路径。`planned_writes` 只允许当前 stage 所需的最小集合：work-start `in_progress --no-start`、一条紧凑 Action comment + exactly one required attachment、一条 actionable blocker comment、internal task evidence、交付成功后的 `in_review --no-start`、必要状态投影。正式批准的 required attachment 是 canonical Design；pre-Design 是明确非 canonical detail。execution handoff 必须符合 `multica_execution_handoff_v2` 且 postconditions 包含准确 task/readback；Research、Control、Review、Packet、receipt、continuation 和 handoff 正文不得进入普通 comment planned writes。
 
 ## Derivation and pre-write fence
 

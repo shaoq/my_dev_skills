@@ -60,7 +60,7 @@ A recognizable human decision SHALL affect the gate only when evidence contains 
 - **THEN** the workflow preserves the decision for audit, emits a current-gate no-op, and identifies the Action that still requires a decision
 
 ### Requirement: Approval packet explains every legal human outcome
-The machine packet SHALL bind the versioned `human_review_surface_v1` that explains in Chinese what `approved_design_only`, `approved_for_spec`, `revision_requested` and `rejected` do, including next canonical state, publication/handoff effects, OpenSpec boundaries, principal irreversible or terminal consequence, and immediate planned writes. The human surface MUST identify the current Action and Design version, MUST NOT require the packet body to be opened, and MUST NOT preselect a decision from `ARCHITECTURE_RECOMMENDATION`.
+The machine packet SHALL bind the versioned `human_review_surface_v2` that explains in Chinese what `approved_design_only`, `approved_for_spec`, `revision_requested` and `rejected` do, including next canonical state, publication/handoff effects, OpenSpec boundaries, principal irreversible or terminal consequence, and immediate planned writes. The human surface MUST identify the current Action and Design version, MUST expose only a lightweight Issue summary plus one labeled `human_required` Design entry, MUST NOT require the packet body to be opened, and MUST NOT preselect a decision from `ARCHITECTURE_RECOMMENDATION`. Frozen v1 packets remain read-only and MUST NOT be rewritten as v2.
 
 #### Scenario: Human compares approval choices
 - **WHEN** a current ready Action is presented for decision

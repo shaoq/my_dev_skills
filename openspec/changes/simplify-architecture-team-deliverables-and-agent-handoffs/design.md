@@ -4,7 +4,7 @@
 
 本变更不降低现有的版本、digest、独立评审、唯一 Owner、current Action、owner-attested/automatic access、supersession 和 fail-closed 门禁。它只重新划分两个 surface：
 
-- `human_review_surface_v1`：人类评审和决定所需的最小完整界面。
+- `human_review_surface_v2`：轻量 Issue Action 摘要与详细人类决策材料组成的评审界面；v1 只用于已冻结旧 attempt。
 - `architecture_internal_evidence_v1`：Agent 执行、状态机、审计、重试和可恢复性所需的完整证据。
 
 核心 Skill 仍是 portable source of truth，Multica Adapter 只负责平台投影。已有 `allow-owner-attested-formal-architecture-approval` 完成变更作为兼容基线；其未提交工作树内容必须先完成集成，实施时不得覆盖。
@@ -80,7 +80,7 @@ design_maturity = directional | spec_ready | implementation_ready
 
 ### 4. 人类审批面固定为一个可读入口
 
-`human_review_surface_v1` 包含：
+`human_review_surface_v2` 包含：
 
 ```text
 design: ref + version + digest + one human-readable attachment/link
@@ -103,6 +103,32 @@ minimal current/superseded identity
 5. owner-attested 模式继续要求 `materials_opened`，材料打不开走专用恢复回复。
 
 Research、Control、完整 Review、Packet、digests、task result、manifest 和 reconciliation 不作为必读附件。它们只能放在内部证据中，或作为首屏之后的可选“审计详情”入口；缺少可选入口不得阻止人类决定，只要机器能完成所需 readback。
+
+真实 Issue 验收表明，“把摘要放在审计字段之前”仍不足以控制评论长度和认知负担。新 writer 因此升级为 `human_review_surface_v2`，把人类表面拆成两个互补层级：
+
+- `issue_action_summary`：轻量、可扫描的当前状态与决策入口；默认正文预算为 600 个 Unicode code points，不计稳定材料链接、附件文件名和唯一 Action 代码块。超过预算的背景、完整权衡、详细图解、证据和评审内容必须下沉到附件。
+- `human_decision_material`：与一个 current Action 绑定、允许充分展开、按普通人阅读顺序组织的详情材料。正式批准时它就是唯一 canonical `ARCH-DESIGN-vN.md`；设计输入或风险判断发生在 Design 形成前时，可以交付一个非 canonical、action-bound 的详情附件，但它不得被表述为完整总体方案，也不得与 Design 并列成为正式批准对象。
+
+Issue 摘要只回答五件事：是否需要我处理、需要决定什么、Team 推荐及最关键后果、应打开哪份材料、如何准确回复。详细的“需要做什么”、背景、边界、方案对比和 Archify 图进入 `human_decision_material`；评论可以展示一张小型静态预览或稳定链接，但不得复制完整图解和生成回执。
+
+每个可见材料必须显式声明：
+
+```text
+audience = human | agent
+review_requirement = required | reference_only | none
+bound_action = <action_id | none>
+```
+
+平台使用中文标签 `【需要阅读并确认】`、`【供人参考，无需单独确认】`、`【Agent 内部材料，无需阅读】`。`human_reference`（包括 Archify HTML/静态预览）随主 Design 一并确认，不产生第二个 Action；`agent_internal` 不得作为普通评论的必读入口。
+
+访问和可决策性分别记录：
+
+```text
+material_access_state = opened | manual_check_required | unavailable | not_run
+decision_readiness_state = validated | manual_check_required | unreadable | incomplete | not_run
+```
+
+结构校验通过并不代表具体人类一定能理解。Owner 在材料可打开但无法形成决定时使用 `ACTION <id>: 材料不可决策; reason=<原因>`；该回复记录 `content_decision=none`，supersede 当前 Action，使流程回到 `preparing` 并自动生成新 attempt。它不得被解释为 `reject`、`revision_requested` 或 `材料打不开`。
 
 ### 5. 人类时间线与 Agent 执行通道分离
 
@@ -135,7 +161,7 @@ impact 记录必须给出 changed inputs、判断依据、受影响章节和 ver
 
 ### 8. core 与 adapter 采用兼容 revision 原子激活
 
-core 输出新增 `human_surface_contract=human_review_surface_v1` 和 `internal_evidence_contract=architecture_internal_evidence_v1`；adapter 必须声明并验证兼容 core revision。激活顺序为：
+core 输出 `human_surface_contract=human_review_surface_v2` 和 `internal_evidence_contract=architecture_internal_evidence_v1`；adapter 必须声明并验证兼容 core revision。`human_review_surface_v1` 保留为已冻结 attempt 的只读兼容合同。激活顺序为：
 
 1. 合并/归档前置 owner-attested change；
 2. 更新 specs、core、adapter、templates、fixtures 和 tests；
@@ -219,6 +245,14 @@ Architecture Lead、Architecture Analyst、R&D Lead、Development Engineer、Cod
 
 由于 Archify 当前没有技术上分离的 author/reviewer 子 Skill，review-only 首版由 Agent 指令和 acceptance fixtures 约束。若验证证明指令约束不足，后续另建最小只读 wrapper；本变更不修改 Archify 或把 wrapper 作为当前激活前提。
 
+### 12. Issue 是轻量路由层，附件是详细阅读层
+
+普通 Issue 时间线不再承载完整方案或 Agent 审计流水。每条新评论必须先声明 `【需要你确认】|【Agent 处理中，无需回复】|【Agent 已完成，无需确认】` 之一；只有第一类可以携带 current Action。研究、设计生成、图表生成、验证、Review、readback、continuation 和 handoff 默认不逐步发评论，必要状态通知只说明当前阶段、正在处理事项和下一人工节点。
+
+一个 current Action 最多有一个 `human_required` 详情入口；可有少量 `human_reference` 派生资源，但必须说明它们无需单独确认。历史 Action 在新 Action 出现时明确 `superseded`，人类无需翻阅历史评论来确定当前动作。Agent 内部附件即使为了审计可导出，也必须标记 `agent_internal`，默认不进入普通评论附件列表。
+
+选择这种分层而不是把全部内容继续塞进评论，是为了让 Issue 保持可扫描，同时允许方案正文和 Archify 图拥有足够细节；选择显式 audience/review labels 而不是仅靠文件名约定，是为了让平台、Agent 和人类都能一致判断“谁需要读、谁需要确认”。
+
 ## Risks / Trade-offs
 
 - **人类看不到完整 Review/Control 可能担心透明度下降** → 在审批摘要后提供可选审计入口，但它不属于作出决定的必读集合；完整内部 evidence 仍按 digest 可追溯。
@@ -234,6 +268,8 @@ Architecture Lead、Architecture Analyst、R&D Lead、Development Engineer、Cod
 - **R&D 图与批准架构分叉** → proposal 图必须引用上游 diagram/version；涉及架构影响时禁止局部更新并返回 Architecture Team。
 - **第三方 Archify 版本漂移** → activation manifest 冻结来源 revision、版本和 archive digest，冲突或升级必须重新验证，不从可变工作目录直接宣称 workspace ready。
 - **Chrome/Chromium 不可用会阻断 required diagram** → 这是有意的 fail-closed 选择；在 browser-capable runner 重跑当前 artifact 的 `visual-check`，不得用人工浏览、旧截图或 `diagram_not_applicable` 绕过已声明的 required 状态。
+- **评论长度预算可能导致摘要过度简化** → 预算只约束 Issue 路由层；详细背景、“需要做什么”、完整方案对比和 Archify 图必须进入 `human_decision_material`，且 readability/decision-readiness gate 会阻止只有 token、没有充分材料的请求。
+- **附件数量重新增加人类负担** → 每个 Action 只允许一个 `human_required` 入口，其他附件必须显式标记 `human_reference|agent_internal`；正式架构批准仍只有一个 canonical Design，派生图不产生独立批准。
 
 ## Migration Plan
 

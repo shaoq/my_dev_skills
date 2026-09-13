@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Adapter consumes the portable core contract without redefining it
-The `multica-architecture-approval-adapter` SHALL require a delivered current machine-only `ARCH-APPROVAL-PACKET` conforming to a compatible core revision and SHALL map evidence to portable fields without changing stages, Review conclusions, Design maturity, recommendation, packet bytes or legal decisions. The adapter MUST render `human_review_surface_v1` separately from `architecture_internal_evidence_v1` and MUST NOT expose internal evidence as mandatory human material.
+The `multica-architecture-approval-adapter` SHALL require a delivered current machine-only `ARCH-APPROVAL-PACKET` conforming to a compatible core revision and SHALL map evidence to portable fields without changing stages, Review conclusions, Design maturity, recommendation, packet bytes or legal decisions. The adapter MUST render `human_review_surface_v2` separately from `architecture_internal_evidence_v1`, use `multica_human_action_material_bundle_v3`, and MUST NOT expose internal evidence as mandatory human material. Frozen v1/v2 surfaces remain audit-only.
 
 #### Scenario: Core manifest is available
 - **WHEN** a current packet, Design, Review and compatible surface contracts pass preflight
@@ -12,11 +12,11 @@ The `multica-architecture-approval-adapter` SHALL require a delivered current ma
 - **THEN** it performs no platform write and reports the exact revision mismatch
 
 ### Requirement: Review comment stays concise while full content is attached
-The adapter SHALL publish one human-readable approval comment that shows exact Design version/maturity, Reviewer conclusion, concise findings, Team recommendation with Chinese rationale/conditions/risks, legal decisions and a non-approval warning. It MUST attach exactly one complete canonical `ARCH-DESIGN-vN.md`. Complete Review and Packet bytes MUST remain internal evidence and MUST NOT be attached or copied into the comment. A derived Design PDF and interactive Archify HTML MAY be offered as non-authoritative supporting resources. When the Design has a required diagram, its receipt-bound light/1440×900 static preview SHALL be offered from the same canonical Design surface and its client-specific rendering MUST be verified separately from Design Markdown access. All such resources MUST be bound to the Design visual manifest, MUST NOT count as additional canonical architecture artifacts and MUST NOT become separate mandatory entries that the Owner must open.
+The adapter SHALL publish one lightweight `【需要你确认】` approval comment that states the plain-language decision, Design version/maturity, Team recommendation and principal consequence, then links one `【需要阅读并确认】` complete canonical `ARCH-DESIGN-vN.md` and one exact Action. Detailed Reviewer findings, rationale, conditions, risks, legal-decision consequences and architecture explanation MUST be available in the Design/decision-material layer and MUST NOT be duplicated into a long timeline comment. Complete Review and Packet bytes MUST remain internal evidence and MUST NOT be attached or copied into the comment. A derived Design PDF and interactive Archify HTML MAY be offered as `【供人参考，无需单独确认】` resources. When the Design has a required diagram, its receipt-bound light/1440×900 static preview SHALL be offered from the same canonical Design surface and its client-specific rendering MUST be verified separately from Design Markdown access. All such resources MUST be bound to the Design visual manifest, MUST NOT count as additional canonical architecture artifacts and MUST NOT become separate mandatory entries that the Owner must open.
 
 #### Scenario: Approval comment is delivered
 - **WHEN** preflight succeeds for a current approvable manifest
-- **THEN** the comment contains the brief and adapter marker, has exactly one canonical Design Markdown attachment, and has no Review, Packet or Control attachment
+- **THEN** the comment contains a lightweight `【需要你确认】` summary and adapter marker, has exactly one `【需要阅读并确认】` canonical Design Markdown attachment, labels derived visuals `【供人参考，无需单独确认】`, and has no Review, Packet or Control attachment
 
 #### Scenario: Work was triggered by a comment
 - **WHEN** the current task requires the approval entry below a trigger
@@ -62,7 +62,7 @@ For the required canonical Design attachment the adapter MUST record a `durable_
 - **THEN** the adapter MUST NOT mark durable access or readiness confirmed
 
 ### Requirement: Readiness verifies the delivered platform bytes
-After comment creation the adapter MUST re-read the approval comment, confirm exactly one canonical Design attachment, download it through stable identity and compare raw-byte SHA-256 with the manifest. It MUST also re-read internal Review/packet bytes, task result, `arch.packet.current`, `ARCH-CONTROL` evidence and supersession state. `review_packet_ready` SHALL be emitted only after brief, Design access, all digests, target human, current Action and projections verify.
+After comment creation the adapter MUST re-read the approval comment, confirm exactly one `human_required` canonical Design attachment, download it through stable identity and compare raw-byte SHA-256 with the manifest. It MUST also validate the compact comment contract, audience labels and `decision_readiness_state`, then re-read internal Review/packet bytes, task result, `arch.packet.current`, `ARCH-CONTROL` evidence and supersession state. `review_packet_ready` SHALL be emitted only after brief, Design access, decision readiness, all digests, target human, current Action and projections verify.
 
 The adapter SHALL support `automatic` and `owner_attested` evidence modes. `automatic` records actual per-client Design opening. `owner_attested` records `manual_check_required`, binds a unique current Action and requires `materials_opened`; it MUST NOT claim `opened`. Ready evidence SHALL use `shared_workspace_sidecar_v1` or `multica_issue_task_evidence_v1`; the latter binds immutable request/task result, Design attachment, internal Review/manifest digests, target Member, Control, projection, status and supersession readbacks. External sidecar remains optional.
 
@@ -83,14 +83,14 @@ The adapter SHALL support `automatic` and `owner_attested` evidence modes. `auto
 - **THEN** readiness is unavailable even though only the Design is human-facing
 
 ### Requirement: Approval delivery explains decisions before technical bindings
-The approval comment SHALL present solution summary, Design maturity, Reviewer conclusion/findings, Team recommendation with Chinese rationale/conditions/risks, accepted warnings and legal decisions with consequences before marker/audit identity. It MUST instruct the Owner to open the one complete Design attachment and MUST state that recommendation, material access, status and internal packet readiness are not approval.
+The approval comment SHALL present a compact plain-language decision, Design maturity, Team recommendation and principal consequence before marker/audit identity. It MUST instruct the Owner to open the one `【需要阅读并确认】` complete Design attachment for detailed architecture, Reviewer findings, risks, accepted warnings and decision consequences, and MUST state that recommendation, material access, status and internal packet readiness are not approval. Technical bindings remain internal and the visible comment MUST obey the `human_review_surface_v2` information budget.
 
 #### Scenario: Current approval is delivered
 - **WHEN** delivery and readiness pass for an approvable current manifest
 - **THEN** the Owner can understand the solution and distinguish documentation-only approval, R&D handoff, revision and rejection without opening Review, Packet, Research or Control
 
 ### Requirement: Readiness verifies the rendered human entry point
-Readiness SHALL verify that the approval comment contains the current Human Action summary, Design maturity, Reviewer conclusion/findings, option consequences, accepted-risk summary or `none`, exact stable Design access guidance and non-approval boundary. In `automatic` mode every requested scope MUST actually open the canonical Design. In `owner_attested` mode the adapter MUST verify its stable same-Issue entry, mark scopes `manual_check_required`, and require `materials_opened` in the exact Action response. Complete Review, Packet, Research and Control remain machine evidence; their absence from the rendered comment or attachment list MUST NOT make an otherwise complete human entry unavailable.
+Readiness SHALL verify that the approval comment contains the current compact Human Action summary, Design maturity, recommendation/principal consequence, exactly one labeled required-material entry, one exact Action and a non-approval boundary. It SHALL verify that the detailed Design contains Reviewer findings, full option consequences, accepted-risk summary or `none`, sufficient architecture explanation and any required Archify visual. In `automatic` mode every requested scope MUST actually open the canonical Design and pass `decision_readiness_state=validated`. In `owner_attested` mode the adapter MUST verify its stable same-Issue entry, mark access and decision readiness `manual_check_required`, and accept either the exact legal decision, `材料打不开`, or `材料不可决策`. Complete Review, Packet, Research and Control remain machine evidence; their absence from the rendered comment or attachment list MUST NOT make an otherwise complete human entry unavailable.
 
 #### Scenario: Comment omits decision consequences
 - **WHEN** Design attachment and all internal digests verify but the visible comment lists only legal tokens

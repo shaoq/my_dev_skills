@@ -9,10 +9,14 @@ evidence_ref={{shared_workspace_sidecar_or_task_control_ref}}
 workflow_mandate_ref={{current_workflow_mandate_ref_or_none}}
 operation_manifest_ref={{current_operation_manifest_ref_or_none}}
 decision_evidence_status=valid|invalid|noop|superseded
+response_kind=content_decision|material_access_failure|material_decision_failure
 binding_profile=current_action_reference_v1|multica_packet_comment_reply_v1|multica_explicit_packet_reference_v1
 decision={{approved_design_only|approved_for_spec|revision_requested|rejected|type_specific_current_action_decision}}
 action_type={{design_input|architecture_review|architecture_approval}}
 material_access_attestation={{materials_opened|automatic|not_applicable}}
+material_access_state=opened|manual_check_required|unavailable|not_run
+decision_readiness_state=validated|manual_check_required|unreadable|incomplete|not_run
+material_failure_reason={{non_authoritative_reason_or_none}}
 issue_ref=multica://issues/{{issue_id}}
 decision_comment_id={{decision_comment_id}}
 decision_comment_ref=multica://issues/{{issue_id}}/comments/{{decision_comment_id}}
@@ -70,4 +74,4 @@ closing_condition={{none|re-read exact current readiness and submit one new inde
 
 `decision_context_ref` 永远与 token authority 分离。只有 exact token-only candidate 能进入 binding parser；token 与 prose 混写时记录 `decision_evidence_status=invalid`、`context_authority=non_authoritative_context`、`fresh_token_required=yes`，保留原评论供审计并要求新的独立 token-only 评论。有效 `revision_requested` 没有可重读 context 时保持决定有效并记录 `revision_scope=missing`；context changed 只触发 core follow-up，不改写或撤销已验证 token evidence。
 
-The record is not proof by itself. For current v2 writers, re-read `human_review_surface_v1`、exactly one Design attachment、internal Review/machine-only manifest、target-human binding and current Action response; revision or raw/normalized digest drift invalidates captured evidence. `owner_attested architecture_approval` additionally requires `material_access_attestation=materials_opened`. The Owner does not copy packet digest because current Action inherits the verified snapshot. Frozen legacy packet replies retain their original parser. A valid decision for a superseded Action/packet is retained with `decision_evidence_status=noop` and never advances the current gate. See [durable evidence records](../references/durable-evidence-records.md).
+The record is not proof by itself. For current v3 writers, re-read `human_review_surface_v2`、`multica_human_action_material_bundle_v3`、exactly one required material、internal Review/machine-only manifest、target-human binding and current Action response; revision or raw/normalized digest drift invalidates captured evidence. `owner_attested architecture_approval` additionally requires `material_access_attestation=materials_opened`. `材料打不开` is `material_access_failure`; `材料不可决策; reason=...` is `material_decision_failure`, preserves access success, never carries a content decision and supersedes the current Action for a corrected new attempt. Frozen legacy packet replies retain their original parser. See [durable evidence records](../references/durable-evidence-records.md).

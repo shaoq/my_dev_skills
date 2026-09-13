@@ -2,7 +2,7 @@
 
 ## Producer boundary
 
-Current routes consume the compatible pair `human_review_surface_v1` + `architecture_internal_evidence_v1` and record the exact activated core/adapter package aggregates, including `SKILL.md`、workflow mandate、Human Action、solution-design、impact and visual contracts. The legacy immutable packet route may continue to read packets produced by revision `1d4b860b48e15f678d78a71bf2c38557ab9c2951`, but legacy operational requests and three-attachment surfaces remain audit-only. The adapter MUST NOT invent a Git revision for uncommitted bytes, add platform-specific required core fields, or redefine the portable state machine.
+Current routes consume the compatible pair `human_review_surface_v2` + `architecture_internal_evidence_v1` with `multica_human_action_material_bundle_v3` and record the exact activated core/adapter package aggregates, including `SKILL.md`、workflow mandate、Human Action、solution-design、impact and visual contracts. Legacy v1/v2 surfaces and the immutable packet route may continue frozen read-only processing, but never satisfy a current writer fence. The adapter MUST NOT invent a Git revision for uncommitted bytes, add platform-specific required core fields, or redefine the portable state machine.
 
 Current writer 只接受并产生 `architecture_workflow_mandate_v2` / `execution_continuation_v2` / `architecture_blocker_action_v3` side effects。reader 对 mandate/continuation 执行 v1 dual-read，对 blocker 读取 `architecture_blocker_action_v1|architecture_blocker_action_v2|architecture_blocker_action_v3`；mandate/continuation writer 执行 v2-only write，blocker writer 执行 v3-only write。历史 v1/v2 blocker identity 保留审计，任何 blocker 新写入都由一个 superseding v3 attempt 承担。blocker v3 必须包含 `automatic_before_human`、一个普通 business question、`provide_input|request_discovery`、reply-context evidence derivation、conditional formal-source policy 和既有 discovery actor binding。
 
@@ -12,11 +12,12 @@ responsibility mapping 必须来自 current mandate 的显式 actor/authority/re
 
 ## Exact compatible Human Action and Design markers
 
-The `architecture_decision_brief_v1` material route requires:
+The `architecture_decision_brief_v2` material route requires:
 
 - one current portable Human Action Request with `action_type=design_input|architecture_review|architecture_approval`、`requires_human_review=true`、stable action ID/version/status、one Decision Owner/authority scope and exactly one atomic current-reader action;
 - a unique target-human binding; an absent/ambiguous Owner stops the mandate and requires a new task instruction rather than a routing Review action;
-- the fixed Decision Brief order: solution summary, Design maturity, concise Review/findings, critical risks, Architecture recommendation/rationale/confidence, alternatives/consequences, one authorized decision, post-response behavior, exactly one canonical Design entry, exact response and minimal current/superseded audit binding;
+- a compact labeled Issue summary within the default 600-code-point prose budget, one authorized decision, recommendation/principal consequence, post-response behavior, exactly one labeled required material entry and one exact Action;
+- a detailed action-bound material whose first screen gives the decision, comprehensible architecture view, recommendation/rationale/confidence, at most three alternatives and their benefits/costs/risks/irreversible impact; formal approval uses canonical Design while pre-Design may use one explicitly non-canonical detail attachment;
 - one complete standalone canonical UTF-8 `ARCH-DESIGN-vN.md`, its strictly positive version and externally computed raw-byte SHA-256 digest;
 - Design readiness that accurately distinguishes incomplete, draft-complete, decision-ready and review-ready states; an incomplete design cannot request a content decision;
 - exact Research、Control、complete Review and packet identities as `architecture_internal_evidence_v1` machine readbacks, never mandatory human entries; and
@@ -39,7 +40,7 @@ The current packet must be an immutable `ARCH-APPROVAL-PACKET vN` with these exa
 
 The adapter must obtain the exact current `ARCH-DESIGN`, `ARCH-REVIEW`, and `ARCH-APPROVAL-PACKET` bytes and verify their SHA-256 values over raw bytes. It must not change character encoding, Unicode, whitespace, newlines, media types, or any frozen content. A superseded packet remains immutable and cannot substitute for the current packet.
 
-When the adapter receives a portable Human Action Request in addition to the packet, it applies the `human_review_surface_v1` checks and verifies that the packet is `machine_only`. Missing or unknown fields make that action rendering incompatible; they do not invalidate an otherwise compatible frozen packet or permit the adapter to invent content.
+When the adapter receives a portable Human Action Request in addition to the packet, it applies the `human_review_surface_v2` checks, separately verifies `material_access_state` and `decision_readiness_state`, and verifies that the packet is `machine_only`. Missing or unknown fields make that action rendering incompatible; they do not invalidate an otherwise compatible frozen packet or permit the adapter to invent content.
 
 ## Compatibility decision
 

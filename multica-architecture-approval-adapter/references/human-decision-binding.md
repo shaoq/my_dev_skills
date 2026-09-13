@@ -2,7 +2,7 @@
 
 ## Preconditions and non-authorities
 
-Current v2 writers always use `current_action_reference_v1`. Re-read `human_review_surface_v1`、the unique Action ID/version/digest、exactly one Design attachment、internal Review/machine-only manifest、material readiness、request comment/time、target-human binding and supersession. The Owner does not repeat packet digest; Action inheritance binds the verified snapshot. Packet profiles below are frozen legacy readers only and never consume a current v2 Action.
+Current v3 writers always use `current_action_reference_v1`. Re-read `human_review_surface_v2`、`multica_human_action_material_bundle_v3`、the unique Action ID/version/digest、exactly one action-bound `human_required` material、internal Review/machine-only manifest、orthogonal material access/decision readiness、request comment/time、target-human binding and supersession. Formal approval requires canonical Design; pre-Design input may use one explicitly non-canonical decision-detail attachment. The Owner does not repeat packet digest; Action inheritance binds the verified snapshot. v1/v2 bundle and packet profiles below are frozen legacy readers only and never consume a current v3 Action.
 
 Every candidate must be in the same Issue, have `author_type=member`, and have `author_id` byte-for-byte equal to the selected current binding's canonical UUID. Do not infer authority from display names, email fragments, assignments, membership, past comments, Agent access, reactions, Issue status, recommendation, Review conclusion, urgency, quoted text, fixture text, or a legal-looking Action/token from an Agent/system/non-target author. Such comments are retained as non-binding audit text only.
 
@@ -16,6 +16,8 @@ rejected
 ```
 
 `OK`, `继续`, emojis, prose containing a decision, quotations, Markdown code/quote/fence content, multiple Actions/tokens, or an edited existing comment are never a replacement decision. Mapping missing/changed/ambiguous or selected request/readiness not current is fail-closed: retain evidence, keep the current Review gate, and request a newly established unique binding/readiness as applicable.
+
+Before the legal-decision parser, classify the two exact recovery forms. `ACTION <action_id>: 材料打不开` requires the exact Owner/current Action and yields `response_kind=material_access_failure`、`content_decision=none`、access repair. `ACTION <action_id>: 材料不可决策; reason=<非空原因>` additionally requires access `opened|manual_check_required` and yields `response_kind=material_decision_failure`、`content_decision=none`、`decision_readiness_state=unreadable|incomplete`、current Action superseded、new attempt/new Action in `preparing`. Never map either response to `rejected|revision_requested|accept|modify`; never collapse them into the same failure.
 
 Human-readable option consequences and revision instructions are rendering context only. If a canonical member writes a legal decision plus prose in one candidate comment, retain that text as non-authoritative audit/context and require a new independent reply. Never strip arbitrary prose and consume an embedded decision.
 

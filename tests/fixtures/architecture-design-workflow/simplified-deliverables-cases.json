@@ -1,7 +1,47 @@
 {
   "contract_pair": {
-    "human_surface_contract": "human_review_surface_v1",
+    "human_surface_contract": "human_review_surface_v2",
     "internal_evidence_contract": "architecture_internal_evidence_v1"
+  },
+  "human_action_cases": {
+    "formal_approval": {
+      "issue_label": "【需要你确认】",
+      "visible_prose": "请决定是否批准当前架构方案进入规格阶段。团队推荐批准进入规格阶段；主要代价是先冻结接口与数据边界，后续改变需新版本复审。请打开唯一必读的 ARCH-DESIGN-v4.md，详细方案、对比、风险和架构图均在附件中。",
+      "comment_budget_code_points": 600,
+      "excluded_from_budget": ["stable_link", "attachment_filename", "action_code_block"],
+      "materials": [
+        {"kind": "design", "audience": "human", "review_requirement": "required", "bound_action": "ARCH-ACT-4", "label": "【需要阅读并确认】"},
+        {"kind": "archify_preview", "audience": "human", "review_requirement": "reference_only", "bound_action": "ARCH-ACT-4", "label": "【供人参考，无需单独确认】"},
+        {"kind": "review", "audience": "agent", "review_requirement": "none", "bound_action": "none", "label": "【Agent 内部材料，无需阅读】"}
+      ],
+      "action": "ACTION ARCH-ACT-4: decision=<legal-token>",
+      "decision_readiness_state": "validated"
+    },
+    "pre_design_input": {
+      "issue_label": "【需要你确认】",
+      "material_kind": "decision_detail",
+      "canonical_design": false,
+      "audience": "human",
+      "review_requirement": "required",
+      "bound_action": "ARCH-ACT-IN-2",
+      "must_state_not_overall_design": true
+    },
+    "opened_but_not_decidable": {
+      "reply": "ACTION ARCH-ACT-4: 材料不可决策; reason=缺少方案边界和回滚影响",
+      "material_access_state": "opened",
+      "decision_readiness_state": "incomplete",
+      "content_decision": "none",
+      "current_action": "superseded",
+      "next_human_action_state": "preparing",
+      "next_attempt": "new_action_id"
+    },
+    "material_cannot_open": {
+      "reply": "ACTION ARCH-ACT-4: 材料打不开",
+      "material_access_state": "unavailable",
+      "decision_readiness_state": "not_run",
+      "content_decision": "none",
+      "next_action": "repair_or_republish_material_entry"
+    }
   },
   "maturity_cases": [
     {"maturity": "directional", "decision": "approved_for_spec", "expected": "fail_closed"},

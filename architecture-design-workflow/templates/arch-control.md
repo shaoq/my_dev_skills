@@ -12,7 +12,7 @@
 
 ## Control fields
 
-- Human surface contract：`human_review_surface_v1`
+- Human surface contract：`human_review_surface_v2`
 - Internal evidence contract：`architecture_internal_evidence_v1`
 - `WAIT_REASON`：`none|design_approval|target_project|awaiting_human_confirmation`
 - Workflow mandate ref / profile：`<ref>|none` / `architecture_workflow_mandate_v2|none`
@@ -26,6 +26,9 @@
 - Packet readiness：`none|review_packet_ready|review_packet_unavailable`
 - Readiness / unavailable evidence ref：
 - Target human / access confirmation ref：
+- Material audience / review requirement / bound Action：`human|agent` / `required|reference_only|none` / `<action-id|none>`
+- Material access state：`opened|manual_check_required|unavailable|not_run`
+- Decision readiness state：`validated|manual_check_required|unreadable|incomplete|not_run`
 - `ARCHITECTURE_RECOMMENDATION`：`none|recommend_approved_for_spec|recommend_approved_design_only|recommend_revision|no_recommendation`
 - Human gate：`none|approved_design_only|approved_for_spec|revision_requested|rejected`
 - Human decision evidence：actor、current Action、inherited manifest snapshot、binding profile、evidence ref、recorded_at
@@ -90,6 +93,8 @@
 - Atomic decision：
 - Candidate recommendation：
 - Stable human-accessible evidence refs：
+- Required material：恰好一个 `human_required`；正式批准为 canonical Design，pre-Design 可为明确非总体设计的 action-bound detail
+- Material failure recovery：`材料打不开|材料不可决策; reason=<原因>|none`
 - Exact response ref：
 - After-response projection：next stage / remaining blockers / Next Owner / planned writes
 - Current / superseded：`current|superseded`

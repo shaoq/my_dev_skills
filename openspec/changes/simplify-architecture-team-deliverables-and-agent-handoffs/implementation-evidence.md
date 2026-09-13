@@ -1,5 +1,42 @@
 # Implementation evidence
 
+> The original 2026-09-12 evidence is retained below as the frozen v1/v2 baseline. The 2026-09-13 increment implements `human_review_surface_v2` and `multica_human_action_material_bundle_v3`; historical attempts remain read-only.
+
+## 2026-09-13 human-decision-readability increment
+
+### Baseline and compatibility pair
+
+- Implemented directly on `main` from base HEAD `19d868a9776f5607a259f0c4bbfd736693f2dc3d`, preserving all pre-existing proposal edits.
+- Current writer pair: `human_review_surface_v2` + `architecture_internal_evidence_v1`; Multica material writer: `multica_human_action_material_bundle_v3`.
+- Current working-tree package aggregates (sorted path + file SHA-256 stream):
+  - core `architecture-design-workflow`: `ab97d483bcfcbdea757a3b02832c77b58b74410d06dc11a68bdd10e4b5667134`
+  - adapter `multica-architecture-approval-adapter`: `9cac3517723e23285f18dd4a36d92d8b97772840f3f8383cbbeca6ee222db058`
+- GitNexus refreshed the current index before editing. `validate_fixture` returned `UNKNOWN` because no callers were resolved by the graph; text verification found 12 concrete test call sites. Markdown contracts are consumed dynamically, so cross-references from both Skills, the safety runner and contract tests were used as the required secondary evidence. No HIGH/CRITICAL pre-edit result occurred.
+
+### Delivered behavior
+
+- Directly visible Issue prose defaults to at most 600 Unicode code points, excluding stable links, attachment filenames and the sole Action block. It answers only whether action is required, what must be decided, the recommendation/principal consequence, which one material to open and how to reply.
+- Detailed `human_decision_material` provides a human-readable first screen with the decision, a sufficiently explanatory simplified/Archify architecture view, recommendation/rationale/confidence, at most 2–3 options and each option's benefits/costs/risks/irreversible impact, immediate post-response behavior and the unique Action.
+- Every material binds `audience=human|agent`, `review_requirement=required|reference_only|none` and `bound_action=<id|none>`, rendered as `【需要阅读并确认】`、`【供人参考，无需单独确认】` or `【Agent 内部材料，无需阅读】`. Each Action has exactly one required entry. Archify/PDF/preview resources share the Design Action and never create a second Action.
+- Formal approval still requires exactly one canonical `ARCH-DESIGN-vN.md`. A pre-Design input/risk Action may use one limited-scope, explicitly non-canonical detail attachment. Research、Control、complete Review、Packet、receipt、continuation and handoff bodies remain internal and do not enter ordinary long comments.
+- `material_access_state` and `decision_readiness_state` are independent. `ACTION <id>: 材料不可决策; reason=<原因>` preserves access success, records `content_decision=none` and `unreadable|incomplete`, supersedes the Action, returns to `preparing` and creates a corrected new attempt/new Action. It is distinct from `材料打不开`, rejection and revision.
+- The reusable `allen@qq.com` / `unidocs-rag` deployment profile now carries the v2/v3 pair, budget/labels/recovery contract and updated instructions for Solution Architect、Architecture Reviewer、Product & Spec Engineer and Solution Review Architect. YAML readback passed and exactly four target Agents remain Archify-bound in the profile.
+
+### TDD and verification
+
+- RED: `python3 -m unittest tests.test_simplified_architecture_deliverables_contract` ran 9 tests with 3 expected failures for missing core v2, adapter v3 and README contracts.
+- GREEN focused: core/adapter/owner-manual/continuation command passed 23/23.
+- Full Python: `python3 -m unittest discover -s tests -p 'test_*.py'` passed 58/58.
+- Core safety: `bash tests/architecture-design-workflow-safety.sh` passed static validation and 27 fixtures, including the new prohibition on detailed material sections in the compact summary template.
+- Target-aware safety passed 48/48; worktree lifecycle safety passed 193/193.
+- Skill quick validation returned `Skill is valid!` for both packages.
+- Target and full OpenSpec strict validation passed; full result was 25/25. `git diff --check` passed.
+- Current-writer scan found no `human_surface_contract=human_review_surface_v1`, bundle-v2 current setting or adapter-v2 marker outside explicit frozen legacy prose. Final GitNexus `detect-changes --scope all` reported 46 files / 162 symbols, 0 affected processes, risk `low`, with no partial/truncated indication.
+
+### Runtime and sandbox boundary
+
+- Repository sources, tests, reusable profile and runbooks were updated. Real Multica workspace import/binding and sandbox Issue acceptance remain `not_run`: the current instruction authorized direct repository implementation, not the distinct “implement and activate” mandate required by the adapter. No real comments, attachments, Actions, Team/Agent bindings or historical objects were changed.
+
 ## Scope and baseline
 
 - Applied directly on branch `main` at base HEAD `381ca5ca7364108021809eb56dad3ef48e8cd237`, per explicit user instruction.

@@ -1,6 +1,6 @@
 ## Why
 
-当前架构小组虽然能够产生严谨、可审计的设计与审批证据，但把 `ARCH-CONTROL`、Research、Review、Approval Packet 和 Agent handoff 大量投影到面向人的 Issue 时间线，并要求审批人同时打开多份材料。结果是过程审计压过总体方案，评审人难以确认哪一份才是完整结论，后续研发也容易从分散评论而不是批准设计继续工作。
+当前架构小组虽然能够产生严谨、可审计的设计与审批证据，但把 `ARCH-CONTROL`、Research、Review、Approval Packet 和 Agent handoff 大量投影到面向人的 Issue 时间线，并要求审批人同时打开多份材料。结果是过程审计压过总体方案，评审人难以确认哪一份才是完整结论，后续研发也容易从分散评论而不是批准设计继续工作。UNIDRAG-14 的真实验收进一步证明，“附件可下载、digest 正确”仍不等于“材料适合人类阅读并可据此决策”：过长评论、机器字段前置、缺少清晰架构图和未区分人工/Agent 材料，都会让一个技术上可访问的 Action 实际不可执行。
 
 本次变更将“人类评审面”与“Agent 执行/审计面”分离：保留严格的版本、digest、独立评审、批准和 supersession 门禁，但让一份完整 `ARCH-DESIGN-vN.md` 成为唯一必读、可独立评审并指导下一步的总体方案。同时引入 Archify 作为受控的方案可视化能力，使复杂边界、关键时序、数据流和生命周期能够以可复现、可验证的派生图呈现，而不把图或生成回执变成第二份总体方案。
 
@@ -11,6 +11,10 @@
 - 将 `ARCH-REVIEW` 收敛为独立评审的简短 findings/verdict；完整论证、方案正文和已关闭结论必须回写到新版本 Design，Review 不复制 Design。
 - 将 `ARCH-CONTROL`、Research、readiness evidence、continuation、handoff/readback 和 reconciliation 视为内部控制/证据对象；默认不得逐步发布为普通人类 Issue 评论。
 - Multica 的正式审批交付改为“一份 Design 附件 + 一段简短 Reviewer/决策摘要 + 一个具名 Action”。机器 manifest、digest、readback 和状态投影保存在 task evidence、metadata 或其他耐久审计记录中。
+- 将 Issue 时间线定义为轻量导航与决策入口：普通可见评论默认不超过 600 个 Unicode code points（不计稳定链接、附件文件名和唯一 Action 代码块），只保留当前状态、是否需要人工处理、推荐/关键后果、材料入口和唯一回复；详细背景、方案、Archify 图、证据和评审内容进入带 audience 标签的附件或内部 evidence。
+- 引入明确的材料受众与确认语义：`human_required` 表示当前 Action 必须阅读并确认，`human_reference` 表示供人参考或随主 Design 一并确认，`agent_internal` 表示 Agent 内部且无需人类阅读；所有 Issue 评论和附件入口必须使用对应中文标签，不得让用户从文件名或上下文猜测责任。
+- 将 `material_access_state` 与 `decision_readiness_state` 正交建模；附件能够打开但内容 `unreadable|incomplete` 时不得把内容选择当作可执行决定。新增 `ACTION <id>: 材料不可决策; reason=<原因>` 恢复入口，与网络、权限或渲染失败的 `材料打不开` 严格区分，并用新 attempt/Action 重新交付。
+- 将 `human_review_surface_v2` 定义为新 writer：Issue 上是紧凑 Action 摘要，附件中是可充分展开且面向人的 decision material；正式架构批准仍只有 `ARCH-DESIGN-vN.md` 是 canonical 总体方案，设计输入或风险判断可以拥有一个 action-bound `human_required` 详情附件，但不得伪装成第二份总体设计。
 - Agent 间流转改用 runtime task payload/result 或耐久内部 evidence；只有发生真正的人类内容决定、无法自动解除的依赖输入、最终架构方案交付或终态摘要时才进入人类时间线。
 - 为 Design 增加 `directional|spec_ready|implementation_ready` 成熟度，明确当前方案能指导到哪一阶段；未达到 `implementation_ready` 时必须在同一 Design 中列出剩余决策、Owner、关闭条件和研发前置项。
 - 引入 impact-based revision：输入变化先判断是否影响已批准/待审设计；无实质影响时只更新内部证据，只有改变架构结论、风险、接口、约束或成熟度时才生成新 Design/Review 版本。
@@ -31,11 +35,11 @@
 - `architecture-design-artifacts`: 重新定义人类 canonical Design、精简 Review、内部控制产物、设计成熟度、visual companion manifest 与 impact-based revision。
 - `architecture-approval-packets`: 将 packet 从人类必读材料改为机器 approval manifest，同时保持不可变绑定、readiness、决定与 supersession 安全性。
 - `architecture-design-governance`: 将正式人类决定绑定到 current Action 与准确 Design/Review/manifest snapshot，并约束新旧 attempt 的版本迁移。
-- `architecture-human-action-requests`: 将人类请求收敛为单一 Design 入口、简短评审摘要和一个原子决定。
+- `architecture-human-action-requests`: 将人类请求升级为 `human_review_surface_v2`，分离访问状态与可决策状态，定义紧凑 Issue 摘要、带 audience 的详情附件和“材料不可决策”恢复语义。
 - `architecture-workflow-operation-automation`: 将 Agent continuation、handoff、readback、Control 与状态投影从普通人类时间线移入内部执行/证据通道。
 - `architecture-skill-runtime-installation`: 要求 core 与 adapter 作为兼容版本一起激活，并将外部 Archify 版本、来源和归档 digest 作为独立依赖冻结，验证新 attempt 使用新契约、旧 attempt 不被重解释。
 - `multica-architecture-approval-delivery`: 将三附件审批交付改为单 Design canonical attachment、非权威视觉伴随资源和机器 manifest/readiness 记录。
-- `multica-architecture-human-action-rendering`: 减少人类评论内容，只保留总体方案入口、必要的静态视觉预览、关键结论、风险和当前 Action。
+- `multica-architecture-human-action-rendering`: 强制轻量 Issue 评论、人工/参考/Agent 三类标签、action-bound 详情附件和可访问但不可决策的 fail-closed 重发路径。
 - `multica-architecture-adapter-activation`: 更新导入、角色级 additive binding 和 sandbox acceptance，使新的人类/内部双通道契约及 Archify 创作/评审边界在两个 Team 上原子启用。
 
 ## Impact

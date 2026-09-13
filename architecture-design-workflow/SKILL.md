@@ -7,11 +7,11 @@ description: "Use when a substantial architecture upgrade, greenfield system, hy
 
 ## Overview
 
-把复杂架构工作作为独立于 OpenSpec 实施的受控流程。`ARCH-DESIGN-vN.md` 是唯一 mandatory human artifact，也是唯一 `human_canonical` 总体方案。`independent_review` 给出 approvable conclusion 后生成 machine-only immutable approval manifest；current Action 从 manifest 继承准确 snapshot，人类无需打开 Review、Packet、Control 或 Research，也无需复制 packet digest。只有可识别的人类针对准确 current Action 记录明确门禁后，才能发布批准产物或生成研发交接。
+把复杂架构工作作为独立于 OpenSpec 实施的受控流程。新 writer 使用 `human_review_surface_v2`：Issue 只显示轻量 Action 摘要，详细且面向人的决策材料进入一个 action-bound 材料入口；`ARCH-DESIGN-vN.md` 是唯一 mandatory human artifact，也是唯一 `human_canonical` 总体方案。`independent_review` 给出 approvable conclusion 后生成 machine-only immutable approval manifest；current Action 从 manifest 继承准确 snapshot，人类无需打开 Review、Packet、Control 或 Research，也无需复制 packet digest。只有可识别的人类针对准确 current Action 记录明确门禁后，才能发布批准产物或生成研发交接。`human_review_surface_v1` 仅作冻结历史 attempt 的只读兼容。
 
 当前 writer 固定输出两个互补 surface：
 
-- `human_review_surface_v1`：一份 canonical Design、Design maturity、简短 Review findings/verdict、关键风险、推荐、决定后果和一个原子 current Action；
+- `human_review_surface_v2`：一条默认不超过 600 Unicode code points 的 Issue Action 摘要、恰好一个 `human_required` 决策材料、可选 `human_reference` 资源和一个原子 current Action；
 - `architecture_internal_evidence_v1`：使用 [internal evidence template](templates/architecture-internal-evidence.md)保存 Research、Control、完整 Review、machine-only Packet、readiness、digest、continuation、handoff/readback、retry、reconciliation 和状态投影证据。
 
 用户明确开始、继续或重试当前阶段时建立平台无关的 `architecture_workflow_mandate_v2`；mandate 内的准备、交付、可访问性验证、状态投影、结果记录和有界重试自动完成，只有真实方案内容决定才暂停等待人类 Review。旧三附件 attempt 按冻结版本只读，绝不原地重解释为当前单 Design surface。
@@ -71,7 +71,7 @@ completed_design_only | rejected
 
 每次合法转换都更新 [ARCH-CONTROL 模板](templates/arch-control.md)中的 Issue、Owner、输入版本、证据、下一动作和转换记录。
 
-只有下一步需要人类改变方案输入、作出架构 Review/风险判断或批准 current packet 时，才读取 [Human Action Request](references/human-action-request.md)并使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)。一个 action item 只能绑定一个原子决定和一个 authority scope；面向当前读者的 `Architecture Decision Brief` 只请求其唯一有权决定的一项内容，其他 Owner 只作 non-actionable dependency summary。Owner、项目或目标未唯一绑定时发布 actionable `dependency_input` blocker，不把 routing 或 access confirmation 渲染为方案 Review。首屏依次给一段式方案摘要、简化架构图、Architecture recommendation/理由/置信度、已确定/未确定内容、关键备选后果、当前决定、回复后行为和完整材料入口；完整方案保留在独立版本化 artifact，不复制进 brief。每个材料引用必须区分稳定 identity、可导航入口和逐 client scope 状态。`automatic` 模式只有实际激活入口并完成 human-readable rendering 才可标记 `opened`；`owner_manual` 模式只可标记 `manual_check_required`，并把能否打开交给 Decision Owner 通过专用回复反馈。当请求已经交付且唯一 Owner 可以行动时，设 `HUMAN_ACTION_STATE=awaiting_response`；`critical_evidence_gaps` 可以继续作为事实缺口记录，但不能把这类 actionable Human Action Request 误报成“没有可执行路径”的硬阻塞。
+只有下一步需要人类改变方案输入、作出架构 Review/风险判断或批准 current packet 时，才读取 [Human Action Request](references/human-action-request.md)，使用 [HUMAN-ACTION-REQUEST 模板](templates/human-action-request.md)生成轻量 Issue 摘要，并按 [HUMAN-DECISION-MATERIAL 模板](templates/human-decision-material.md)组织详细材料。一个 action item 只能绑定一个原子决定和一个 authority scope；面向当前读者的 `Architecture Decision Brief` 只请求其唯一有权决定的一项内容，其他 Owner 只作 non-actionable dependency summary。Owner、项目或目标未唯一绑定时发布 actionable `dependency_input` blocker，不把 routing 或 access confirmation 渲染为方案 Review。详细材料首屏依次给一句话“需要决定什么”、足够解释边界的简化架构图、Architecture recommendation/理由/置信度、最多三项方案对比、各方案收益/代价/风险/不可逆影响、回复后行为和唯一 Action；Issue 正文只保留是否需处理、决定、推荐/关键后果、材料入口和准确回复。每个材料必须记录 `audience=human|agent`、`review_requirement=required|reference_only|none` 与 `bound_action=<id|none>`。`automatic` 模式只有实际激活入口并完成 human-readable rendering 与 decision-readiness 校验才可标记 `opened/validated`；`owner_manual` 模式保留 `manual_check_required`。材料可打开但不可形成决定时，准确 Owner 使用 `ACTION <action_id>: 材料不可决策; reason=<原因>`；该回复不消费内容决定，保留 access success、supersede 旧 Action，并以新 attempt 返回 `preparing`。当请求已经交付且唯一 Owner 可以行动时，设 `HUMAN_ACTION_STATE=awaiting_response`；`critical_evidence_gaps` 可以继续作为事实缺口记录，但不能把这类 actionable Human Action Request 误报成“没有可执行路径”的硬阻塞。
 
 ## Workflow
 

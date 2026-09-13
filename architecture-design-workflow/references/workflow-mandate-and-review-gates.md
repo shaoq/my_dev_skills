@@ -1,6 +1,6 @@
 # Workflow mandate and architecture review gates
 
-Current writer freezes `human_surface_contract=human_review_surface_v1` and `internal_evidence_contract=architecture_internal_evidence_v1` in every mandate. Only the canonical Design, concise Review/risk/recommendation and one current Action enter the human surface. Research、Control、complete Review、machine-only Packet、continuation/handoff/readback、retry and reconciliation remain internal and do not create ordinary human comments.
+Current writer freezes `human_surface_contract=human_review_surface_v2` and `internal_evidence_contract=architecture_internal_evidence_v1` in every mandate. The human surface contains a compact Issue Action Summary, exactly one action-bound `human_required` material entry, optional `human_reference` resources and one current Action. Research、Control、complete Review、machine-only Packet、receipts、continuation/handoff/readback、retry and reconciliation remain `agent_internal` and do not create ordinary human comments. Frozen v1 surfaces are read-only.
 
 ## Purpose
 
@@ -60,9 +60,10 @@ v1 `architecture_agent` 仅在 identity 可精确回读时映射为 `workflow_ac
 
 1. action、Decision Owner 与 authority scope 唯一且 current；
 2. 所需完整材料满足当前 access verification mode：`automatic` 已通过 actual reader activation 验证 human-readable rendering；或 `owner_manual` 已有 Owner 的显式 policy evidence、准确 identity/digest 回读、稳定的同一 work item 导航入口，并将逐 scope 状态标记为 `manual_check_required`；
-3. brief 给出摘要、简图、Architecture recommendation/理由/置信度、已确定/未确定和备选后果；
-4. 只请求一个原子内容决定，并给出准确回复和 After-response；
-5. 回复会改变方案内容、Review/风险状态或正式批准状态。
+3. `material_access_state` 与 `decision_readiness_state=validated|manual_check_required|unreadable|incomplete|not_run` 分别计算；automatic 必须为 `opened + validated`，owner_manual 可以为 `manual_check_required + manual_check_required`；
+4. Issue 摘要满足 600 Unicode code points 默认预算，详细材料给出一句话决定、充分简图、Architecture recommendation/理由/置信度、已确定/未确定和最多三项备选的收益/代价/风险/不可逆影响；
+5. 只请求一个原子内容决定，并给出准确回复和 After-response；
+6. 回复会改变方案内容、Review/风险状态或正式批准状态。
 
 准备、交付、附件、访问检查、status、task-result、relay、retry、verification、sidecar、supersession 和 continuation 都是自动操作。routing、Owner binding、scope 或 evidence reference 使用 `dependency_input` blocker，固定 `requires_human_review=false`，不得伪装成方案 Review。
 
@@ -95,6 +96,8 @@ instruction owner 是有权提供下一任务绑定的人，不等于缺失的 d
 `design_input|architecture_review` 的具名内容回复继续使用 `current_action_reference_v1`。authority 由同一 work item、准确 Owner、request 后未编辑回复、唯一 current Action ID、继承的 version/digest、合法决定与 supersession 共同构成，不来自平台评论位置。
 
 Action 缺失、错误、重复、superseded，Owner 不匹配，回复早于 request、被编辑、含多个 Action/决定或无法继承 version/digest 时保持 awaiting_response。`architecture_approval` 的 packet-bound 规则不变。
+
+准确 Owner 的 `ACTION <action_id>: 材料不可决策; reason=<原因>` 不进入 content-decision parser。它保留成功 access evidence、记录 `decision_readiness_state=unreadable|incomplete`、`content_decision=none`，supersede 当前 Action，并用新 attempt/new Action 回到 `preparing`。`ACTION <action_id>: 材料打不开` 仍只代表 access failure；两者不得互相归一化。
 
 ## Audit and compatibility
 

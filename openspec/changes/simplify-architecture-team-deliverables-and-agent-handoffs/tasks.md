@@ -66,3 +66,13 @@
 - [x] 7.6 输出最终实现 evidence，列出实际修改范围、core/adapter revision pair、未触碰的历史对象、真实 runtime/workspace activation 的 `not_run|authorized result` 和后续人工步骤
 - [x] 7.7 运行 pinned Archify 的 showcase validate/deliver/visual-check 示例和图文语义 review fixture，验证失败的 deliver 不复用旧 HTML、browser evidence 不冒充 visual review、light/1440×900 preview 来自当前成功 receipt、任一 required status failed/skipped 都 fail closed、R&D 架构影响返回 Architecture Team，并记录全部 artifact digests 与限制
 - [x] 7.8 对 `README.md`、core/adapter references/templates 和 current specs 执行旧契约扫描，断言新 writer/用户说明不再要求三附件必读、人工复制 packet digest 或 dedicated Agent handoff comment；仅 frozen legacy reader/fixture 可保留旧术语
+
+## 8. 人类可决策性与轻量 Issue 表面增量
+
+- [x] 8.1 为 `human_review_surface_v2` 增加 core RED fixtures：紧凑 Issue 摘要、一个 action-bound `human_required` 材料、`human_reference|agent_internal` 标签、访问与可决策状态正交，以及 `材料不可决策` 不消费内容决定
+- [x] 8.2 为 `multica_human_action_material_bundle_v3` 增加 adapter RED fixtures：默认 600 Unicode code points 评论预算、三类中文责任标签、正式批准唯一 Design、pre-Design 单详情附件、Archify 随 Design 确认且不产生第二 Action
+- [x] 8.3 更新 core Human Action reference/template、workflow mandate/readiness 与 safety runner，引入 `decision_readiness_state`、新恢复回复、supersession/new-attempt 规则，并保持旧 v1/v2 attempt 只读兼容
+- [x] 8.4 更新 Multica adapter 的 comment/material bundle/readiness/decision binding/reconciliation templates 与 validators，禁止 Research、Control、完整 Review、Packet、receipt、continuation 和 handoff 正文进入普通评论
+- [x] 8.5 更新 Architecture/R&D Team deployment profile、四个目标 Agent 指令、workspace 导出/导入说明和 README，使线上新 attempt 使用同一 audience、评论预算、Archify 详情附件和人类可决策性合同
+- [ ] 8.6 在 sandbox Issue 执行端到端验收：材料可打开但不可决策时旧 Action superseded；新评论保持轻量；详情附件可读且含充分“需要做什么”和 Archify 图；人类能区分需确认、仅参考和 Agent 内部材料
+- [x] 8.7 运行 focused/full contract tests、Skill validation、OpenSpec strict validation、旧 writer 扫描、`git diff --check` 和 GitNexus `detect-changes --scope all`，记录 v2/v3 revision pair、真实 workspace activation 状态与限制

@@ -320,14 +320,14 @@ CLEANUP_READY=true 才普通清理；否则保留来源
 **核心机制**：
 
 - canonical 主路径为 `intake → routed → researching → designing → reviewing → waiting_human`；`ARCH-DESIGN-vN.md` 是唯一 mandatory Design 和唯一 human-canonical 总体方案
-- current writer 分离 `human_review_surface_v1` 与 `architecture_internal_evidence_v1`：人类只看一份 Design、成熟度、简短 Review/风险/推荐和一个 Action；Research、Control、完整 Review、machine-only Packet、continuation/handoff/readback、retry 和 reconciliation 保存在内部证据
+- current writer 使用 `human_review_surface_v2` 与 `architecture_internal_evidence_v1`：Issue 只显示默认不超过 600 Unicode code points 的轻量 Action 摘要；详细“需要做什么”、架构图、最多三项方案权衡和完整后果进入一个 `【需要阅读并确认】` 材料；Research、Control、完整 Review、machine-only Packet、receipt、continuation/handoff/readback、retry 和 reconciliation 保存在 `【Agent 内部材料，无需阅读】` 证据
 - Design maturity 为 `directional|spec_ready|implementation_ready`；`directional` 禁止 `approved_for_spec`，后两者保留各自的 OpenSpec handoff/直接实施指导边界
 - Reviewer approvable 后生成 machine-only immutable `ARCH-APPROVAL-PACKET` manifest 并取得 readiness evidence；current Action 继承准确 snapshot，Owner 无需人工打开 Review、Packet、Control 或复制 packet digest
 - 用户明确开始、继续或重试当前阶段时建立平台无关的 `architecture_workflow_mandate_v2`；`v1` 只读审计；准备、交付、访问验证、状态、retry 和审计自动完成，只有 `design_input|architecture_review|architecture_approval` 的真实方案决定暂停等待人类
 - `openspec-explore` 是研究阶段必需依赖；只有目标、边界、约束或方案空间存在实质歧义时才要求 `superpowers:brainstorming`
 - 依赖缺失时保持当前 stage，记录稳定 `BLOCKED_REASON` 并 fail-closed；不自动安装依赖，也不修改 Runtime 配置
 - Review 只允许 `BLOCKED`、`NEEDS_REVISION`、`APPROVABLE_WITH_WARNINGS`、`APPROVABLE`；Review 结论、packet readiness 和 `ARCHITECTURE_RECOMMENDATION` 都不等于人类批准
-- 人工 gate 只接受准确 Decision Owner 针对 current Action 的 `approved_design_only`、`approved_for_spec`、`revision_requested` 或 `rejected`；owner-attested 仍要求 `materials_opened`
+- 人工 gate 只接受准确 Decision Owner 针对 current Action 的 `approved_design_only`、`approved_for_spec`、`revision_requested` 或 `rejected`；owner-attested 仍要求 `materials_opened`。材料打不开用 `材料打不开`；材料能打开但不足以决策用 `材料不可决策; reason=<原因>`，后者保留 access success、supersede Action 并用新 attempt 重做材料，不消费内容决定
 - 新输入先生成 `architecture_design_impact_v1`：无架构影响只更新内部 evidence；有影响或 unknown 新建 Design/Review 并 supersede Action/manifest
 - complex Design 默认使用 Archify Architecture 总览图；required visual 只有 deliver/browser/visual/semantic 四项全部通过才可进入正式 Review，light/1440×900 preview 必须来自同一成功 receipt
 - standalone `local_file` profile 要求当前人类确认 shared workspace scope；仅 Agent 能读取本地路径时保持 `reviewing` 并记录 `review_packet_unavailable`
@@ -360,7 +360,7 @@ python3 -m unittest tests/test_architecture_design_workflow_runner.py
 
 **做什么**：这是 `architecture-design-workflow` 的独立 sibling skill，用于把已经交付、兼容且仍为 current 的 `ARCH-APPROVAL-PACKET` 映射到一个已明确指定的既有 Multica Issue。它不改变 core 状态机，也不使 Multica 成为 core 的安装或触发依赖：只安装 core 时，standalone profile 仍可工作；adapter 只有在已提供 compatible packet、既有 workspace/Issue 以及当前任务明确要求 Issue delivery 时才触发。
 
-**审核材料**：adapter 评论展示 Design 版本/maturity、简短 Reviewer conclusion/findings、Architecture Team recommendation 及中文理由/风险、一个 current Action 和四种决定后果，并且恰好附带一份 canonical Design Markdown。无需人工打开 Review、Packet、Control 或 Research；它们通过 `architecture_internal_evidence_v1` 回读。PDF、Archify HTML 与 receipt-bound preview 均为 `derived_non_authoritative` supporting resources。
+**审核材料**：adapter 使用 `multica_human_action_material_bundle_v3`。评论以 `【需要你确认】`、`【Agent 处理中，无需回复】` 或 `【Agent 已完成，无需确认】` 开头；只有第一类带 Action。正式审批恰好附带一份 `【需要阅读并确认】` canonical Design Markdown；Design 首屏提供较完整的“需要决定什么”、架构图、推荐理由、2～3 个方案对比、收益/代价/风险/不可逆影响、回复后行为和唯一 Action。pre-Design 输入可使用一份明确非总体设计的 action-bound detail。PDF、Archify HTML 与 receipt-bound preview 是 `【供人参考，无需单独确认】`，随 Design 确认且不生成第二 Action。Review、Packet、Control、Research 和 Agent 流转通过 `architecture_internal_evidence_v1` 回读，不复制进长评论。
 
 **Archify 角色最小化**：四个 Archify 目标 Agent 是 Architecture Team 的 Solution Architect（author）、Architecture Reviewer（review-only），以及 R&D Team 的 Product & Spec Engineer（conditional author）、Solution Review Architect（review-only）。其他 Lead/Analyst/Development/Code Review/QA/Integration/Watchdog 默认不绑定。required visual 的 `deliver=passed`、`browser_evidence=passed`、`visual_review=passed` 和 semantic findings closed 任一不满足都 fail closed。
 

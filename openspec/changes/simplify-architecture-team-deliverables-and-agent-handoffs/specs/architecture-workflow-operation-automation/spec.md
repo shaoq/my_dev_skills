@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Human access 必须由完整客户端渲染证明
-系统 SHALL 仅在具名 verifier 对 canonical Design 的目标人类入口执行 actual UI activation，并看到准确完整的 human-readable rendering 后，把对应 scope 记录为 `opened`。`owner_manual` 可以在准确 Design identity/digest、稳定入口和唯一 Owner policy 通过后记录 `manual_check_required`，但不得声称 `opened`。Research、Control、Review、Packet、continuation 与 handoff 只需 machine readback，不得作为内容决定的额外 human-rendering 前提。download-only、raw-byte fetch、HTTP 200、digest 一致或本地文件存在 MUST NOT 单独证明 Design 已被人类打开。
+系统 SHALL 仅在具名 verifier 对当前 `human_required` 材料的目标人类入口执行 actual UI activation，并看到准确完整的 human-readable rendering 后，把对应 scope 记录为 `opened`。正式批准的 required material 必须是 canonical Design；pre-Design input/risk Action 可以使用一个明确限界的 decision-detail attachment。`owner_manual` 可以在准确 material identity/digest、稳定入口和唯一 Owner policy 通过后记录 `manual_check_required`，但不得声称 `opened`。Research、Control、Review、Packet、continuation 与 handoff 只需 machine readback，不得作为内容决定的额外 human-rendering 前提。download-only、raw-byte fetch、HTTP 200、digest 一致或本地文件存在 MUST NOT 单独证明材料已被人类打开或适合决策。
 
 #### Scenario: Design Markdown attachment preview 成功
 - **WHEN** verifier 激活当前 Design attachment 并确认完整正文与准确 identity
@@ -14,6 +14,10 @@
 #### Scenario: Internal evidence is not rendered
 - **WHEN** Review、Control 或 Packet 完成 machine identity/digest/readback 但未在客户端打开
 - **THEN** 其状态不阻止已经满足 Design access 的人类内容决定
+
+#### Scenario: Required material opens but is not decision-ready
+- **WHEN** 当前 Owner 能打开准确材料，但使用 `材料不可决策` 报告其组织、解释、图示或方案后果不足
+- **THEN** 系统保留 access success、记录 `decision_readiness_state=unreadable|incomplete`、supersede 当前 Action，并以新 attempt 重做材料而不消费内容决定
 
 ### Requirement: Portable continuation 必须保持真实执行连续性
 `execution_continuation_v2` SHALL 绑定唯一 work item/stage/attempt、非终态 next actor/authority/responsibility、单项 action、input refs、closing condition、state、evidence mode、evidence refs 和 supersession。除 terminal 外 MUST NOT 使用空 next actor；`accepted|active` 必须有 `local_session|shared_artifact|runtime_task|human_response` 的可回读 evidence。continuation、Agent handoff 和 readback MUST default to `architecture_internal_evidence_v1` and MUST NOT require a dedicated human timeline comment.

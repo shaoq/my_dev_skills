@@ -1,18 +1,31 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "required": ["current_writer", "access_modes", "visual_activation_cases", "internal_events_without_issue_comment", "archify_bindings", "unbound_agents", "activation"],
+  "required": ["current_writer", "human_action_rendering", "material_entries", "decision_failure_cases", "access_modes", "visual_activation_cases", "internal_events_without_issue_comment", "archify_bindings", "unbound_agents", "activation"],
   "properties": {
     "current_writer": {
       "type": "object",
       "required": ["bundle_contract", "canonical_attachments", "forbidden_attachments", "supporting_resources", "supporting_authority"],
       "properties": {
-        "bundle_contract": {"const": "multica_human_action_material_bundle_v2"},
+        "bundle_contract": {"const": "multica_human_action_material_bundle_v3"},
         "canonical_attachments": {"const": ["design"]},
         "forbidden_attachments": {"const": ["review", "packet", "control", "research"]},
         "supporting_authority": {"const": "derived_non_authoritative"}
       }
     },
+    "human_action_rendering": {
+      "type": "object",
+      "required": ["contract", "comment_budget_code_points", "budget_exclusions", "comment_labels", "material_labels"],
+      "properties": {
+        "contract": {"const": "human_review_surface_v2"},
+        "comment_budget_code_points": {"const": 600},
+        "budget_exclusions": {"const": ["stable_links", "attachment_filenames", "action_code_block"]},
+        "comment_labels": {"const": ["【需要你确认】", "【Agent 处理中，无需回复】", "【Agent 已完成，无需确认】"]},
+        "material_labels": {"const": ["【需要阅读并确认】", "【供人参考，无需单独确认】", "【Agent 内部材料，无需阅读】"]}
+      }
+    },
+    "material_entries": {"type": "object"},
+    "decision_failure_cases": {"type": "object"},
     "visual_activation_cases": {"type": "array", "minItems": 4},
     "archify_bindings": {"type": "array", "minItems": 4, "maxItems": 4},
     "activation": {

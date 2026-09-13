@@ -2,7 +2,7 @@
 
 ## Current surface contract
 
-`ARCH-APPROVAL-PACKET` 是 `machine_only` immutable approval manifest，属于 `architecture_internal_evidence_v1`。它冻结 Design/Review identity、maturity、accepted risks、Owner、current Action、access/readiness 与 supersession，但不是人类阅读材料。`human_review_surface_v1` 只暴露一份 canonical Design、简短 Review/风险/推荐、决定后果和一个 current Action；不要求人类打开 Packet、完整 Review、Control 或 Research，也不要求复制 packet digest。current Action 从机器验证过的 packet snapshot 继承 ref/version/digest，回复只绑定 current Action。
+`ARCH-APPROVAL-PACKET` 是 `machine_only` immutable approval manifest，属于 `architecture_internal_evidence_v1`。它冻结 Design/Review identity、maturity、accepted risks、Owner、current Action、access/readiness 与 supersession，但不是人类阅读材料。`human_review_surface_v2` 只在 work item 暴露轻量摘要、一个 `【需要阅读并确认】` canonical Design、可选 `【供人参考，无需单独确认】` Archify/preview/derived-rendering 和一个 current Action；不要求人类打开 Packet、完整 Review、Control 或 Research，也不要求复制 packet digest。current Action 从机器验证过的 packet snapshot 继承 ref/version/digest，回复只绑定 current Action。v1 surface 只读兼容。
 
 旧 packet-bound、三附件或复制 digest 的 attempt 继续按冻结 reader 审计；新 writer 不改写、不消费为当前 surface，升级必须创建 superseding attempt。
 

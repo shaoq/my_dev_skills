@@ -16,7 +16,7 @@ Implementation MUST include versioned fixtures and repeatable contract runners f
 
 #### Scenario: Single Design surface is replayed
 - **WHEN** an approvable Design enters formal human review
-- **THEN** both runtimes expose exactly one canonical Design material, keep Review/Packet/Control internal, and preserve the same current-Action gate
+- **THEN** both runtimes expose `human_review_surface_v2` with one labeled `human_required` material, keep Review/Packet/Control internal, preserve the same current-Action gate, and distinguish material access from decision readiness
 
 #### Scenario: Agent handoff is replayed
 - **WHEN** one architecture responsibility transfers to another without a human decision
