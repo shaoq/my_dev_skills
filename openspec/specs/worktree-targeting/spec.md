@@ -27,7 +27,7 @@ The three worktree skills SHALL use `--target <target-branch>` as their only exp
 - **THEN** the skill reports an argument error and performs no Git write operation
 
 ### Requirement: New worktree apply executes without repeated authorization
-`new-worktree-apply` SHALL treat a concrete user request to implement or apply the selected OpenSpec proposal as authorization for its limited canonical isolated-source operation, whether routed from an explicit command, natural language, Team/subagent orchestration, or a nested skill workflow. When that request supplies an explicit target and complete read-only preflight plus stable final revalidation succeed, the workflow SHALL proceed without a second confirmation. When the target is inferred, the workflow MUST display and receive one affirmative confirmation for the complete inferred-target plan before any write. It MUST NOT require task-platform authorization metadata. Authorization remains limited to source worktree creation, OpenSpec apply, proposal-scoped local verification, and source commit.
+`new-worktree-apply` SHALL treat a concrete user request to implement or apply the selected OpenSpec proposal as authorization for its limited canonical isolated-source operation, whether routed from an explicit command, natural language, Team/subagent orchestration, or a nested skill workflow. When that request supplies an explicit target and complete read-only preflight plus stable final revalidation succeed, the workflow SHALL proceed without a second confirmation. When the target is inferred, the workflow MUST display and receive one affirmative confirmation for the complete inferred-target plan before any write. It MUST NOT require task-platform authorization metadata. Authorization includes selected-proposal preparation commit, safe creation of missing canonical parent directories, source worktree creation, OpenSpec apply, proposal-scoped local verification, and source commit. Other pending target files require existing explicit commit authorization or inclusion in one affirmed exact commit plan.
 
 #### Scenario: Explicit-target implementation proceeds after stable preflight
 - **WHEN** a concrete implementation request for `add-user-auth --target develop` is routed and every deterministic preflight and final revalidation check succeeds
@@ -69,12 +69,41 @@ The three worktree skills SHALL use `--target <target-branch>` as their only exp
 - **THEN** the skill reports the inferred target source and complete plan, requests no write confirmation, and performs no write
 
 #### Scenario: Dry run finds a blocker
-- **WHEN** dry-run preflight finds a dirty target, missing artifact, existing canonical branch/path, invalid target, or another blocker
+- **WHEN** dry-run preflight finds unresolved conflicts, an incomplete required artifact, existing canonical branch/path, invalid target, an unsafe existing directory or another non-preparable blocker
 - **THEN** it reports the blocker and preserves all repository and OpenSpec state
 
 #### Scenario: Repository changes after dry run
 - **WHEN** a successful dry run is followed by a real invocation after repository state has changed
 - **THEN** the real invocation performs a new complete preflight and MUST NOT trust the prior dry-run snapshot
+
+### Requirement: Single apply prepares uncommitted artifacts and missing parents
+Non-dry-run `new-worktree-apply` SHALL plan and perform a preparation commit for complete selected-proposal artifacts absent or different in the target commit, and SHALL create missing `.claude` and `.claude/worktrees` parents after validating the nearest existing ancestor and each created layer. An inferred target MUST receive confirmation for the complete preparation/apply plan before these writes. An explicit target with a concrete implementation request MUST NOT request repeated authorization for selected-proposal commit or safe parent creation. Other pending target changes require prior explicit authorization or one exact-file-plan confirmation. Dry-run SHALL report these preparation actions without staging, committing, copying, or creating directories. Read-only Git queries SHALL use `--no-optional-locks` so that status inspection does not refresh index metadata; this option does not permit write commands in dry-run.
+
+The workflow SHALL freeze and independently revalidate a PREPARATION_SNAPSHOT of arguments, target identity/HEAD, input artifacts, target/index pending bytes, directory state and permitted writes before preparation. When invocation and target differ, it SHALL copy only the selected proposal and MUST NOT overwrite a different uncommitted target version, delete extra proposal files, commit a detached invocation or switch worktrees. Staging SHALL address only planned paths and be checked against expected blobs/deletions before commit. No diff SHALL create no empty commit. Missing parents SHALL be created one layer at a time; unsafe existing files/symlinks SHALL fail closed without mkdir. After preparation it SHALL record PREPARATION_RESULT, require a clean matching target and complete identical manifests, then freeze TARGET_HEAD and PREFLIGHT_SNAPSHOT and perform the existing final read-only revalidation. Preparation failure SHALL preserve completed commits/directories and report the actual phase without rollback or retry.
+
+#### Scenario: Proposal exists only in the invocation worktree
+- **WHEN** a complete proposal is untracked in a detached invocation worktree and absent from the clean selected target
+- **THEN** after applicable plan authorization the workflow copies only that proposal to the target, commits its exact files there, leaves invocation HEAD unchanged, and freezes the new target commit before worktree creation
+
+#### Scenario: Missing canonical parent directories
+- **WHEN** the repository root is safe and `.claude` or `.claude/worktrees` is absent
+- **THEN** authorized preparation creates and physically verifies each missing layer before creating any source branch/worktree, without precreating the source leaf
+
+#### Scenario: Preparation dry run
+- **WHEN** dry-run finds an uncommitted complete proposal and missing parents
+- **THEN** it reports commit/copy/mkdir plans and preserves both worktrees, refs, index and filesystem
+
+#### Scenario: Other target changes have commit-all authorization
+- **WHEN** the target has additional pending files and the user has explicitly requested commit all
+- **THEN** the exact reviewed pending-file set joins the preparation commit without another confirmation; newly appearing files cannot be silently staged
+
+#### Scenario: Already prepared repository
+- **WHEN** the target is clean, proposal bytes already match its commit and parent directories are safe
+- **THEN** preparation performs no commit or mkdir and proceeds to the unchanged frozen-hash creation protocol
+
+#### Scenario: Preparation succeeds but final validation fails
+- **WHEN** the preparation commit or mkdir succeeded but final validation finds an unexpected drift
+- **THEN** no source worktree or apply is started, completed preparation is retained and reported, and the workflow does not refresh its frozen baseline
 
 ### Requirement: Shared deterministic target selection
 Each worktree skill SHALL accept `--target <target-branch>` as its explicit target input. When the option is omitted, `new-worktree-apply`, `merge-worktree-return`, and `parall-new-worktree-apply` SHALL select `TARGET_BRANCH` in this order: the named branch recorded for the primary worktree when its local ref exists, the existing local branch named by `origin/HEAD`, then the first existing local branch among `main`, `master`, and `trunk`. Every skill SHALL record and display the winning source. Candidate eligibility SHALL depend only on branch-source resolution and local ref existence. Worktree ownership, topology, identity, HEAD/ref equality, cleanliness, and path safety SHALL be post-selection validation; a failure there MUST stop rather than select a lower-priority candidate. An invalid explicit target MUST fail without fallback.
@@ -108,11 +137,11 @@ Each worktree skill SHALL accept `--target <target-branch>` as its explicit targ
 - **THEN** the skill asks the user to provide `--target` and performs no Git or OpenSpec write
 
 ### Requirement: Shared worktree topology preflight
-Each worktree skill SHALL derive repository root, primary worktree, invocation worktree, branch-to-worktree registration, and applicable target/source worktrees from `git worktree list --porcelain` plus exact Git ref checks. The selected `TARGET_BRANCH` MUST already be held by one registered `TARGET_WORKTREE_DIR`; the skills MUST NOT checkout or switch the primary worktree or any other existing worktree to make a target available. Target status and identity checks MUST address the same preflight-selected or interactively confirmed `TARGET_WORKTREE_DIR`, and target auto-commit is prohibited.
+Each worktree skill SHALL derive repository root, primary worktree, invocation worktree, branch-to-worktree registration, and applicable target/source worktrees from `git worktree list --porcelain` plus exact Git ref checks. The selected `TARGET_BRANCH` MUST already be held by one registered `TARGET_WORKTREE_DIR`; the skills MUST NOT checkout or switch the primary worktree or any other existing worktree to make a target available. Target status and identity checks MUST address the same preflight-selected or interactively confirmed `TARGET_WORKTREE_DIR`, and target auto-commit is prohibited for return and parallel workflows. Single apply MAY perform its documented, authorized preparation commit before freezing the creation baseline; the prepared target MUST then be strictly clean.
 
 #### Scenario: Target is checked out in another worktree
 - **WHEN** the selected target is already checked out outside the invocation worktree
-- **THEN** the skill records that exact path as `TARGET_WORKTREE_DIR`, performs only preflight reads there, and does not checkout, switch, stage, or auto-commit that worktree
+- **THEN** the skill records that exact path as `TARGET_WORKTREE_DIR`, does not checkout or switch that worktree; return/parallel perform only preflight reads, while single apply may perform its authorized preparation synchronization and commit
 
 #### Scenario: Target is not checked out
 - **WHEN** the selected target local ref exists but no registered worktree holds it
@@ -120,7 +149,7 @@ Each worktree skill SHALL derive repository root, primary worktree, invocation w
 
 #### Scenario: Target worktree is dirty
 - **WHEN** the registered target worktree has staged, unstaged, untracked, conflict, or unreadable status
-- **THEN** the workflow stops without auto-committing, stashing, resetting, or switching it
+- **THEN** return/parallel stop without auto-committing, stashing, resetting, or switching it; single apply records an exact preparation commit plan, commits selected-proposal files automatically and other files only with explicit authorization, and requires clean status afterward
 
 #### Scenario: Target registration changes
 - **WHEN** the preflight or confirmed target path, registered branch, HEAD, or ref changes before a write or merge
@@ -135,7 +164,7 @@ Each worktree skill SHALL derive repository root, primary worktree, invocation w
 - **THEN** the workflow stops and does not treat a one-off `git -C` command as a persistent context switch
 
 #### Scenario: Canonical source parent escapes physically
-- **WHEN** `.claude` or `.claude/worktrees` is absent, unreadable, a symlink, or resolves outside the physical repository root before single-create writes
+- **WHEN** an existing `.claude` or `.claude/worktrees` layer is unreadable, a file, a symlink (including dangling links), or resolves outside the physical repository root before single-create writes
 - **THEN** `new-worktree-apply` creates no branch or worktree, invokes no apply action, and preserves the target state
 
 ### Requirement: Preflight authorization and integration confirmation
@@ -174,7 +203,7 @@ Each worktree skill SHALL finish its read-only preflight and display the command
 - **THEN** the skill asks in its response, ends the current execution, and waits for the next user message
 
 #### Scenario: Single apply preflight has a blocker
-- **WHEN** `new-worktree-apply` finds incomplete OpenSpec artifacts, a dirty target worktree, an occupied canonical identity, an unsafe source parent, a required checkout, or out-of-scope work
+- **WHEN** `new-worktree-apply` finds incomplete OpenSpec artifacts, unresolved Git conflicts, conflicting uncommitted proposal versions, an occupied canonical identity, an unsafe existing source parent, a required checkout, or out-of-scope work
 - **THEN** it stops before writing and reports the exact blocker rather than asking whether to bypass it
 
 #### Scenario: Dry run reaches the write boundary
@@ -190,7 +219,7 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 
 #### Scenario: Deterministic single apply snapshot changes
 - **WHEN** final revalidation finds changed arguments, target source, target ref, HEAD, worktree path, status, source parent, manifest, planned writes, or warnings
-- **THEN** it performs no write and requires a fresh invocation rather than refreshing the snapshot or entering the interactive path
+- **THEN** it performs no further write and requires a fresh invocation rather than refreshing the snapshot or entering the interactive path; any completed preparation commit or directory creation is retained
 
 #### Scenario: Confirmed inferred single apply remains stable
 - **WHEN** every inferred-target single-apply field matches the interactively confirmed snapshot
@@ -217,7 +246,7 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 - **THEN** the skill invalidates the confirmation and obtains a new confirmation before writing
 
 ### Requirement: New worktree starts from the explicit frozen target
-`new-worktree-apply` SHALL freeze the selected `TARGET_HEAD` during preflight, bind the recorded `TARGET_SOURCE` and complete verified artifact manifest to that snapshot, and create the canonical source branch/worktree with `TARGET_HEAD` as an explicit commit-hash start point after the applicable final revalidation. It MUST NOT refresh the baseline by auto-committing target changes or pass `TARGET_BRANCH` as the actual creation start point. Before OpenSpec apply it MUST verify the registered path, current branch, source branch ref, and worktree HEAD exactly match the expected canonical identity and frozen hash.
+`new-worktree-apply` SHALL freeze the selected `TARGET_HEAD` during preflight, bind the recorded `TARGET_SOURCE` and complete verified artifact manifest to that snapshot, and create the canonical source branch/worktree with `TARGET_HEAD` as an explicit commit-hash start point after the applicable final revalidation. Authorized preparation commits MUST complete before this immutable creation baseline is frozen. After freezing, it MUST NOT refresh that baseline by another commit or pass `TARGET_BRANCH` as the actual creation start point. Before OpenSpec apply it MUST verify the registered path, current branch, source branch ref, and worktree HEAD exactly match the expected canonical identity and frozen hash.
 
 #### Scenario: Worktree is created from an explicit commit hash
 - **WHEN** the applicable explicit or inferred target path, preflight, and final revalidation succeed for proposal `add-user-auth`
@@ -418,14 +447,14 @@ The worktree lifecycle SHALL define an exact reversible identity for every propo
 - **THEN** it reports a manual migration requirement and MUST NOT infer, merge, rename, or clean up that branch automatically
 
 ### Requirement: OpenSpec artifact manifest is committed and immutable
-Before creating any source worktree, the workflow SHALL build an `ARTIFACT_MANIFEST` for each proposal containing `.openspec.yaml`, `proposal.md`, `design.md`, `tasks.md`, and the recursively enumerated complete delta spec file set. A parallel workflow SHALL also include every `dependencies.yaml` it reads; absence is valid only when both the reviewed workspace and frozen target commit omit the file and the execution plan records no dependencies. The workflow MUST prove that the path set exists in the frozen target commit and is byte-for-byte identical to the preflight or interactively confirmed content. Missing, added, deleted, ignored, untracked, renamed, unreadable, or content-different artifacts MUST block creation.
+Before creating any source worktree, the workflow SHALL build an `ARTIFACT_MANIFEST` for each proposal containing `.openspec.yaml`, `proposal.md`, `design.md`, `tasks.md`, and the recursively enumerated complete delta spec file set. A parallel workflow SHALL also include every `dependencies.yaml` it reads; absence is valid only when both the reviewed workspace and frozen target commit omit the file and the execution plan records no dependencies. The workflow MUST prove that the path set exists in the frozen target commit and is byte-for-byte identical to the preflight or interactively confirmed content. At the final creation gate, missing, added, deleted, ignored, untracked, renamed, unreadable, or content-different artifacts MUST block creation. Single apply SHALL first resolve eligible uncommitted artifacts through its authorized preparation phase and then freeze a new immutable target baseline; return and parallel flows do not acquire preparation authorization.
 
 #### Scenario: All artifacts match the frozen target
 - **WHEN** both the reviewed workspace and `TARGET_HEAD` contain the same required artifact paths with identical bytes and at least one recursive delta `spec.md`
 - **THEN** the workflow records the manifest and its stable digest in the operation snapshot
 
 #### Scenario: Artifact exists only in the workspace
-- **WHEN** a required artifact is untracked, ignored, newly added, or otherwise absent from `TARGET_HEAD`
+- **WHEN** a required artifact remains untracked, ignored, newly added, or otherwise absent from the final frozen `TARGET_HEAD` after applicable single-apply preparation
 - **THEN** creation stops before `git worktree add` and reports the exact path
 
 #### Scenario: Artifact was deleted from the workspace
@@ -433,7 +462,7 @@ Before creating any source worktree, the workflow SHALL build an `ARTIFACT_MANIF
 - **THEN** creation stops before `git worktree add`
 
 #### Scenario: Artifact content differs
-- **WHEN** the workspace and `TARGET_HEAD` contain the same artifact path but their bytes differ
+- **WHEN** the workspace and final frozen `TARGET_HEAD` contain the same artifact path but their bytes still differ after applicable single-apply preparation
 - **THEN** creation stops and identifies the mismatched path without auto-committing either version
 
 #### Scenario: Nested delta specs are present

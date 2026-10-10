@@ -208,7 +208,7 @@ require_text "$NEW_SKILL" '被移除，且不执行任何写入' 'legacy issue a
 require_text "$NEW_SKILL" '--authorized、--yes' 'generic authorization flags are rejected before writes'
 require_text "$NEW_SKILL" 'requires a fresh invocation' 'preflight drift requires a fresh invocation'
 require_text "$NEW_SKILL" 'merge、发布、部署、生产写入、不可逆迁移、真实凭据' 'apply scope excludes external side effects'
-require_text "$NEW_SKILL" 'Step 1–6 只读' 'only pre-write steps are declared read-only'
+require_text "$NEW_SKILL" 'Step 1–4 只读；Step 5 可执行已授权的准备提交与父目录创建；Step 6 只读复检' 'single-create distinguishes read-only checks from authorized preparation writes'
 forbid_text "$NEW_SKILL" 'Step 1–7 只读' 'worktree creation step is not incorrectly declared read-only'
 require_text "$NEW_SKILL" '对 `SOURCE_WORKTREE_DIR`、`SOURCE_PROJECT_DIR`、其 `openspec/`、`openspec/changes/` 和 proposal 目录' 'created source project requires physical path validation'
 require_text "$NEW_SKILL" '完整目录边界包含关系' 'created source project rejects symlink escapes by directory boundary'
@@ -294,7 +294,7 @@ require_text "$RETURN_DELTA" '### Requirement: Preflight authorization and integ
 require_text "$RETURN_DELTA" '### Requirement: Pre-write snapshot revalidation' 'delta updates shared revalidation semantics for both return paths'
 
 require_text "$NEW_SKILL" '目标分支必须已经由一个注册 worktree' 'single-create requires an already-held target branch'
-require_text "$NEW_SKILL" 'status --porcelain --untracked-files=all' 'single-create rejects every dirty target state'
+require_text "$NEW_SKILL" 'status --porcelain --untracked-files=all' 'single-create checks the complete target state before freezing the prepared baseline'
 require_text "$NEW_SKILL" 'git ls-tree -r --name-only <TARGET_HEAD>' 'single-create enumerates artifacts from the frozen commit tree'
 require_text "$NEW_SKILL" 'dependencies.yaml' 'single-create treats dependency metadata as an artifact'
 require_text "$NEW_SKILL" 'git check-ref-format --branch <SOURCE_BRANCH>' 'single-create validates the final canonical branch name'

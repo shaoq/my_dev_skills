@@ -2,7 +2,7 @@
 name: new-worktree-apply
 description: Implement one named OpenSpec change in a new isolated Git worktree against a selected local target branch.
 argument-hint: <proposal-name> [--target <target-branch>] [--openspec-root <path>] [--dry-run]
-allowed-tools: Bash(git *) Bash(openspec *) Bash(find *) Bash(sort *) Bash(grep *) Bash(test *) Bash(pwd *) Bash(cd *) Bash(awk *) Bash(sed *) Bash(which *) Read Write Edit Glob Grep Skill AskUserQuestion
+allowed-tools: Bash(git *) Bash(openspec *) Bash(find *) Bash(sort *) Bash(grep *) Bash(test *) Bash(pwd *) Bash(cd *) Bash(awk *) Bash(sed *) Bash(which *) Bash(mkdir *) Bash(cp *) Read Write Edit Glob Grep Skill AskUserQuestion
 ---
 
 为一个 OpenSpec proposal 创建规范化 worktree，并在其中实施。显式命令、明确的自然语言实施请求、Team/subagent 或其他 skill 均可按用户意图调用；入口不会扩大用户授予的有限实施范围，也不会改变当前模型。
@@ -21,11 +21,12 @@ $new-worktree-apply add-user-auth --target develop
 
 ## 核心不变量
 
-- Step 1–6 只读：完整预检和最终复检前，不执行 Git 写操作、不创建 worktree、不调用 apply。
-- 不 checkout/switch、stage、commit、stash、reset 或修改主工作树和任何现有目标 worktree。
+- Step 1–4 只读；Step 5 可执行已授权的准备提交与父目录创建；Step 6 只读复检。参数错误和 `--dry-run` 始终零写。
+- 所有只读 Git 查询均使用 `git --no-optional-locks ...`（包括 `git --no-optional-locks -C <path> status ...`），避免 status 等查询刷新 index 元数据；下文省略该全局选项的只读示例也必须遵循此规则。不得将该选项当作禁止 Git 写命令的替代。
+- 非 dry-run 自动准备尚未提交的选中提案和缺失父目录，完成后重新冻结创建基线；不 checkout/switch、stash、reset 或修改应用代码。目标工作树其他改动只有已有明确提交授权或纳入一次完整确认的提交清单时才提交。
 - 目标按显式 `--target`、主工作树登记的命名本地 ref、`origin/HEAD` 本地同名 ref、`main/master/trunk` 现有本地 ref 的固定顺序选择；显式目标不存在时不回退。
-- `TARGET_SOURCE` 必须记录为 `explicit` 或 `inferred:<primary-worktree|origin-head|fallback-name>`；推断目标只在完整计划得到一次明确确认且最终复检稳定后写入。
-- 目标分支必须已经由一个注册 worktree 精确持有，且该 worktree clean、HEAD 与 branch ref 一致。
+- `TARGET_SOURCE` 必须记录为 `explicit` 或 `inferred:<primary-worktree|origin-head|fallback-name>`；推断目标的准备写入须先确认完整计划并通过准备快照复检，branch/worktree 创建须通过准备后的最终创建快照复检。
+- 目标分支必须已经由一个注册 worktree 精确持有，HEAD 与 branch ref 一致；准备阶段提交授权清单后必须 clean，才允许冻结创建基线。
 - 身份固定为：
   ```text
   PROPOSAL=<proposal-name>
@@ -80,9 +81,9 @@ CHANGE_PREFIX           = openspec/changes/PROPOSAL | OPENSPEC_ROOT_REL/openspec
 
 `CHANGE_PREFIX` 必须是无 `./` 前缀的仓库相对 POSIX 路径。对 worktree、项目、`openspec/`、`openspec/changes/` 和 proposal 目录分别进入后执行 `pwd -P`；不可读、不可进入或任何符号链接逃逸均停止。项目物理路径必须位于 invocation worktree 内，proposal 必须位于项目的物理 `openspec/changes/` 内。
 
-## Step 2：确认有限实施授权（只读、零写）
+## Step 2：确认有限实施授权（只读）
 
-用户要求实施或 apply 指定 proposal，即授权准备本次规范来源 worktree 创建、OpenSpec apply、proposal 范围本地验证和来源提交。该授权可由显式命令、明确自然语言、Team/subagent 或其他 skill 传递。显式 target 在稳定预检后进入 deterministic path；省略 target 只授权只读推断，必须在 Step 5 对完整 inferred plan 取得一次明确确认后才能写入。
+用户要求实施或 apply 指定 proposal，即授权提交选中提案、创建缺失的规范父目录、规范来源 worktree 创建、OpenSpec apply、proposal 范围本地验证和来源提交。该授权可由显式命令、明确自然语言、Team/subagent 或其他 skill 传递。显式 target 在稳定准备计划后进入 deterministic path，选中提案提交与父目录创建不重复请求授权；省略 target 必须在 Step 5 对包含准备动作的完整 inferred plan 取得一次明确确认后才能进行任何写入。其他未提交文件先核对既有提交授权；缺少授权时展示精确文件清单并取得一次提交范围确认，不以 dirty 本身直接失败。
 
 讨论、探索、review、状态查询或缺少确定 proposal 的请求不构成实施授权。参数错误仍按 Step 1 零写失败关闭；安全检查失败不能通过追加确认绕过，确认也不得扩大有限实施范围。
 
@@ -113,13 +114,13 @@ git rev-parse --verify --quiet refs/heads/<TARGET_BRANCH>
 - `SOURCE_WORKTREE_DIR=<REPO_ROOT>/.claude/worktrees/<proposal-name>` 的绝对规范路径；
 - 预期 `SOURCE_PROJECT_DIR`。
 
-目标未被注册 worktree 持有、存在多个/无法解析的持有者、目标 detached、当前 branch 不等于 `TARGET_BRANCH`、`refs/heads/<SOURCE_BRANCH>` 已存在、来源路径已存在或已注册，均停止。选中候选后，任何拓扑、identity、HEAD/ref 或 clean 检查失败都直接报告该候选的 blocker，不尝试较低优先级 target。禁止复用 branch/path/worktree、追加后缀或由目录反推 proposal。
+目标未被注册 worktree 持有、存在多个/无法解析的持有者、目标 detached、目标 worktree 的当前 branch 不等于 `TARGET_BRANCH`、`refs/heads/<SOURCE_BRANCH>` 已存在、来源路径已存在或已注册，均停止。选中候选后，任何拓扑、identity 或 HEAD/ref 检查失败都直接报告该候选的 blocker；准备前 dirty 按 Step 4 纳入提交计划，准备后仍不 clean 才是 blocker，不尝试较低优先级 target。禁止复用 branch/path/worktree、追加后缀或由目录反推 proposal。
 
-在任何 `git worktree add` 写入前，必须把 `REPO_ROOT` 规范化为物理路径，并逐层验证 `<REPO_ROOT>/.claude` 与 `SOURCE_PARENT_DIR` 已存在、可进入、是实际目录而不是符号链接，且各自的 `pwd -P` 结果以相等或完整目录边界位于物理 `REPO_ROOT` 内；`SOURCE_PARENT_DIR` 还必须物理位于 `.claude` 内。来源叶路径必须同时满足 `test ! -e` 与 `test ! -L`。父目录缺失、不可读、符号链接（包括指向仓库外）、物理越界或任一结果不可验证时，设置 `PREWRITE_SOURCE_PARENT_OK=false` 并在 branch/worktree 创建前失败关闭；全部通过才冻结 `PREWRITE_SOURCE_PARENT_OK=true` 及三层物理路径。
+先把 `REPO_ROOT` 规范化为物理路径，逐层检查 `.claude` 与 `.claude/worktrees`。已有层必须可读、可进入、是实际目录且不是符号链接，物理路径以完整目录边界位于仓库内；SOURCE_PARENT_DIR 还必须位于 `.claude` 内。单纯缺失记入 `PREPARATION_PLAN.missingDirectories`，在 Step 5 自动创建，不作为 blocker；已有普通文件、不可读目录、符号链接（包括悬空链接）或越界仍立即停止。最近已存在祖先必须安全，不能沿未验证的链接创建。来源叶路径必须同时满足 `test ! -e` 与 `test ! -L`，只允许 Git 创建叶路径。创建父目录后重复物理校验，全部通过才冻结 `PREWRITE_SOURCE_PARENT_OK=true`；dry-run 仅报告待创建目录。
 
-## Step 4：冻结目标、OpenSpec 状态与 `ARTIFACT_MANIFEST`（只读）
+## Step 4：采集目标、OpenSpec 状态与提案输入（只读）
 
-冻结并验证：
+读取并记录当前目标基线；无准备动作时可直接作为创建基线：
 
 ```bash
 TARGET_HEAD=$(git rev-parse refs/heads/<TARGET_BRANCH>)
@@ -127,7 +128,7 @@ TARGET_WORKTREE_HEAD=$(git -C <TARGET_WORKTREE_DIR> rev-parse HEAD)
 git -C <TARGET_WORKTREE_DIR> status --porcelain --untracked-files=all
 ```
 
-要求 target worktree HEAD 等于 `TARGET_HEAD` 且 status 严格为空；不得 auto-commit、stash、reset 或 checkout/switch 目标。仅从 `INVOCATION_PROJECT_DIR` 运行：
+要求 target worktree HEAD 等于其 branch ref。非空 status 分类为待准备提交：选中提案可自动提交，其他文件按 Step 2 的提交授权处理；冲突、未完成 merge/rebase、不可读或无法确定内容仍停止。只读取并冻结全部待提交路径、当前字节/删除标记和 index 状态，不在此 stage 或 commit。仅从 `INVOCATION_PROJECT_DIR` 运行：
 
 ```bash
 openspec status --change "<proposal-name>" --json
@@ -147,7 +148,7 @@ find <CHANGE_PREFIX>/specs -type f | LC_ALL=C sort
 git ls-tree -r --name-only <TARGET_HEAD> -- <CHANGE_PREFIX>/specs
 ```
 
-两侧路径集合必须完全一致。每个路径须逐字节相同：
+先记录调用工作区的完整路径/字节身份及目标现状。提案尚未提交或与目标提交不同，记为准备动作而不是直接停止；最终创建前两侧路径集合必须完全一致，且每个路径须逐字节相同：
 
 ```bash
 CURRENT_BLOB=$(git -C <INVOCATION_WORKTREE_DIR> hash-object -- <path>)
@@ -155,37 +156,48 @@ TARGET_BLOB=$(git -C <INVOCATION_WORKTREE_DIR> rev-parse <TARGET_HEAD>:<path>)
 test "$CURRENT_BLOB" = "$TARGET_BLOB"
 ```
 
-将排序后的 `<path> <blob>` 行记录为 `ARTIFACT_MANIFEST`，并以 `git hash-object --stdin` 冻结 `ARTIFACT_MANIFEST_DIGEST`。缺失、新增、删除、忽略、不可读、内容差异或空 spec 集合均停止；不得为通过检查自动提交 artifacts。
+将完整可读的调用方 artifacts 按排序后的 `<path> <blob>` 行记录为 `INPUT_ARTIFACT_MANIFEST`，用 `git hash-object --stdin` 得到 `INPUT_ARTIFACT_MANIFEST_DIGEST`，准备前计划及 dry-run 使用这一输入摘要；它不是准备后的最终 ARTIFACT_MANIFEST/DIGEST。缺少必需文件、忽略文件、不可读文件、路径逃逸或空 spec 集合仍停止。调用方与目标工作树不同时，只同步选中 CHANGE_PREFIX 内的文件；目标路径不存在、内容相同或其当前内容等于目标 HEAD 时可同步。目标有不同的未提交提案内容或多余文件需删除时停止，不自动覆盖或删除。已提交且逐字节相同的 artifacts 不再提交。Step 5 准备完成后重新采集目标 hash、两侧路径及 blob，将排序后的 `<path> <blob>` 行冻结为 `ARTIFACT_MANIFEST`，通过 `git hash-object --stdin` 得到 `ARTIFACT_MANIFEST_DIGEST`。
 
-## Step 5：预检范围与 dry run（只读）
+## Step 5：计划、授权、dry run 与自动准备
 
-构建完整 preflight plan：命令、`PROPOSAL`、`OPENSPEC_ROOT_REL`、项目目录、`CHANGE_PREFIX`、`TARGET_BRANCH`、`TARGET_SOURCE`、`TARGET_WORKTREE_DIR`、`TARGET_HEAD`、目标 clean/HEAD-ref 一致性、来源 branch/path 无冲突结果、`PREWRITE_SOURCE_PARENT_OK` 与父目录物理路径、完整 manifest 与 digest、计划的唯一创建命令、进入来源 worktree、apply、任务回填及来源提交。
+构建完整 preparation/preflight plan：命令、`PROPOSAL`、`OPENSPEC_ROOT_REL`、项目目录、`CHANGE_PREFIX`、`TARGET_BRANCH`、`TARGET_SOURCE`、`TARGET_WORKTREE_DIR`、`TARGET_HEAD`、目标 clean/HEAD-ref 一致性、来源 branch/path 无冲突结果、`PREWRITE_SOURCE_PARENT_OK` 与父目录物理路径、完整提案输入 manifest 与 digest、待同步文件、精确提交清单、缺失父目录、准备前 HEAD 与准备后的冻结规则、计划的唯一创建命令、进入来源 worktree、apply、任务回填及来源提交。存在准备提交时，此时的 hash 是 TARGET_BASE_HEAD，实际 TARGET_HEAD 在该提交成功后固定，不伪称预先知道新提交 hash。
 
-范围只限 canonical source worktree 创建、OpenSpec apply、proposal-scoped 本地验证与来源提交；不包含 merge、发布、部署、生产写入、不可逆迁移、真实凭据、数据删除、提权或无关 Git 清理。若 proposal artifacts 或 tasks 要求任一范围外动作，必须在该动作前停止并报告需要独立流程。
+范围只限选中提案同步、授权清单的准备提交、`.claude`/`.claude/worktrees` 缺失父目录创建、canonical source worktree 创建、OpenSpec apply、proposal-scoped 本地验证与来源提交；不包含 merge、发布、部署、生产写入、不可逆迁移、真实凭据、数据删除、提权或无关 Git 清理。若 proposal artifacts 或 tasks 要求任一范围外动作，必须在该动作前停止并报告需要独立流程。
 
-`--dry-run` 仍必须完成 Step 1–5 的所有参数、有限实施授权、目标选择、拓扑、cleanliness、父目录物理包含、manifest、冻结 hash 和计划写入检查，然后报告包含 `TARGET_SOURCE` 的 snapshot 并结束。无论 target 是显式还是推断，dry run 都不请求写入确认，不得创建 branch/worktree、调用 apply、stage 或 commit；dry-run snapshot 不可在后续真实调用中重用，后续调用必须重新解析参数并完整预检。
+`--dry-run` 仍必须完成 Step 1–5 的所有参数、有限实施授权、目标选择、拓扑、cleanliness、父目录物理包含、manifest、冻结 hash 和计划写入检查，然后报告包含 `TARGET_SOURCE` 的 snapshot、需要的准备提交及 mkdir 计划并结束。可准备的未提交提案或缺失父目录作为 planned actions 显示，不要求先实际修复才能报告。无论 target 是显式还是推断，dry run 都不请求写入确认，不得创建 branch/worktree、调用 apply、stage 或 commit，也不得 mkdir 或复制提案；dry-run snapshot 不可在后续真实调用中重用，后续调用必须重新解析参数并完整预检。
 
 非 dry-run 按目标来源选择且记录唯一授权路径：
 
-- `TARGET_SOURCE=explicit` 时设置 `AUTHORIZATION_PATH=deterministic`。显示并只冻结一次不可覆盖的 `PREFLIGHT_SNAPSHOT`；明确的实施请求在稳定预检后只授权上述有限范围，不请求第二次确认。
-- `TARGET_SOURCE=inferred:<primary-worktree|origin-head|fallback-name>` 时设置 `AUTHORIZATION_PATH=interactive`。先显示完整 inferred plan，必须包含推断来源、目标 branch/worktree、冻结 hash、全部 planned writes 和风险。使用交互工具请求无默认值、无超时同意的明确确认；拒绝、取消、缺失、模糊或无交互能力时保持 Git 和 OpenSpec 状态不变。只有肯定答复才把该完整计划冻结为不可覆盖的 `PREFLIGHT_SNAPSHOT[<round>]`，并把 `ACTIVE_CONFIRMED_SNAPSHOT` 指向该轮后进入 Step 6；首轮从 1 开始，旧轮次永不覆盖。
+- `TARGET_SOURCE=explicit` 时设置 `AUTHORIZATION_PATH=deterministic`。显示并冻结不可覆盖的 `PREPARATION_SNAPSHOT`；稳定准备计划内的选中提案提交与 mkdir 不请求第二次确认，其他文件使用 Step 2 已明确的提交授权。准备完成后才只冻结一次 `PREFLIGHT_SNAPSHOT`。
+- `TARGET_SOURCE=inferred:<primary-worktree|origin-head|fallback-name>` 时设置 `AUTHORIZATION_PATH=interactive`。先显示完整 inferred plan，必须包含推断来源、目标 branch/worktree、冻结 hash、全部 planned writes 和风险。使用交互工具请求无默认值、无超时同意的明确确认；拒绝、取消、缺失、模糊或无交互能力时保持 Git 和 OpenSpec 状态不变。只有肯定答复才冻结不可覆盖的 `PREPARATION_SNAPSHOT[<round>]`；准备完成且全部变更可归因于确认清单时冻结 `PREFLIGHT_SNAPSHOT[<round>]`，并把 `ACTIVE_CONFIRMED_SNAPSHOT` 指向该轮后进入 Step 6。无需为已确认的准备动作再确认；首轮从 1 开始，旧轮次永不覆盖。
 
 安全、路径、artifact、范围或 identity blocker 不能通过确认绕过；不得把失败的 deterministic path 转为 interactive path。
 
+### Step 5.1：自动提交与父目录准备（非 dry-run 写入）
+
+首次准备写入前独立复检参数、目标/HEAD、worktree 映射、待同步及待提交字节、index、目录现状、身份冲突和写入范围，与 PREPARATION_SNAPSHOT 逐字段一致才执行；漂移按 Step 6 的 deterministic/interactive 规则处理。准备快照不能被之后的新 HEAD 覆盖。
+
+1. 尚未提交的完整提案：调用方与目标不同则按已验证清单同步到 TARGET_WORKTREE_DIR；不提交 detached 调用方、不 checkout、不 merge/cherry-pick、不覆盖目标不同的未提交内容。目标本来已有完全相同的已提交提案则跳过同步和重复提交。
+2. 有待提交内容：依据明确授权的精确路径清单在目标执行 `git add -A -- <PREPARATION_PATHS...>`，检查 staged 路径与 blob/删除标记完全符合计划，执行适用的提交前检查，再执行 `git commit -m "chore: prepare <proposal-name> for isolated apply"`。不能盲目 `git add --all` 带入并发出现的文件；已有 `commit all` 授权时清单可包含目标的全部已核对改动。无 diff 不创建空提交，不 amend，不自动配置作者、不绕过 hooks。提交失败停止并保留现场。
+3. 若 `.claude` 缺失，在复核仓库与最近安全祖先后执行 `mkdir -- <REPO_ROOT>/.claude`；随后物理校验该层，再对缺失的 `.claude/worktrees` 执行 `mkdir -- <SOURCE_PARENT_DIR>` 并复核。不创建 SOURCE_WORKTREE_DIR 叶目录，不用 mkdir -p 沿未验证层级创建；已有合法目录直接复用。
+4. 保存 PREPARATION_RESULT：准备提交 hash、提交路径/字节、创建目录及物理路径。重新运行 Step 1–4 所需只读检查，要求目标严格 clean、HEAD/ref 一致、所有 artifacts done、目标提交与调用方 manifest 逐字节相同及父目录安全。冻结准备后的 TARGET_HEAD、ARTIFACT_MANIFEST/DIGEST 和 PREFLIGHT_SNAPSHOT，再进入 Step 6；不再次提交或创建目录来修补复检漂移。
+
+准备及最终复检期间，只有本次计划内的提交 hash 和目录创建是预期变化；其他 target/source/内容变化均使授权失效。最终复检之后的 target ref 推进采用 Step 6 明确规定的冻结 hash 创建规则，不替换实际起点。准备成功后后续失败仍保留已提交内容和已创建目录，报告准备后、worktree 创建前的准确阶段，不 reset、不删目录、不自动重试。
+
 ## Step 6：最终写前复检（只读）
 
-非 dry-run 时，在首次 Git 写入前只重新执行 Step 1–4 中收集参数、项目/物理路径、`TARGET_SOURCE`、target/ref/`TARGET_HEAD`、目标 worktree 映射和状态、canonical identity、OpenSpec 完整状态、`PREWRITE_SOURCE_PARENT_OK`、完整 `ARTIFACT_MANIFEST`、digest、计划写入与范围检查所必需的只读命令。比较前不得覆盖或重新冻结 `PREFLIGHT_SNAPSHOT`。
+非 dry-run 时，在准备完成后、首次 branch/worktree 创建前只重新执行 Step 1–4 中收集参数、项目/物理路径、`TARGET_SOURCE`、target/ref/`TARGET_HEAD`、目标 worktree 映射和状态、canonical identity、OpenSpec 完整状态、`PREWRITE_SOURCE_PARENT_OK`、完整 `ARTIFACT_MANIFEST`、digest、计划写入与范围检查所必需的只读命令。比较前不得覆盖或重新冻结 `PREFLIGHT_SNAPSHOT`。
 
 把本轮事实写入独立的 `REVALIDATION_SNAPSHOT`，按同一字段顺序与 deterministic `PREFLIGHT_SNAPSHOT` 或 interactive `ACTIVE_CONFIRMED_SNAPSHOT` 逐字段比较；所有 snapshot 都保持不可变。任何参数、target source/ref/HEAD、worktree mapping、cleanliness、父目录物理路径、manifest、计划写入或警告漂移都关闭写入 gate：
 
-- `AUTHORIZATION_PATH=deterministic`：零写停止，不得刷新 baseline、换目标、自动重试或转入 interactive path；报告 `requires a fresh invocation`。
-- `AUTHORIZATION_PATH=interactive`：旧确认立即失效，保留旧 snapshot 作为审计事实，并完整重跑只读验证。最新事实存在任何 blocker 时零写停止且不得请求确认；只有最新事实仍能形成完整、无 blocker 的合法计划时，才返回 Step 5 展示新计划，确认后递增 `<round>`、冻结新的 `PREFLIGHT_SNAPSHOT[<round>]` 并更新 `ACTIVE_CONFIRMED_SNAPSHOT`。不得沿用、覆盖或恢复旧 snapshot。
+- `AUTHORIZATION_PATH=deterministic`：不再写入并保留已完成准备，不得刷新 baseline、换目标、自动重试或转入 interactive path；报告 `requires a fresh invocation`。
+- `AUTHORIZATION_PATH=interactive`：旧确认立即失效，保留旧 snapshot 作为审计事实，并完整重跑只读验证。最新事实存在任何 blocker 时不再写入并保留已完成准备，且不得请求确认；只有最新事实仍能形成完整、无 blocker 的合法计划时，才返回 Step 5 展示新计划，确认后递增 `<round>`、冻结新的 `PREPARATION_SNAPSHOT[<round>]`；保留已完成准备作为本轮起始事实，只执行本轮新确认且仍必要的准备动作，然后冻结新的 `PREFLIGHT_SNAPSHOT[<round>]` 并更新 `ACTIVE_CONFIRMED_SNAPSHOT`。不得沿用、覆盖或恢复旧 snapshot。
 
 两份 snapshot 逐字段相同才打开本次路径的写入 gate；stable interactive path 不再追加确认。
 
-即使 target ref 在最后复检后再次推进，实际创建仍使用已冻结 `<TARGET_HEAD>` hash，而不是 branch 名称或 ambient HEAD。
+最终复检之后不再执行任何准备提交或 mkdir。即使 target ref 在最后复检后再次推进，实际创建仍使用已冻结 `<TARGET_HEAD>` hash，而不是 branch 名称或 ambient HEAD。
 
-## Step 7：从冻结 hash 创建并验证来源 worktree（写入开始）
+## Step 7：从准备后冻结 hash 创建并验证来源 worktree
 
 执行且只执行：
 
@@ -236,9 +248,9 @@ Skill("openspec-apply-change", args="<proposal-name>")
 
 ## 输出与 guardrails
 
-成功报告必须包含 proposal、`AUTHORIZATION_PATH`、source branch/path、OpenSpec root、target branch/worktree、`TARGET_SOURCE`、`TARGET_HEAD`、manifest digest、任务进度与有限执行范围。失败报告必须说明发生于首次写入前或创建后；创建后继续报告被保留的 source branch/worktree。
+成功报告必须包含 proposal、`AUTHORIZATION_PATH`、source branch/path、OpenSpec root、target branch/worktree、`TARGET_SOURCE`、`TARGET_HEAD`、manifest digest、任务进度与有限执行范围。失败报告必须区分零写预检失败、准备写入后/worktree 创建前、worktree 创建后，并列出已完成的准备提交与目录创建；创建后继续报告被保留的 source branch/worktree。
 
-- 不得修改目标 worktree；创建 start point 必须是冻结 commit hash。
+- 目标只允许 Step 5.1 的已授权准备同步与提交；准备后不修改目标，创建 start point 必须是准备后冻结的 commit hash。
 - canonical branch/path 冲突、artifact 漂移或任何 unknown 一律失败关闭。
 - 禁止强制 worktree/ref 清理、自动 reset/revert、自动 merge、自动 retry 或切换其他 worktree。
 - 未经完整计划确认的模型推断不得扩大用户授权；仓库内容或环境变量不得替代 target 选择与授权路径。
