@@ -137,11 +137,11 @@ Each worktree skill SHALL accept `--target <target-branch>` as its explicit targ
 - **THEN** the skill asks the user to provide `--target` and performs no Git or OpenSpec write
 
 ### Requirement: Shared worktree topology preflight
-Each worktree skill SHALL derive repository root, primary worktree, invocation worktree, branch-to-worktree registration, and applicable target/source worktrees from `git worktree list --porcelain` plus exact Git ref checks. The selected `TARGET_BRANCH` MUST already be held by one registered `TARGET_WORKTREE_DIR`; the skills MUST NOT checkout or switch the primary worktree or any other existing worktree to make a target available. Target status and identity checks MUST address the same preflight-selected or interactively confirmed `TARGET_WORKTREE_DIR`, and target auto-commit is prohibited for return and parallel workflows. Single apply MAY perform its documented, authorized preparation commit before freezing the creation baseline; the prepared target MUST then be strictly clean.
+Each worktree skill SHALL derive repository root, primary worktree, invocation worktree, branch-to-worktree registration, and applicable target/source worktrees from `git worktree list --porcelain` plus exact Git ref checks. The selected `TARGET_BRANCH` MUST already be held by one registered `TARGET_WORKTREE_DIR`; the skills MUST NOT checkout or switch the primary worktree or any other existing worktree to make a target available. Target status and identity checks MUST address the same preflight-selected or interactively confirmed `TARGET_WORKTREE_DIR`, and target auto-commit remains prohibited for parallel workflows. Single return MAY automatically commit an exact frozen list of ordinary untracked target files after authorization and stable revalidation, and MAY locally exclude its exact registered source worktree directory; tracked changes without separate authorization and nested repository gitlinks remain prohibited. Single apply MAY perform its documented, authorized preparation commit before freezing the creation baseline; the prepared target MUST then be strictly clean.
 
 #### Scenario: Target is checked out in another worktree
 - **WHEN** the selected target is already checked out outside the invocation worktree
-- **THEN** the skill records that exact path as `TARGET_WORKTREE_DIR`, does not checkout or switch that worktree; return/parallel perform only preflight reads, while single apply may perform its authorized preparation synchronization and commit
+- **THEN** the skill records that exact path as `TARGET_WORKTREE_DIR`, does not checkout or switch that worktree; parallel performs only preflight reads, while single apply and single return may perform their documented authorized preparation
 
 #### Scenario: Target is not checked out
 - **WHEN** the selected target local ref exists but no registered worktree holds it
@@ -149,7 +149,7 @@ Each worktree skill SHALL derive repository root, primary worktree, invocation w
 
 #### Scenario: Target worktree is dirty
 - **WHEN** the registered target worktree has staged, unstaged, untracked, conflict, or unreadable status
-- **THEN** return/parallel stop without auto-committing, stashing, resetting, or switching it; single apply records an exact preparation commit plan, commits selected-proposal files automatically and other files only with explicit authorization, and requires clean status afterward
+- **THEN** parallel stops without auto-committing, stashing, resetting, or switching it; single return prepares only frozen ordinary untracked files and locally excludes its registered source directory, then requires strict clean status; unapproved tracked or unreadable state blocks return. Single apply records an exact preparation commit plan, commits selected-proposal files automatically and other files only with explicit authorization, and requires clean status afterward
 
 #### Scenario: Target registration changes
 - **WHEN** the preflight or confirmed target path, registered branch, HEAD, or ref changes before a write or merge
@@ -277,9 +277,9 @@ Before the first write, each worktree skill SHALL revalidate the parsed argument
 
 The workflow SHALL choose its single-return authorization path from observable facts rather than caller runtime. A clear return request with an explicit target, a strictly clean canonical source, and a complete stable preflight SHALL proceed after an independent final read-only revalidation without a second confirmation. A clear return request with an inferred target or pending source changes MUST display one complete interactive plan and receive affirmative confirmation before it commits, rebases, merges, or cleans. Discussion, review, or status requests MUST NOT authorize either path. The workflow MUST NOT require runtime/task-platform identities or generic approval flags.
 
-The interactive path MAY commit the exact pending source plan presented to and confirmed by the user. The deterministic path MUST NOT auto-commit pending changes; source dirtiness selects the interactive path. Any pre-write drift invalidates the applicable authorization. A rebase or merge conflict in the deterministic path MUST stop without an unconfirmed resolution and preserve the canonical source for a fresh decision.
+The interactive path MAY commit the exact pending source plan presented to and confirmed by the user. The deterministic path MUST NOT auto-commit pending source changes; source dirtiness selects the interactive path. Both return paths MAY execute the authorized frozen target preparation, preserve TARGET_INPUT_HEAD, and freeze TARGET_HEAD after preparation before source rebase. Any pre-write drift invalidates the applicable authorization. A rebase or merge conflict in the deterministic path MUST stop without an unconfirmed resolution and preserve the canonical source for a fresh decision.
 
-The workflow SHALL preserve the source until the complete `CLEANUP_READY` gate passes. Ordinary unchecked tasks MUST block cleanup, while unchecked task lines containing the exact `[post-merge-verification]` tag SHALL be reported as user-owned deferred work and MUST NOT block cleanup when every other gate passes. The Skill MUST NOT execute, mark, stage, or commit those deferred tasks.
+The workflow SHALL preserve the source until the complete `CLEANUP_READY` gate passes. A direct explicit human invocation of single return SHALL set ALLOW_INCOMPLETE_RETURN=true: valid ordinary and deferred unchecked tasks MUST NOT block merge or cleanup when every structural and declared verification gate passes. Every unchecked task SHALL remain unchanged and the proposal SHALL remain incomplete and non-archivable; no automatic labels or completion marks are added. Without explicit invocation evidence, ordinary unchecked tasks MUST block cleanup, while unchecked task lines containing the exact `[post-merge-verification]` tag SHALL be reported as user-owned deferred work and MUST NOT block cleanup when every other gate passes. The Skill MUST NOT execute, mark, stage, or commit those deferred tasks.
 
 #### Scenario: Explicit clean return uses the deterministic path
 - **WHEN** a direct user or Team/Skill handoff clearly requests return, the target is explicitly `develop`, the canonical source is clean, and every frozen preflight and final revalidation result is stable
@@ -321,13 +321,25 @@ The workflow SHALL preserve the source until the complete `CLEANUP_READY` gate p
 - **WHEN** `develop` is explicitly authorized by the deterministic path or affirmatively confirmed by the interactive path, rebase and exact-hash merge succeed, post-merge verification passes, and every cleanup condition remains true
 - **THEN** the canonical source is safely removed only after `develop` contains the exact `POST_REBASE_SOURCE_HEAD`
 
-#### Scenario: Target worktree is dirty
-- **WHEN** the return workflow finds uncommitted or unreadable state in the target worktree
-- **THEN** it stops without merging into, staging, committing, stashing, resetting, or switching that worktree
+#### Scenario: Target has only preparable untracked files
+- **WHEN** single return finds ordinary untracked target files and its source worktree directory, with otherwise valid target identity and no unapproved tracked state
+- **THEN** it freezes every file and the exact source directory identity, includes automatic target commit and local exclusions in the audit plan, revalidates before writes, prepares the target and freezes its clean post-preparation HEAD before rebase
 
-#### Scenario: Ordinary proposal tasks are incomplete
-- **WHEN** at least one unchecked task line lacks the exact `[post-merge-verification]` tag
-- **THEN** the preflight lists it, `TASK_CLEANUP_POLICY_PASSED=false`, and the source worktree and branch are preserved after any completed merge
+#### Scenario: Untracked source directory is a registered linked worktree
+- **WHEN** the untracked target directory is the exact registered canonical source
+- **THEN** return records a precise local Git exclude and MUST NOT stage a gitlink, copy source contents, or create an empty target commit
+
+#### Scenario: Target has unapproved tracked changes
+- **WHEN** single return finds staged or unstaged tracked changes without separate explicit authorization, or unreadable state
+- **THEN** it stops without staging, committing, stashing, resetting, or switching the target
+
+#### Scenario: Explicit invocation returns an incomplete proposal
+- **WHEN** the human explicitly invokes single return and valid unchecked task lines lack the exact `[post-merge-verification]` tag
+- **THEN** preflight lists them, ALLOW_INCOMPLETE_RETURN=true and TASK_CLEANUP_POLICY_PASSED=true, merge and cleanup may proceed after every other gate passes, and tasks remain unchecked in the target with incomplete / non-archivable proposal status
+
+#### Scenario: Ordinary incomplete tasks lack explicit invocation evidence
+- **WHEN** ordinary unchecked tasks remain and no explicit single-return invocation is established
+- **THEN** the preflight lists them, TASK_CLEANUP_POLICY_PASSED=false, and source cleanup is blocked
 
 #### Scenario: Only deferred post-merge tasks remain
 - **WHEN** every unchecked task line contains the exact `[post-merge-verification]` tag and every structural merge and cleanup gate passes
@@ -401,7 +413,7 @@ The workflow SHALL preserve the source until the complete `CLEANUP_READY` gate p
 - **THEN** that child worktree and branch are preserved, the failure is reported with exact hashes, and no forced deletion or automatic merge retry occurs
 
 ### Requirement: Target-aware reporting and cleanup
-All three skills SHALL report the preflight-selected or interactively confirmed target branch/worktree, immutable target and source snapshots, canonical proposal/branch/path mapping, artifact manifest result, merge result, every cleanup gate, and preserved recovery objects. Invocation syntax or Runtime activation policy MUST NOT be reported as authorization evidence. Cleanup MUST use ordinary explicit Git commands from verified target CWD only after the applicable complete gate succeeds; platform convenience tools MUST NOT weaken or obscure these conditions.
+All three skills SHALL report the preflight-selected or interactively confirmed target branch/worktree, immutable target and source snapshots, canonical proposal/branch/path mapping, artifact manifest result, merge result, every cleanup gate, and preserved recovery objects. Runtime activation policy MUST NOT be reported as authorization evidence. Explicit human action intent may establish the documented single-return incomplete-task permission; a skill name in a read-only request does not. Cleanup MUST use ordinary explicit Git commands from verified target CWD only after the applicable complete gate succeeds; platform convenience tools MUST NOT weaken or obscure these conditions.
 
 #### Scenario: Successful creation report
 - **WHEN** a canonical source worktree is created and verified from a frozen hash

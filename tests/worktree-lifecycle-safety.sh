@@ -228,6 +228,11 @@ require_occurrences "$RETURN_SKILL" 'WRITE_AUTHORIZATION_GATE=open' 1 'worktree 
 forbid_text "$NEW_SKILL" 'git -C <PRIMARY_WORKTREE_DIR> checkout <TARGET_BRANCH>' 'single-create never switches the primary worktree'
 forbid_text "$NEW_SKILL" 'git branch -D' 'single-create never recommends forced branch deletion'
 
+require_text "$RETURN_SKILL" 'TARGET_AUTO_COMMIT_PATHS' 'return freezes ordinary untracked target files for automatic preparation commit'
+require_text "$RETURN_SKILL" 'TARGET_LOCAL_EXCLUDES' 'return treats registered linked worktrees as local exclusions, not gitlinks'
+require_text "$RETURN_SKILL" 'TARGET_INPUT_HEAD' 'return preserves the pre-preparation target baseline'
+require_text "$RETURN_SKILL" 'EXPLICIT_RETURN_REQUEST' 'return records explicit invocation separately from target inference'
+require_text "$RETURN_SKILL" 'ALLOW_INCOMPLETE_RETURN' 'explicit return permits incomplete tasks without false completion'
 require_text "$RETURN_SKILL" 'POST_REBASE_SOURCE_HEAD' 'return freezes the post-rebase source head'
 require_text "$RETURN_SKILL" 'git merge <POST_REBASE_SOURCE_HEAD>' 'return merges the frozen commit'
 require_text "$RETURN_SKILL" 'CLEANUP_READY' 'return exposes the complete cleanup gate'

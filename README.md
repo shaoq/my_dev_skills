@@ -472,20 +472,20 @@ python3 -m unittest tests/test_architecture_design_workflow_runner.py
 **核心机制**:
 - 目标分支按"显式 `--target` → 主工作树当前分支 → `origin/HEAD` 本地同名分支 → `main`/`master`/`trunk`"选择
 - 只接受规范来源映射：当前 branch 必须是 `worktree-<proposal>`，当前 path 必须是 `.claude/worktrees/<proposal>`；返回流程只精确移除一个 `worktree-` 前缀反解 proposal
-- 验证来源≠目标，目标已经由注册且 clean 的 worktree 持有；不会 checkout/switch 或自动提交其他 worktree
+- 验证来源≠目标，目标已经由注册 worktree 持有；普通未跟踪文件先按冻结清单自动提交，merge 前必须 clean；不会 checkout/switch，也不自动带入未授权 tracked 改动
 - 明确 return 请求使用显式 `--target` + clean source 时选择 deterministic path：展示完整计划，独立复检稳定后不请求第二次确认
 - inferred target 或 dirty source 时选择 interactive path：展示目标来源、全部 pending 文件、commit/merge/cleanup 计划并等待一次明确确认
 - 两个路径都使用不可覆盖的 `PREFLIGHT_SNAPSHOT` 与独立 `REVALIDATION_SNAPSHOT`；deterministic 漂移或冲突要求 fresh invocation，不能偷偷转为 interactive
 - 在来源 worktree rebase 到授权并冻结的 target hash，随后冻结 `POST_REBASE_SOURCE_HEAD`；进入目标前重新验证 source/target 注册、branch、HEAD/ref 和 clean 状态
 - 目标只执行一次 `git merge <POST_REBASE_SOURCE_HEAD>`，并记录 post-merge target hash
-- 将未勾选任务分为普通任务与同一行带精确 `[post-merge-verification]` 标签的延期任务；普通任务阻止 cleanup，只有延期任务时允许在其他安全门通过后清理
-- 延期任务由用户后续在 target worktree 执行；Skill 不执行、不勾选、不 stage、不 commit，并报告 proposal 仍为 incomplete / non-archivable
+- 将未勾选任务分为普通任务与同一行带精确 `[post-merge-verification]` 标签的延期任务；明确调用本技能时普通和延期任务均不阻止 merge + cleanup，不要求补延期标签；无明确调用证据时普通任务仍阻止 cleanup
+- 未完成任务保留原 checkbox，由用户后续在 target worktree 执行；Skill 不补勾、不自动改标签、不归档，并报告 proposal 仍为 incomplete / non-archivable
 - 显式计算 `CLEANUP_READY`：目标真实 CWD、来源规范映射与 clean、delivery commits、source HEAD/ref 冻结、merge 成功、target ref/HEAD 一致、精确 containment、无 source-only commits和全部 post-merge 验证必须同时为 true
 - 只有 `CLEANUP_READY=true` 才执行普通 `git worktree remove` 和安全 `git branch -d`
 
 **注意事项**:
 - 必须在 worktree 内运行，否则报错
-- 目标工作树必须干净；来源 detached HEAD 或来源==目标时报错停止
+- 目标准备后必须干净；已注册来源 worktree 在目标中作为未跟踪目录时只写精确本机 Git exclude，不提交 gitlink；来源 detached HEAD 或来源==目标时报错停止
 - 普通未完成任务、延期任务清单、目标脏状态等风险并入同一 audit plan，不为单项风险追加确认
 - deterministic path 仅授权 clean source；interactive path 才能在完整 pending-file plan 获确认后提交来源改动
 - 未完成的 Rebase 无法解决时可 abort；成功 merge 后验证失败不自动 reset/revert
