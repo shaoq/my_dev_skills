@@ -208,6 +208,7 @@ Step 5: 归档
 | Skill 名称 | 调用方式 | 用途 | 参数 |
 |------------|---------|------|------|
 | **architecture-design-workflow** | Claude Code: `/architecture-design-workflow`<br>Codex: `$architecture-design-workflow` | 受控架构研究、设计、评审、发布与研发交接 | 架构需求或当前 `ARCH-*` 状态 |
+| **multica-architecture-approval-adapter** | Claude Code: `/multica-architecture-approval-adapter`<br>Codex: `$multica-architecture-approval-adapter` | 把 current `ARCH-APPROVAL-PACKET` 投影到既有 Multica Issue 并承接人工批准 | 已兼容 packet + 既有 workspace/Issue |
 | **parall-new-proposal** | `/parall-new-proposal` | 并行提案拆分 | 需求描述文本 |
 | **openspec-review-change** | Claude Code: `/openspec-review-change`<br>Codex: `$openspec-review-change` | 实施前只读提案审查 | `[change-name] [--openspec-root <repo-relative-path>]` |
 | **parall-new-worktree-apply** | `/parall-new-worktree-apply` | 并行实施多个 changes | `[--target <target-branch>]` |
@@ -352,6 +353,11 @@ bash tests/architecture-design-workflow-safety.sh
 bash tests/architecture-design-workflow-safety.sh --results-dir tests/evidence/architecture-design-workflow --runtime codex
 bash tests/architecture-design-workflow-safety.sh --results-dir tests/evidence/architecture-design-workflow --runtime claude
 python3 -m unittest tests/test_architecture_design_workflow_runner.py
+python3 -m unittest tests/test_actionable_architecture_blocker_contract.py
+python3 -m unittest tests/test_architecture_execution_continuation_contract.py
+python3 -m unittest tests/test_architecture_owner_manual_packet_contract.py
+python3 -m unittest tests/test_simplified_architecture_deliverables_contract.py
+python3 -m unittest tests/test_multica_architecture_approval_adapter_contract.py
 ```
 
 上述 core contract 使用同一仓库源、Markdown artifacts 和 portable evidence，可在没有 Multica adapter 的 Claude Code/Codex 环境通过 shared local files 独立运行；不会要求强制 renderer、附件或评论字段。
@@ -587,6 +593,12 @@ my_dev_skills/
 │   ├── agents/openai.yaml
 │   ├── references/
 │   └── templates/
+├── multica-architecture-approval-adapter/
+│   ├── SKILL.md
+│   ├── agents/openai.yaml
+│   ├── deployment-profiles/      # 可复用 Team/Agent 配置源（不含凭据）
+│   ├── references/
+│   └── templates/
 ├── parall-new-proposal/SKILL.md
 ├── openspec-review-change/
 │   ├── SKILL.md
@@ -597,12 +609,23 @@ my_dev_skills/
 ├── merge-worktree-return/SKILL.md
 ├── check-changes-completed/SKILL.md
 ├── verify-impl-consistency/SKILL.md
+├── openspec/                     # OpenSpec change/spec 工作区（本仓库自身的变更管理）
+├── docs/                         # 开发计划与设计记录（docs/superpowers/plans/）
 ├── tests/
-│   ├── architecture-design-workflow-safety.sh
+│   ├── architecture-design-workflow-safety.sh   # 架构工作流安全测试（支持 --runtime claude/codex）
+│   ├── target-aware-verification-safety.sh      # target-aware 校验安全测试
+│   ├── worktree-lifecycle-safety.sh             # worktree 生命周期安全测试
 │   ├── test_architecture_design_workflow_runner.py
-│   ├── fixtures/architecture-design-workflow/
-│   └── evidence/architecture-design-workflow/
-├── setup-skills-env.py          # 环境配置脚本
+│   ├── test_actionable_architecture_blocker_contract.py
+│   ├── test_architecture_execution_continuation_contract.py
+│   ├── test_architecture_owner_manual_packet_contract.py
+│   ├── test_simplified_architecture_deliverables_contract.py
+│   ├── test_multica_architecture_approval_adapter_contract.py
+│   ├── test_setup_skills_env.py
+│   ├── fixtures/                 # 测试用例与 schema
+│   └── evidence/                 # 安全测试运行证据
+├── agent-notify-runtime.py       # Claude/Codex 通知运行时（iTerm2 OSC 9 + tmux passthrough）
+├── setup-skills-env.py           # 环境配置脚本（双端符号链接 + 权限合并）
 └── setup-iterm2-claude-notify.py # iTerm2 通知配置
 ```
 
